@@ -1,0 +1,32 @@
+# FilaMama Configuration
+
+server:
+  host: "0.0.0.0"
+  port: 8002
+
+# Root directory for file browsing
+root_path: "/home/flatstone"
+
+# Thumbnail settings
+thumbnails:
+  enabled: true
+  cache_dir: "data/thumbnails"
+  sizes:
+    thumb: 256
+    large: 1080
+  quality: 85
+
+# Upload settings
+upload:
+  max_size_mb: 10240  # 10GB
+  chunk_size_mb: 10
+
+# File type icons mapping
+file_types:
+  image: ["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "ico", "tiff"]
+  video: ["mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v"]
+  audio: ["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "opus"]
+  document: ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods"]
+  code: ["py", "js", "ts", "tsx", "jsx", "html", "css", "json", "yaml", "yml", "md", "sh", "go", "rs", "java", "c", "cpp", "h"]
+  archive: ["zip", "tar", "gz", "bz2", "xz", "7z", "rar"]
+  text: ["txt", "log", "csv", "ini", "cfg", "conf"]

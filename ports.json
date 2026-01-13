@@ -1,0 +1,10 @@
+{
+  "frontend": {
+    "port": 5175,
+    "description": "Vite dev server for React frontend"
+  },
+  "backend": {
+    "port": 8002,
+    "description": "FastAPI backend server"
+  }
+}
