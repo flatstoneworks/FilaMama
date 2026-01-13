@@ -123,9 +123,9 @@ npm run dev
 
 ## Access
 
-- **Frontend:** http://spark.local:5175
-- **Backend API:** http://spark.local:8002
-- **API Docs:** http://spark.local:8002/docs
+- **Frontend:** http://spark.local:5100
+- **Backend API:** http://spark.local:5101
+- **API Docs:** http://spark.local:5101/docs
 
 ## Configuration
 
@@ -168,8 +168,8 @@ app:
 
 | Service | Port |
 |---------|------|
-| Frontend (Vite) | 5175 |
-| Backend (FastAPI) | 8002 |
+| Frontend (Vite) | 5100 |
+| Backend (FastAPI) | 5101 |
 
 ## Development
 
