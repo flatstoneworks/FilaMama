@@ -1,5 +1,6 @@
 import { FileIcon, isPreviewable } from './FileIcon'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen } from 'lucide-react'
 import type { FileInfo } from '@/api/client'
 import { cn } from '@/lib/utils'
@@ -47,17 +48,36 @@ export function FileList({
   onPreview,
   onDownload,
 }: FileListProps) {
+  const isSelected = (file: FileInfo) => selectedFiles.has(file.path)
+
   const getSelectedFiles = (file: FileInfo): FileInfo[] => {
-    if (selectedFiles.has(file.name)) {
-      return files.filter((f) => selectedFiles.has(f.name))
+    if (isSelected(file)) {
+      return files.filter((f) => selectedFiles.has(f.path))
     }
     return [file]
+  }
+
+  const handleClick = (file: FileInfo) => {
+    // Single click opens the file/folder
+    onOpen(file)
+  }
+
+  const handleCheckboxClick = (file: FileInfo, e: React.MouseEvent) => {
+    e.stopPropagation()
+    // Simulate ctrl+click for toggle behavior
+    const syntheticEvent = {
+      ...e,
+      ctrlKey: true,
+      metaKey: true,
+    } as React.MouseEvent
+    onSelect(file, syntheticEvent)
   }
 
   return (
     <div className="flex flex-col">
       {/* Header */}
-      <div className="grid grid-cols-[1fr_100px_150px] gap-4 px-4 py-2 text-sm font-medium text-muted-foreground border-b bg-muted/30">
+      <div className="grid grid-cols-[auto_1fr_100px_150px] gap-4 px-4 py-2 text-sm font-medium text-muted-foreground border-b bg-muted/30">
+        <div className="w-5" /> {/* Checkbox column */}
         <div>Name</div>
         <div className="text-right">Size</div>
         <div>Modified</div>
@@ -66,17 +86,30 @@ export function FileList({
       {/* File list */}
       <div className="flex flex-col">
         {files.map((file) => (
-          <ContextMenu key={file.name}>
+          <ContextMenu key={file.path}>
             <ContextMenuTrigger>
               <div
                 className={cn(
-                  'grid grid-cols-[1fr_100px_150px] gap-4 px-4 py-2 text-sm cursor-pointer transition-colors',
+                  'group grid grid-cols-[auto_1fr_100px_150px] gap-4 px-4 py-2 text-sm cursor-pointer transition-colors',
                   'hover:bg-accent/50',
-                  selectedFiles.has(file.name) && 'bg-accent'
+                  isSelected(file) && 'bg-accent'
                 )}
-                onClick={(e) => onSelect(file, e)}
-                onDoubleClick={() => onOpen(file)}
+                onClick={() => handleClick(file)}
               >
+                {/* Checkbox */}
+                <div
+                  className={cn(
+                    'flex items-center transition-opacity',
+                    isSelected(file) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  )}
+                  onClick={(e) => handleCheckboxClick(file, e)}
+                >
+                  <Checkbox
+                    checked={isSelected(file)}
+                    className="h-4 w-4"
+                  />
+                </div>
+
                 <div className="flex items-center gap-3 min-w-0">
                   {file.thumbnail_url ? (
                     <img

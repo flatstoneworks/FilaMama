@@ -1,8 +1,10 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type FileInfo } from '@/api/client'
 import { useFileSelection } from '@/hooks/useFileSelection'
-import { Breadcrumbs } from '@/components/Breadcrumbs'
+import { Header } from '@/components/Header'
+import { Sidebar, contentTypes } from '@/components/Sidebar'
 import { Toolbar, type ViewMode } from '@/components/Toolbar'
 import { FileGrid } from '@/components/FileGrid'
 import { FileList } from '@/components/FileList'
@@ -25,14 +27,22 @@ interface ClipboardState {
 export function FilesPage() {
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  // Derive currentPath from URL: /browse/home/user → /home/user
+  const currentPath = useMemo(() => {
+    const path = location.pathname.replace(/^\/browse/, '') || '/'
+    return path === '' ? '/' : path
+  }, [location.pathname])
 
   // State
-  const [currentPath, setCurrentPath] = useState('/')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [gridSize, setGridSize] = useState(120)
   const [searchQuery, setSearchQuery] = useState('')
   const [clipboard, setClipboard] = useState<ClipboardState | null>(null)
   const [uploads, setUploads] = useState<UploadItem[]>([])
+  const [activeContentType, setActiveContentType] = useState<string | null>(null)
 
   // Dialogs
   const [renameFile, setRenameFile] = useState<FileInfo | null>(null)
@@ -48,10 +58,29 @@ export function FilesPage() {
 
   const files = listing?.files || []
 
-  // Filter by search
-  const filteredFiles = searchQuery
-    ? files.filter((f) => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : files
+  // Filter by content type and search
+  const filteredFiles = useMemo(() => {
+    let result = files
+
+    // Filter by content type
+    if (activeContentType) {
+      const typeConfig = contentTypes.find(t => t.type === activeContentType)
+      if (typeConfig) {
+        result = result.filter(f => {
+          if (f.is_directory) return false
+          const ext = '.' + f.name.split('.').pop()?.toLowerCase()
+          return typeConfig.extensions.includes(ext)
+        })
+      }
+    }
+
+    // Filter by search
+    if (searchQuery) {
+      result = result.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    }
+
+    return result
+  }, [files, activeContentType, searchQuery])
 
   // Selection
   const { selectedFiles, selectFile, clearSelection } = useFileSelection(filteredFiles)
@@ -126,7 +155,9 @@ export function FilesPage() {
 
   // Handlers
   const handleNavigate = (path: string) => {
-    setCurrentPath(path)
+    // Convert filesystem path to URL: /home/user → /browse/home/user
+    const urlPath = path === '/' ? '/browse' : `/browse${path}`
+    navigate(urlPath)
     clearSelection()
     setSearchQuery('')
   }
@@ -211,116 +242,136 @@ export function FilesPage() {
     setUploads([])
   }
 
-  const selectedFilesList = files.filter((f) => selectedFiles.has(f.name))
-
-  if (error) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-lg font-semibold text-destructive">Failed to load files</h2>
-          <p className="text-muted-foreground mt-1">Please check if the backend is running</p>
-        </div>
-      </div>
-    )
-  }
+  const selectedFilesList = files.filter((f) => selectedFiles.has(f.path))
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        className="hidden"
-        onChange={(e) => e.target.files && handleUpload(e.target.files)}
-      />
-
-      {/* Breadcrumbs */}
-      <div className="border-b px-2">
-        <Breadcrumbs path={currentPath} onNavigate={handleNavigate} />
-      </div>
-
-      {/* Toolbar */}
-      <Toolbar
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        gridSize={gridSize}
-        onGridSizeChange={setGridSize}
-        selectedCount={selectedFiles.size}
-        hasClipboard={!!clipboard}
-        onNewFolder={() => setShowNewFolder(true)}
-        onUpload={() => fileInputRef.current?.click()}
-        onDelete={() => setDeleteFiles(selectedFilesList)}
-        onCopy={() => handleCopy(selectedFilesList)}
-        onCut={() => handleCut(selectedFilesList)}
-        onPaste={() => pasteMutation.mutate()}
-        onRefresh={() => queryClient.invalidateQueries({ queryKey: ['files', currentPath] })}
+    <div className="h-screen flex flex-col bg-background">
+      {/* Header with breadcrumbs and search */}
+      <Header
+        path={currentPath}
+        onNavigate={handleNavigate}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
       />
 
-      {/* File list */}
-      <UploadDropzone onUpload={handleUpload}>
-        {isLoading ? (
-          <div className="flex-1 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : filteredFiles.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center text-muted-foreground">
-              {searchQuery ? (
-                <>
-                  <p className="text-lg">No matching files</p>
-                  <p className="text-sm mt-1">Try a different search term</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-lg">This folder is empty</p>
-                  <p className="text-sm mt-1">Drop files here or click upload</p>
-                </>
-              )}
-            </div>
-          </div>
-        ) : (
-          <ScrollArea className="flex-1">
-            {viewMode === 'grid' ? (
-              <FileGrid
-                files={filteredFiles}
-                selectedFiles={selectedFiles}
-                gridSize={gridSize}
-                onSelect={selectFile}
-                onOpen={handleOpen}
-                onRename={setRenameFile}
-                onDelete={(files) => setDeleteFiles(files)}
-                onCopy={handleCopy}
-                onCut={handleCut}
-                onPreview={setPreviewFile}
-                onDownload={handleDownload}
-              />
-            ) : (
-              <FileList
-                files={filteredFiles}
-                selectedFiles={selectedFiles}
-                onSelect={selectFile}
-                onOpen={handleOpen}
-                onRename={setRenameFile}
-                onDelete={(files) => setDeleteFiles(files)}
-                onCopy={handleCopy}
-                onCut={handleCut}
-                onPreview={setPreviewFile}
-                onDownload={handleDownload}
-              />
-            )}
-          </ScrollArea>
-        )}
-      </UploadDropzone>
+      {/* Main area: sidebar + content */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <Sidebar
+          currentPath={currentPath}
+          onNavigate={handleNavigate}
+          activeContentType={activeContentType}
+          onContentTypeChange={setActiveContentType}
+        />
 
-      {/* Upload progress */}
-      <UploadProgress
-        uploads={uploads}
-        onDismiss={dismissUpload}
-        onDismissAll={dismissAllUploads}
-      />
+        {/* Main content */}
+        <main className="flex-1 flex flex-col overflow-hidden">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => e.target.files && handleUpload(e.target.files)}
+          />
+
+          {/* Toolbar */}
+          <Toolbar
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            gridSize={gridSize}
+            onGridSizeChange={setGridSize}
+            itemCount={filteredFiles.length}
+            selectedCount={selectedFiles.size}
+            hasClipboard={!!clipboard}
+            onNewFolder={() => setShowNewFolder(true)}
+            onUpload={() => fileInputRef.current?.click()}
+            onDelete={() => setDeleteFiles(selectedFilesList)}
+            onCopy={() => handleCopy(selectedFilesList)}
+            onCut={() => handleCut(selectedFilesList)}
+            onPaste={() => pasteMutation.mutate()}
+            onRefresh={() => queryClient.invalidateQueries({ queryKey: ['files', currentPath] })}
+          />
+
+          {/* Error state */}
+          {error ? (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <h2 className="text-lg font-semibold text-destructive">Failed to load files</h2>
+                <p className="text-muted-foreground mt-1">Please check if the backend is running</p>
+              </div>
+            </div>
+          ) : (
+            /* File list */
+            <UploadDropzone onUpload={handleUpload}>
+              {isLoading ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : filteredFiles.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center text-muted-foreground">
+                    {activeContentType ? (
+                      <>
+                        <p className="text-lg">No {activeContentType} in this folder</p>
+                        <p className="text-sm mt-1">Try navigating to a different folder</p>
+                      </>
+                    ) : searchQuery ? (
+                      <>
+                        <p className="text-lg">No matching files</p>
+                        <p className="text-sm mt-1">Try a different search term</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-lg">This folder is empty</p>
+                        <p className="text-sm mt-1">Drop files here or click upload</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <ScrollArea className="flex-1">
+                  {viewMode === 'grid' ? (
+                    <FileGrid
+                      files={filteredFiles}
+                      selectedFiles={selectedFiles}
+                      gridSize={gridSize}
+                      onSelect={selectFile}
+                      onOpen={handleOpen}
+                      onRename={setRenameFile}
+                      onDelete={(files) => setDeleteFiles(files)}
+                      onCopy={handleCopy}
+                      onCut={handleCut}
+                      onPreview={setPreviewFile}
+                      onDownload={handleDownload}
+                    />
+                  ) : (
+                    <FileList
+                      files={filteredFiles}
+                      selectedFiles={selectedFiles}
+                      onSelect={selectFile}
+                      onOpen={handleOpen}
+                      onRename={setRenameFile}
+                      onDelete={(files) => setDeleteFiles(files)}
+                      onCopy={handleCopy}
+                      onCut={handleCut}
+                      onPreview={setPreviewFile}
+                      onDownload={handleDownload}
+                    />
+                  )}
+                </ScrollArea>
+              )}
+            </UploadDropzone>
+          )}
+
+          {/* Upload progress */}
+          <UploadProgress
+            uploads={uploads}
+            onDismiss={dismissUpload}
+            onDismissAll={dismissAllUploads}
+          />
+        </main>
+      </div>
 
       {/* Dialogs */}
       <RenameDialog

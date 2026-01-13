@@ -1,6 +1,5 @@
-import { Grid, List, Upload, FolderPlus, Trash2, Copy, Scissors, Clipboard, RefreshCw, Search, X } from 'lucide-react'
+import { Grid, List, Upload, FolderPlus, Trash2, Copy, Scissors, Clipboard, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -12,6 +11,7 @@ interface ToolbarProps {
   onViewModeChange: (mode: ViewMode) => void
   gridSize: number
   onGridSizeChange: (size: number) => void
+  itemCount: number
   selectedCount: number
   hasClipboard: boolean
   onNewFolder: () => void
@@ -21,8 +21,6 @@ interface ToolbarProps {
   onCut: () => void
   onPaste: () => void
   onRefresh: () => void
-  searchQuery: string
-  onSearchChange: (query: string) => void
 }
 
 export function Toolbar({
@@ -30,6 +28,7 @@ export function Toolbar({
   onViewModeChange,
   gridSize,
   onGridSizeChange,
+  itemCount,
   selectedCount,
   hasClipboard,
   onNewFolder,
@@ -39,56 +38,36 @@ export function Toolbar({
   onCut,
   onPaste,
   onRefresh,
-  searchQuery,
-  onSearchChange,
 }: ToolbarProps) {
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center gap-2 p-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        {/* Left actions */}
-        <div className="flex items-center gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={onNewFolder}>
-                <FolderPlus className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>New Folder</TooltipContent>
-          </Tooltip>
+      <div className="flex items-center gap-2 px-3 py-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        {/* Left side: item count, refresh, selection info */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">
+            {itemCount} {itemCount === 1 ? 'item' : 'items'}
+          </span>
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={onUpload}>
-                <Upload className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Upload Files</TooltipContent>
-          </Tooltip>
-
-          <div className="w-px h-6 bg-border mx-1" />
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={onRefresh}>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onRefresh}>
                 <RefreshCw className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Refresh</TooltipContent>
           </Tooltip>
-        </div>
 
-        {/* Selection actions */}
-        {selectedCount > 0 && (
-          <>
-            <div className="w-px h-6 bg-border mx-1" />
-            <div className="flex items-center gap-1">
-              <span className="text-sm text-muted-foreground px-2">
+          {/* Selection actions */}
+          {selectedCount > 0 && (
+            <>
+              <div className="w-px h-5 bg-border" />
+              <span className="text-sm font-medium">
                 {selectedCount} selected
               </span>
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={onCopy}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onCopy}>
                     <Copy className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
@@ -97,7 +76,7 @@ export function Toolbar({
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={onCut}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onCut}>
                     <Scissors className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
@@ -106,54 +85,45 @@ export function Toolbar({
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={onDelete}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onDelete}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Delete</TooltipContent>
               </Tooltip>
-            </div>
-          </>
-        )}
+            </>
+          )}
 
-        {/* Paste action */}
-        {hasClipboard && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={onPaste}>
-                <Clipboard className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Paste</TooltipContent>
-          </Tooltip>
-        )}
+          {/* Paste action */}
+          {hasClipboard && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onPaste}>
+                  <Clipboard className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Paste</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
 
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Search */}
-        <div className="relative w-64">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search files..."
-            className="pl-8 pr-8 h-8"
-          />
-          {searchQuery && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-0 top-0 h-8 w-8"
-              onClick={() => onSearchChange('')}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          )}
-        </div>
-
-        {/* View controls */}
+        {/* Right side: slider, view toggle, add folder, upload */}
         <div className="flex items-center gap-2">
+          {viewMode === 'grid' && (
+            <div className="w-24">
+              <Slider
+                value={[gridSize]}
+                onValueChange={([v]) => onGridSizeChange(v)}
+                min={80}
+                max={200}
+                step={10}
+              />
+            </div>
+          )}
+
           <ToggleGroup
             type="single"
             value={viewMode}
@@ -167,17 +137,25 @@ export function Toolbar({
             </ToggleGroupItem>
           </ToggleGroup>
 
-          {viewMode === 'grid' && (
-            <div className="w-24">
-              <Slider
-                value={[gridSize]}
-                onValueChange={([v]) => onGridSizeChange(v)}
-                min={80}
-                max={200}
-                step={10}
-              />
-            </div>
-          )}
+          <div className="w-px h-5 bg-border" />
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onNewFolder}>
+                <FolderPlus className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>New Folder</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onUpload}>
+                <Upload className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Upload Files</TooltipContent>
+          </Tooltip>
         </div>
       </div>
     </TooltipProvider>

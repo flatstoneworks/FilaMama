@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { FileIcon, isPreviewable } from './FileIcon'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen } from 'lucide-react'
 import type { FileInfo } from '@/api/client'
 import { cn } from '@/lib/utils'
@@ -33,26 +34,28 @@ export function FileGrid({
   onDownload,
 }: FileGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [lastClickTime, setLastClickTime] = useState(0)
-  const [lastClickedFile, setLastClickedFile] = useState<string | null>(null)
 
-  const handleClick = (file: FileInfo, e: React.MouseEvent) => {
-    const now = Date.now()
-    const isDoubleClick = lastClickedFile === file.name && now - lastClickTime < 300
-
-    if (isDoubleClick) {
-      onOpen(file)
-    } else {
-      onSelect(file, e)
-    }
-
-    setLastClickTime(now)
-    setLastClickedFile(file.name)
+  const handleClick = (file: FileInfo) => {
+    // Single click opens the file/folder
+    onOpen(file)
   }
 
+  const handleCheckboxClick = (file: FileInfo, e: React.MouseEvent) => {
+    e.stopPropagation()
+    // Simulate ctrl+click for toggle behavior
+    const syntheticEvent = {
+      ...e,
+      ctrlKey: true,
+      metaKey: true,
+    } as React.MouseEvent
+    onSelect(file, syntheticEvent)
+  }
+
+  const isSelected = (file: FileInfo) => selectedFiles.has(file.path)
+
   const getSelectedFiles = (file: FileInfo): FileInfo[] => {
-    if (selectedFiles.has(file.name)) {
-      return files.filter((f) => selectedFiles.has(f.name))
+    if (isSelected(file)) {
+      return files.filter((f) => selectedFiles.has(f.path))
     }
     return [file]
   }
@@ -66,16 +69,30 @@ export function FileGrid({
       }}
     >
       {files.map((file) => (
-        <ContextMenu key={file.name}>
+        <ContextMenu key={file.path}>
           <ContextMenuTrigger>
             <div
               className={cn(
-                'flex flex-col items-center p-2 rounded-lg cursor-pointer transition-colors',
+                'group relative flex flex-col items-center p-2 rounded-lg cursor-pointer transition-colors',
                 'hover:bg-accent/50',
-                selectedFiles.has(file.name) && 'bg-accent ring-2 ring-primary'
+                isSelected(file) && 'bg-accent ring-2 ring-primary'
               )}
-              onClick={(e) => handleClick(file, e)}
+              onClick={() => handleClick(file)}
             >
+              {/* Checkbox - visible on hover or when selected */}
+              <div
+                className={cn(
+                  'absolute top-1 left-1 z-10 transition-opacity',
+                  isSelected(file) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                )}
+                onClick={(e) => handleCheckboxClick(file, e)}
+              >
+                <Checkbox
+                  checked={isSelected(file)}
+                  className="h-5 w-5 bg-background/80 backdrop-blur"
+                />
+              </div>
+
               {file.thumbnail_url ? (
                 <div
                   className="rounded-md overflow-hidden bg-muted flex items-center justify-center"
