@@ -100,11 +100,16 @@ async function move(source: string, destination: string): Promise<void> {
 async function uploadFile(
   file: File,
   path: string,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  relativePath?: string
 ): Promise<void> {
   const formData = new FormData()
   formData.append('files', file)
   formData.append('path', path)
+  // Send relative path for folder uploads (e.g., "myfolder/subfolder/file.txt")
+  if (relativePath) {
+    formData.append('relative_paths', relativePath)
+  }
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()

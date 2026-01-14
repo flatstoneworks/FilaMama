@@ -13,12 +13,14 @@ export interface UploadItem {
 
 interface UploadProgressProps {
   uploads: UploadItem[]
+  isPreparing?: boolean
   onDismiss: (id: string) => void
   onDismissAll: () => void
 }
 
-export function UploadProgress({ uploads, onDismiss, onDismissAll }: UploadProgressProps) {
-  if (uploads.length === 0) return null
+export function UploadProgress({ uploads, isPreparing, onDismiss, onDismissAll }: UploadProgressProps) {
+  // Show panel if preparing or if there are uploads
+  if (!isPreparing && uploads.length === 0) return null
 
   const completedCount = uploads.filter((u) => u.status === 'completed').length
   const errorCount = uploads.filter((u) => u.status === 'error').length
@@ -29,7 +31,14 @@ export function UploadProgress({ uploads, onDismiss, onDismissAll }: UploadProgr
       {/* Header */}
       <div className="flex items-center justify-between p-3 border-b">
         <div className="flex items-center gap-2">
-          {inProgressCount > 0 ? (
+          {isPreparing ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm font-medium">
+                Scanning folders...
+              </span>
+            </>
+          ) : inProgressCount > 0 ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
               <span className="text-sm font-medium">

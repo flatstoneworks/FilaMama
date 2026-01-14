@@ -1,4 +1,4 @@
-import { Grid, List, Upload, FolderPlus, Trash2, Copy, Scissors, Clipboard, RefreshCw } from 'lucide-react'
+import { Grid, List, Upload, FolderPlus, FolderUp, Trash2, Copy, Scissors, Clipboard, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
@@ -16,6 +16,7 @@ interface ToolbarProps {
   hasClipboard: boolean
   onNewFolder: () => void
   onUpload: () => void
+  onUploadFolder: () => void
   onDelete: () => void
   onCopy: () => void
   onCut: () => void
@@ -33,6 +34,7 @@ export function Toolbar({
   hasClipboard,
   onNewFolder,
   onUpload,
+  onUploadFolder,
   onDelete,
   onCopy,
   onCut,
@@ -155,6 +157,15 @@ export function Toolbar({
               </Button>
             </TooltipTrigger>
             <TooltipContent>Upload Files</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onUploadFolder}>
+                <FolderUp className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Upload Folder</TooltipContent>
           </Tooltip>
         </div>
       </div>

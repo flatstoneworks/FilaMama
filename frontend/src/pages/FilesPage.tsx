@@ -27,6 +27,7 @@ interface ClipboardState {
 export function FilesPage() {
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -42,6 +43,7 @@ export function FilesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [clipboard, setClipboard] = useState<ClipboardState | null>(null)
   const [uploads, setUploads] = useState<UploadItem[]>([])
+  const [isPreparingUpload, setIsPreparingUpload] = useState(false)
   const [activeContentType, setActiveContentType] = useState<string | null>(null)
 
   // Dialogs
@@ -188,19 +190,27 @@ export function FilesPage() {
   }
 
   const handleUpload = useCallback(
-    async (fileList: FileList) => {
-      const newUploads: UploadItem[] = Array.from(fileList).map((file) => ({
+    async (fileList: FileList | File[]) => {
+      const filesArray = Array.isArray(fileList) ? fileList : Array.from(fileList)
+
+      // Show upload panel immediately with all files
+      const newUploads: UploadItem[] = filesArray.map((file) => ({
         id: Math.random().toString(36).slice(2),
-        name: file.name,
+        name: (file as any).customRelativePath || (file as any).webkitRelativePath || file.name,
         progress: 0,
         status: 'pending' as const,
       }))
 
+      // Add all files to the upload list immediately so user sees them
       setUploads((prev) => [...prev, ...newUploads])
+      setIsPreparingUpload(false)
 
-      for (let i = 0; i < fileList.length; i++) {
-        const file = fileList[i]
+      for (let i = 0; i < filesArray.length; i++) {
+        const file = filesArray[i]
         const uploadItem = newUploads[i]
+        // Get relative path for folder uploads (e.g., "folder/subfolder/file.txt")
+        // Check both customRelativePath (from drag-drop) and webkitRelativePath (from folder input)
+        const relativePath = (file as any).customRelativePath || (file as any).webkitRelativePath || ''
 
         try {
           setUploads((prev) =>
@@ -211,7 +221,7 @@ export function FilesPage() {
             setUploads((prev) =>
               prev.map((u) => (u.id === uploadItem.id ? { ...u, progress } : u))
             )
-          })
+          }, relativePath)
 
           setUploads((prev) =>
             prev.map((u) =>
@@ -240,6 +250,7 @@ export function FilesPage() {
 
   const dismissAllUploads = () => {
     setUploads([])
+    setIsPreparingUpload(false)
   }
 
   const selectedFilesList = files.filter((f) => selectedFiles.has(f.path))
@@ -274,6 +285,16 @@ export function FilesPage() {
             className="hidden"
             onChange={(e) => e.target.files && handleUpload(e.target.files)}
           />
+          {/* Hidden folder input */}
+          <input
+            ref={folderInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            // @ts-ignore - webkitdirectory is a non-standard attribute
+            webkitdirectory=""
+            onChange={(e) => e.target.files && handleUpload(e.target.files)}
+          />
 
           {/* Toolbar */}
           <Toolbar
@@ -286,6 +307,7 @@ export function FilesPage() {
             hasClipboard={!!clipboard}
             onNewFolder={() => setShowNewFolder(true)}
             onUpload={() => fileInputRef.current?.click()}
+            onUploadFolder={() => folderInputRef.current?.click()}
             onDelete={() => setDeleteFiles(selectedFilesList)}
             onCopy={() => handleCopy(selectedFilesList)}
             onCut={() => handleCut(selectedFilesList)}
@@ -303,7 +325,7 @@ export function FilesPage() {
             </div>
           ) : (
             /* File list */
-            <UploadDropzone onUpload={handleUpload}>
+            <UploadDropzone onUpload={handleUpload} onPreparing={setIsPreparingUpload}>
               {isLoading ? (
                 <div className="flex-1 flex items-center justify-center">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -367,6 +389,7 @@ export function FilesPage() {
           {/* Upload progress */}
           <UploadProgress
             uploads={uploads}
+            isPreparing={isPreparingUpload}
             onDismiss={dismissUpload}
             onDismissAll={dismissAllUploads}
           />

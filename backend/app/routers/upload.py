@@ -1,6 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from typing import List
+from typing import List, Optional
 import aiofiles
+from pathlib import Path
 
 from ..services.filesystem import FilesystemService
 
@@ -19,7 +20,9 @@ async def upload_files(
     files: List[UploadFile] = File(...),
     path: str = Form("/"),
     overwrite: bool = Form(False),
+    relative_paths: Optional[str] = Form(None),
 ):
+    print(f"[UPLOAD] path={path}, relative_paths={relative_paths}, files={[f.filename for f in files]}")
     try:
         target_dir = fs_service.get_absolute_path(path)
 
@@ -31,16 +34,29 @@ async def upload_files(
         uploaded = []
         errors = []
 
-        for file in files:
+        for i, file in enumerate(files):
             try:
-                file_path = target_dir / file.filename
+                # Check if we have a relative path for this file (folder upload)
+                # Since we upload one file at a time, relative_paths is a single string
+                rel_path = relative_paths if relative_paths and i == 0 else None
+                print(f"[UPLOAD] Processing file {i}: {file.filename}, rel_path={rel_path}")
+
+                if rel_path:
+                    # Folder upload: use the relative path to preserve structure
+                    file_path = target_dir / rel_path
+                    # Create parent directories if they don't exist
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                else:
+                    # Regular file upload
+                    file_path = target_dir / file.filename
 
                 if file_path.exists() and not overwrite:
                     base = file_path.stem
                     ext = file_path.suffix
+                    parent = file_path.parent
                     counter = 1
                     while file_path.exists():
-                        file_path = target_dir / f"{base}({counter}){ext}"
+                        file_path = parent / f"{base}({counter}){ext}"
                         counter += 1
 
                 async with aiofiles.open(file_path, 'wb') as f:
