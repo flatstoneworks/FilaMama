@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { FileIcon, isPreviewable } from './FileIcon'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -16,6 +17,7 @@ interface FileListProps {
   onCut: (files: FileInfo[]) => void
   onPreview: (file: FileInfo) => void
   onDownload: (file: FileInfo) => void
+  onMove?: (files: FileInfo[], targetFolder: FileInfo) => void
 }
 
 export function FileList({
@@ -29,10 +31,89 @@ export function FileList({
   onCut,
   onPreview,
   onDownload,
+  onMove,
 }: FileListProps) {
+  const [draggedFiles, setDraggedFiles] = useState<FileInfo[]>([])
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
+
   const handleClick = (file: FileInfo) => {
     // Single click opens the file/folder
     onOpen(file)
+  }
+
+  const handleDragStart = (e: React.DragEvent, file: FileInfo) => {
+    e.stopPropagation()
+
+    // If file is selected, drag all selected files; otherwise just this file
+    const filesToDrag = isFileSelected(file, selectedFiles)
+      ? files.filter(f => selectedFiles.has(f.path))
+      : [file]
+
+    setDraggedFiles(filesToDrag)
+
+    // Set drag data
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', JSON.stringify(filesToDrag.map(f => f.path)))
+  }
+
+  const handleDragEnd = () => {
+    setDraggedFiles([])
+    setDropTarget(null)
+  }
+
+  const handleDragOver = (e: React.DragEvent, file: FileInfo) => {
+    // Only handle internal drags (moving files), not external drags (uploading)
+    // External drags have files in dataTransfer.types
+    const isExternalDrag = e.dataTransfer.types.includes('Files')
+    const isInternalDrag = draggedFiles.length > 0
+
+    if (!isInternalDrag || isExternalDrag) {
+      // Let the event bubble up to UploadDropzone for external file uploads
+      return
+    }
+
+    // Only allow dropping on folders for internal file moves
+    if (file.is_directory) {
+      e.preventDefault()
+      e.stopPropagation()
+      e.dataTransfer.dropEffect = 'move'
+      setDropTarget(file.path)
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent, file: FileInfo) => {
+    e.stopPropagation()
+    if (dropTarget === file.path) {
+      setDropTarget(null)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent, targetFolder: FileInfo) => {
+    // Only handle internal drags (moving files), not external drags (uploading)
+    const isExternalDrag = e.dataTransfer.types.includes('Files')
+    const isInternalDrag = draggedFiles.length > 0
+
+    if (!isInternalDrag || isExternalDrag) {
+      // Let the event bubble up to UploadDropzone for external file uploads
+      return
+    }
+
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (!targetFolder.is_directory || !onMove) return
+
+    // Don't drop on itself
+    const isDroppingOnSelf = draggedFiles.some(f => f.path === targetFolder.path)
+    if (isDroppingOnSelf) {
+      setDropTarget(null)
+      setDraggedFiles([])
+      return
+    }
+
+    onMove(draggedFiles, targetFolder)
+    setDropTarget(null)
+    setDraggedFiles([])
   }
 
   return (
@@ -47,17 +128,29 @@ export function FileList({
 
       {/* File list */}
       <div className="flex flex-col">
-        {files.map((file) => (
-          <ContextMenu key={file.path}>
-            <ContextMenuTrigger>
-              <div
-                className={cn(
-                  'group grid grid-cols-[auto_1fr_100px_150px] gap-4 px-4 py-2 text-sm cursor-pointer transition-colors',
-                  'hover:bg-accent/50',
-                  isFileSelected(file, selectedFiles) && 'bg-accent'
-                )}
-                onClick={() => handleClick(file)}
-              >
+        {files.map((file) => {
+          const isDragging = draggedFiles.some(f => f.path === file.path)
+          const isDroppable = dropTarget === file.path && file.is_directory
+
+          return (
+            <ContextMenu key={file.path}>
+              <ContextMenuTrigger>
+                <div
+                  className={cn(
+                    'group grid grid-cols-[auto_1fr_100px_150px] gap-4 px-4 py-2 text-sm cursor-pointer transition-colors',
+                    'hover:bg-accent/50',
+                    isFileSelected(file, selectedFiles) && 'bg-accent',
+                    isDragging && 'opacity-50',
+                    isDroppable && 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950'
+                  )}
+                  onClick={() => handleClick(file)}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, file)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(e) => handleDragOver(e, file)}
+                  onDragLeave={(e) => handleDragLeave(e, file)}
+                  onDrop={(e) => handleDrop(e, file)}
+                >
                 {/* Checkbox */}
                 <div
                   className={cn(
@@ -137,7 +230,8 @@ export function FileList({
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

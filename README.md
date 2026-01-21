@@ -21,16 +21,32 @@ A fast, beautiful file manager web application built with React and FastAPI.
 
 ## Features
 
+### File Management
 - **Grid & List Views** - Toggle between views with adjustable thumbnail size slider
 - **Breadcrumb Navigation** - Click any path segment to navigate
-- **File Operations** - Copy, cut, paste, rename, delete, create folder
-- **Drag & Drop Upload** - Upload files by dragging onto the browser
+- **File Operations** - Copy, cut, paste, rename, delete, move, create folder
+- **Drag & Drop Upload** - Upload files/folders by dragging onto the browser
+- **Drag & Drop Moving** - Drag files/folders onto folders to move them
 - **Upload Progress** - Track multiple uploads with progress indicators
 - **Context Menu** - Right-click for quick actions
+- **Multi-Selection** - Click checkboxes or Ctrl/Cmd+Click to select multiple files
+
+### Preview & Viewing
 - **File Preview** - View images, videos, audio, PDFs, and text files
+- **PDF Viewer** - Custom PDF viewer with page navigation, zoom controls, and text selection
 - **Thumbnails** - Auto-generated thumbnails for images and videos
 - **Search** - Filter files by name
-- **Keyboard Navigation** - Arrow keys in preview modal
+- **Content Type Filters** - Quick filters for Photos, Videos, GIFs, PDFs, Audio
+
+### Keyboard Shortcuts
+- **Ctrl/Cmd + A** - Select all files
+- **Ctrl/Cmd + C/X/V** - Copy, cut, paste operations
+- **Delete** - Delete selected files
+- **Enter** - Open selected file/folder
+- **Escape** - Clear selection and search
+- **F2** - Rename selected file
+- **Backspace** - Navigate to parent directory
+- **Arrow Keys** - Navigate in preview modal
 
 ## Project Structure
 
@@ -233,6 +249,16 @@ npx tsc --noEmit
 cd frontend
 npm run build
 ```
+
+## Documentation
+
+- **[USAGE.md](USAGE.md)** - Comprehensive user guide with instructions for all features
+- **[DEVELOPER.md](DEVELOPER.md)** - Technical documentation for developers
+- **[URL_STRUCTURE.md](URL_STRUCTURE.md)** - Complete URL structure and state management guide
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history and release notes
+- **[CLAUDE.md](CLAUDE.md)** - Project memory and session notes for Claude Code
+- **[INSTALLATION.md](INSTALLATION.md)** - Detailed installation and deployment guide
+- **[PDF_VIEWER_GUIDE.md](PDF_VIEWER_GUIDE.md)** - PDF viewer implementation options
 
 ## License
 

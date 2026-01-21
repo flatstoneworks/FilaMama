@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useMemo } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type FileInfo } from '@/api/client'
 import { useFileSelection } from '@/hooks/useFileSelection'
@@ -31,6 +31,7 @@ export function FilesPage() {
   const folderInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   // Derive currentPath from URL: /browse/home/user → /home/user
   const currentPath = useMemo(() => {
@@ -38,20 +39,52 @@ export function FilesPage() {
     return path === '' ? '/' : path
   }, [location.pathname])
 
-  // State
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
-  const [gridSize, setGridSize] = useState(120)
-  const [searchQuery, setSearchQuery] = useState('')
+  // URL-backed state - read from URL parameters
+  const viewMode = (searchParams.get('view') as ViewMode) || 'grid'
+  const gridSize = parseInt(searchParams.get('size') || '120')
+  const searchQuery = searchParams.get('search') || ''
+  const activeContentType = searchParams.get('filter') || null
+  const previewFileName = searchParams.get('file') || null
+
+  // Helper to update URL parameters
+  const updateUrlParam = useCallback((key: string, value: string | null) => {
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev)
+      if (value === null || value === '') {
+        newParams.delete(key)
+      } else {
+        newParams.set(key, value)
+      }
+      return newParams
+    }, { replace: true })
+  }, [setSearchParams])
+
+  // Setters that update URL
+  const setViewMode = useCallback((mode: ViewMode) => {
+    updateUrlParam('view', mode === 'grid' ? null : mode)
+  }, [updateUrlParam])
+
+  const setGridSize = useCallback((size: number) => {
+    updateUrlParam('size', size === 120 ? null : size.toString())
+  }, [updateUrlParam])
+
+  const setSearchQuery = useCallback((query: string) => {
+    updateUrlParam('search', query)
+  }, [updateUrlParam])
+
+  const setActiveContentType = useCallback((type: string | null) => {
+    updateUrlParam('filter', type)
+  }, [updateUrlParam])
+
+  // Non-URL state (transient, doesn't need to be bookmarkable)
   const [clipboard, setClipboard] = useState<ClipboardState | null>(null)
   const [uploads, setUploads] = useState<UploadItem[]>([])
   const [isPreparingUpload, setIsPreparingUpload] = useState(false)
-  const [activeContentType, setActiveContentType] = useState<string | null>(null)
 
   // Dialogs
   const [renameFile, setRenameFile] = useState<FileInfo | null>(null)
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [deleteFiles, setDeleteFiles] = useState<FileInfo[]>([])
-  const [previewFile, setPreviewFile] = useState<FileInfo | null>(null)
 
   // Fetch files
   const { data: listing, isLoading, error } = useQuery({
@@ -60,6 +93,17 @@ export function FilesPage() {
   })
 
   const files = listing?.files || []
+
+  // Find preview file from URL parameter
+  const previewFile = useMemo(() => {
+    if (!previewFileName) return null
+    return files.find(f => f.name === previewFileName) || null
+  }, [previewFileName, files])
+
+  // Setter for preview file that updates URL
+  const setPreviewFile = useCallback((file: FileInfo | null) => {
+    updateUrlParam('file', file?.name || null)
+  }, [updateUrlParam])
 
   // Filter by content type and search
   const filteredFiles = useMemo(() => {
@@ -160,9 +204,18 @@ export function FilesPage() {
   const handleNavigate = (path: string) => {
     // Convert filesystem path to URL: /home/user → /browse/home/user
     const urlPath = path === '/' ? '/browse' : `/browse${path}`
-    navigate(urlPath)
+
+    // Preserve view settings but clear search/filter/preview
+    const newParams = new URLSearchParams()
+    const currentView = searchParams.get('view')
+    const currentSize = searchParams.get('size')
+
+    if (currentView) newParams.set('view', currentView)
+    if (currentSize) newParams.set('size', currentSize)
+
+    const fullUrl = newParams.toString() ? `${urlPath}?${newParams.toString()}` : urlPath
+    navigate(fullUrl)
     clearSelection()
-    setSearchQuery('')
   }
 
   const handleOpen = (file: FileInfo) => {
@@ -188,6 +241,22 @@ export function FilesPage() {
     link.href = `/api/files/download?path=${encodeURIComponent(joinPath(currentPath, file.name))}`
     link.download = file.name
     link.click()
+  }
+
+  const handleMove = async (filesToMove: FileInfo[], targetFolder: FileInfo) => {
+    try {
+      const targetPath = joinPath(currentPath, targetFolder.name)
+      for (const file of filesToMove) {
+        const sourcePath = joinPath(currentPath, file.name)
+        const destPath = joinPath(targetPath, file.name)
+        await api.move(sourcePath, destPath)
+      }
+      queryClient.invalidateQueries({ queryKey: ['files'] })
+      clearSelection()
+      toast({ title: `Moved ${filesToMove.length} item(s)` })
+    } catch (error) {
+      toast({ title: 'Failed to move files', variant: 'destructive' })
+    }
   }
 
   const handleUpload = useCallback(
@@ -255,6 +324,92 @@ export function FilesPage() {
   }
 
   const selectedFilesList = files.filter((f) => selectedFiles.has(f.path))
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input, textarea, or contenteditable element
+      const target = e.target as HTMLElement
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.contentEditable === 'true'
+      ) {
+        return
+      }
+
+      // Ctrl/Cmd + A: Select all
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault()
+        filteredFiles.forEach((file) => selectFile(file, { ctrlKey: true } as React.MouseEvent))
+      }
+
+      // Ctrl/Cmd + C: Copy
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedFilesList.length > 0) {
+        e.preventDefault()
+        handleCopy(selectedFilesList)
+      }
+
+      // Ctrl/Cmd + X: Cut
+      if ((e.ctrlKey || e.metaKey) && e.key === 'x' && selectedFilesList.length > 0) {
+        e.preventDefault()
+        handleCut(selectedFilesList)
+      }
+
+      // Ctrl/Cmd + V: Paste
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && clipboard) {
+        e.preventDefault()
+        pasteMutation.mutate()
+      }
+
+      // Delete: Delete selected files
+      if (e.key === 'Delete' && selectedFilesList.length > 0) {
+        e.preventDefault()
+        setDeleteFiles(selectedFilesList)
+      }
+
+      // Enter: Open selected file (if only one is selected)
+      if (e.key === 'Enter' && selectedFilesList.length === 1) {
+        e.preventDefault()
+        handleOpen(selectedFilesList[0])
+      }
+
+      // Escape: Clear selection
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        clearSelection()
+        setSearchQuery('')
+      }
+
+      // F2: Rename selected file (if only one is selected)
+      if (e.key === 'F2' && selectedFilesList.length === 1) {
+        e.preventDefault()
+        setRenameFile(selectedFilesList[0])
+      }
+
+      // Backspace: Navigate to parent directory
+      if (e.key === 'Backspace' && currentPath !== '/') {
+        e.preventDefault()
+        const parentPath = currentPath.split('/').slice(0, -1).join('/') || '/'
+        handleNavigate(parentPath)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    filteredFiles,
+    selectedFilesList,
+    clipboard,
+    currentPath,
+    selectFile,
+    clearSelection,
+    handleCopy,
+    handleCut,
+    handleOpen,
+    handleNavigate,
+    pasteMutation,
+  ])
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -367,6 +522,7 @@ export function FilesPage() {
                       onCut={handleCut}
                       onPreview={setPreviewFile}
                       onDownload={handleDownload}
+                      onMove={handleMove}
                     />
                   ) : (
                     <FileList
@@ -380,6 +536,7 @@ export function FilesPage() {
                       onCut={handleCut}
                       onPreview={setPreviewFile}
                       onDownload={handleDownload}
+                      onMove={handleMove}
                     />
                   )}
                 </ScrollArea>

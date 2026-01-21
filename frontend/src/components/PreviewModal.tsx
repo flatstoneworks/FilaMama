@@ -5,6 +5,7 @@ import { X, Download, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import type { FileInfo } from '@/api/client'
 import { getFileType } from './FileIcon'
 import { joinPath } from '@/lib/utils'
+import { PdfViewer } from './PdfViewer'
 
 interface PreviewModalProps {
   open: boolean
@@ -79,8 +80,11 @@ export function PreviewModal({
   if (!file) return null
 
   const fileType = getFileType(file.name, false)
-  const fileUrl = `/api/files/download?path=${encodeURIComponent(joinPath(currentPath, file.name))}`
   const ext = file.name.split('.').pop()?.toLowerCase()
+
+  // Use preview endpoint for viewing (proper content-type), download endpoint for downloads
+  const fileUrl = `/api/files/preview?path=${encodeURIComponent(joinPath(currentPath, file.name))}`
+  const downloadUrl = `/api/files/download?path=${encodeURIComponent(joinPath(currentPath, file.name))}`
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -95,7 +99,7 @@ export function PreviewModal({
               className="text-white hover:bg-white/20"
               asChild
             >
-              <a href={fileUrl} download={file.name}>
+              <a href={downloadUrl} download={file.name}>
                 <Download className="h-5 w-5" />
               </a>
             </Button>
@@ -173,9 +177,9 @@ export function PreviewModal({
           )}
 
           {ext === 'pdf' && (
-            <iframe
-              src={fileUrl}
-              className="w-[80vw] h-[85vh]"
+            <PdfViewer
+              fileUrl={fileUrl}
+              fileName={file.name}
               onLoad={() => setIsLoading(false)}
             />
           )}
