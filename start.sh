@@ -42,10 +42,10 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 # Start backend
-echo "Starting backend on port 5101..."
+echo "Starting backend on port 8011..."
 cd backend
 source venv/bin/activate
-python -m uvicorn app.main:app --host 0.0.0.0 --port 5101 &
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8011 &
 BACKEND_PID=$!
 cd ..
 
@@ -53,7 +53,7 @@ cd ..
 sleep 2
 
 # Start frontend
-echo "Starting frontend on port 5100..."
+echo "Starting frontend on port 8010..."
 cd frontend
 npm run dev &
 FRONTEND_PID=$!
@@ -61,8 +61,8 @@ cd ..
 
 echo ""
 echo "FilaMama is running!"
-echo "  Frontend: http://spark.local:5100"
-echo "  Backend:  http://spark.local:5101"
+echo "  Frontend: http://spark.local:8010"
+echo "  Backend:  http://spark.local:8011"
 echo ""
 echo "Press Ctrl+C to stop..."
 

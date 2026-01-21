@@ -94,13 +94,6 @@ async function getFilesFromDataTransfer(items: DataTransferItemList): Promise<Fi
   return files
 }
 
-// Create a FileList-like object from an array of Files
-function createFileList(files: File[]): FileList {
-  const dataTransfer = new DataTransfer()
-  files.forEach(file => dataTransfer.items.add(file))
-  return dataTransfer.files
-}
-
 export function UploadDropzone({ onUpload, onPreparing, children }: UploadDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [, setDragCounter] = useState(0)

@@ -90,10 +90,45 @@ FilaMama/
 
 ## Quick Start
 
-### Using the start script
+### Option 1: Install as System Service (Recommended)
+
+Run the installation script to set up FilaMama as a systemd service that starts automatically on boot:
 
 ```bash
 cd FilaMama
+./install.sh
+```
+
+This will:
+1. Create Python virtual environment if needed
+2. Install backend dependencies
+3. Install frontend dependencies
+4. Build frontend for production
+5. Create and enable systemd services
+6. Start both services
+
+The services will automatically start on system boot.
+
+**Useful commands:**
+```bash
+sudo systemctl status filamama-backend   # Check backend status
+sudo systemctl status filamama-frontend  # Check frontend status
+sudo systemctl restart filamama-backend  # Restart backend
+sudo systemctl restart filamama-frontend # Restart frontend
+sudo journalctl -u filamama-backend -f   # View backend logs
+sudo journalctl -u filamama-frontend -f  # View frontend logs
+```
+
+**To uninstall:**
+```bash
+./uninstall.sh
+```
+
+### Option 2: Development Mode
+
+Use the start script for development with hot reloading:
+
+```bash
 ./start.sh
 ```
 
@@ -101,9 +136,11 @@ This will:
 1. Create Python virtual environment if needed
 2. Install backend dependencies
 3. Install frontend dependencies
-4. Start both servers
+4. Start both servers in development mode
 
-### Manual Setup
+Press Ctrl+C to stop.
+
+### Option 3: Manual Setup
 
 **Backend:**
 ```bash
@@ -111,7 +148,7 @@ cd backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8002
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8011
 ```
 
 **Frontend:**
@@ -123,9 +160,15 @@ npm run dev
 
 ## Access
 
-- **Frontend:** http://spark.local:5100
-- **Backend API:** http://spark.local:5101
-- **API Docs:** http://spark.local:5101/docs
+### Production (systemd service)
+- **Frontend:** http://spark.local:1030
+- **Backend API:** http://spark.local:1031
+- **API Docs:** http://spark.local:1031/docs
+
+### Development (./start.sh)
+- **Frontend:** http://spark.local:8010
+- **Backend API:** http://spark.local:8011
+- **API Docs:** http://spark.local:8011/docs
 
 ## Configuration
 
@@ -166,10 +209,16 @@ app:
 
 ## Ports
 
-| Service | Port |
-|---------|------|
-| Frontend (Vite) | 5100 |
-| Backend (FastAPI) | 5101 |
+| Environment | Service | Port |
+|-------------|---------|------|
+| **Production** | Frontend (Vite Preview) | 1030 |
+| **Production** | Backend (FastAPI) | 1031 |
+| **Development** | Frontend (Vite Dev) | 8010 |
+| **Development** | Backend (FastAPI) | 8011 |
+
+This allows you to run both production and development instances simultaneously without port conflicts.
+
+See `ports.json` for port allocation details.
 
 ## Development
 

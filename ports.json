@@ -1,9 +1,19 @@
 {
   "project": "FilaMama",
-  "basePort": 5100,
-  "range": 10,
-  "allocated": {
-    "frontend": 5100,
-    "backend": 5101
+  "production": {
+    "basePort": 1030,
+    "range": 10,
+    "allocated": {
+      "frontend": 1030,
+      "backend": 1031
+    }
+  },
+  "development": {
+    "basePort": 8010,
+    "range": 10,
+    "allocated": {
+      "frontend": 8010,
+      "backend": 8011
+    }
   }
 }

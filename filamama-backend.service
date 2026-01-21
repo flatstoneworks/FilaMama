@@ -1,0 +1,20 @@
+[Unit]
+Description=FilaMama Backend - FastAPI File Manager Service
+After=network.target
+
+[Service]
+Type=simple
+User=flatstone
+Group=flatstone
+WorkingDirectory=/home/flatstone/Claude/FLATSTONE/FilaMama/backend
+Environment="PATH=/home/flatstone/Claude/FLATSTONE/FilaMama/backend/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/flatstone/Claude/FLATSTONE/FilaMama/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 1031
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

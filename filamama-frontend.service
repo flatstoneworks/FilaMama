@@ -1,0 +1,22 @@
+[Unit]
+Description=FilaMama Frontend - React File Manager UI
+After=network.target filamama-backend.service
+Requires=filamama-backend.service
+
+[Service]
+Type=simple
+User=flatstone
+Group=flatstone
+WorkingDirectory=/home/flatstone/Claude/FLATSTONE/FilaMama/frontend
+Environment="PATH=/home/flatstone/.nvm/versions/node/v20.11.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="NODE_ENV=production"
+ExecStart=/home/flatstone/.nvm/versions/node/v20.11.0/bin/npm run preview -- --host 0.0.0.0 --port 1030
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

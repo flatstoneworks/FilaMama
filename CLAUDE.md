@@ -8,6 +8,13 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 - **Backend**: FastAPI, Python, Pydantic, Pillow (thumbnails)
 
 ## URLs & Ports
+
+### Production (systemd service)
+- Frontend: http://spark.local:1030
+- Backend API: http://spark.local:1031
+- API Docs: http://spark.local:1031/docs
+
+### Development (./start.sh)
 - Frontend: http://spark.local:8010
 - Backend API: http://spark.local:8011
 - API Docs: http://spark.local:8011/docs
