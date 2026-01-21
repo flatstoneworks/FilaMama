@@ -4,7 +4,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { Checkbox } from '@/components/ui/checkbox'
 import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen } from 'lucide-react'
 import type { FileInfo } from '@/api/client'
-import { cn } from '@/lib/utils'
+import { cn, isFileSelected, getSelectedOrSingle, createCheckboxClickHandler } from '@/lib/utils'
 
 interface FileGridProps {
   files: FileInfo[]
@@ -40,26 +40,6 @@ export function FileGrid({
     onOpen(file)
   }
 
-  const handleCheckboxClick = (file: FileInfo, e: React.MouseEvent) => {
-    e.stopPropagation()
-    // Simulate ctrl+click for toggle behavior
-    const syntheticEvent = {
-      ...e,
-      ctrlKey: true,
-      metaKey: true,
-    } as React.MouseEvent
-    onSelect(file, syntheticEvent)
-  }
-
-  const isSelected = (file: FileInfo) => selectedFiles.has(file.path)
-
-  const getSelectedFiles = (file: FileInfo): FileInfo[] => {
-    if (isSelected(file)) {
-      return files.filter((f) => selectedFiles.has(f.path))
-    }
-    return [file]
-  }
-
   return (
     <div
       ref={containerRef}
@@ -75,7 +55,7 @@ export function FileGrid({
               className={cn(
                 'group relative flex flex-col items-center p-2 rounded-lg cursor-pointer transition-colors',
                 'hover:bg-accent/50',
-                isSelected(file) && 'bg-accent ring-2 ring-primary'
+                isFileSelected(file, selectedFiles) && 'bg-accent ring-2 ring-primary'
               )}
               onClick={() => handleClick(file)}
             >
@@ -83,12 +63,12 @@ export function FileGrid({
               <div
                 className={cn(
                   'absolute top-1 left-1 z-10 transition-opacity',
-                  isSelected(file) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  isFileSelected(file, selectedFiles) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 )}
-                onClick={(e) => handleCheckboxClick(file, e)}
+                onClick={createCheckboxClickHandler(file, onSelect)}
               >
                 <Checkbox
-                  checked={isSelected(file)}
+                  checked={isFileSelected(file, selectedFiles)}
                   className="h-5 w-5 bg-background/80 backdrop-blur"
                 />
               </div>
@@ -150,18 +130,18 @@ export function FileGrid({
               <Pencil className="mr-2 h-4 w-4" />
               Rename
             </ContextMenuItem>
-            <ContextMenuItem onClick={() => onCopy(getSelectedFiles(file))}>
+            <ContextMenuItem onClick={() => onCopy(getSelectedOrSingle(file, files, selectedFiles))}>
               <Copy className="mr-2 h-4 w-4" />
               Copy
             </ContextMenuItem>
-            <ContextMenuItem onClick={() => onCut(getSelectedFiles(file))}>
+            <ContextMenuItem onClick={() => onCut(getSelectedOrSingle(file, files, selectedFiles))}>
               <Scissors className="mr-2 h-4 w-4" />
               Cut
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem
               className="text-destructive"
-              onClick={() => onDelete(getSelectedFiles(file))}
+              onClick={() => onDelete(getSelectedOrSingle(file, files, selectedFiles))}
             >
               <Trash2 className="mr-2 h-4 w-4" />
               Delete

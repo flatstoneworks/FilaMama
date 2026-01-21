@@ -1,11 +1,20 @@
+import { getParentPath, getFileName } from '@/lib/utils'
+
+export type FileType = 'file' | 'directory' | 'symlink'
+
 export interface FileInfo {
   name: string
   path: string
+  type: FileType
   size: number
   modified: string
-  is_directory: boolean
+  extension?: string
+  mime_type?: string
   is_hidden: boolean
+  has_thumbnail: boolean
+  // Computed properties for convenience
   thumbnail_url?: string
+  is_directory?: boolean  // Computed from type
 }
 
 export interface DirectoryListing {
@@ -33,10 +42,15 @@ async function listDirectory(path = '/'): Promise<DirectoryListing> {
   const files: FileInfo[] = data.items.map((f) => ({
     name: f.name,
     path: f.path,
+    type: f.type,
     size: f.size,
     modified: f.modified,
-    is_directory: f.type === 'directory',
+    extension: f.extension,
+    mime_type: f.mime_type,
     is_hidden: f.is_hidden || false,
+    has_thumbnail: f.has_thumbnail || false,
+    // Computed convenience properties
+    is_directory: f.type === 'directory',
     thumbnail_url: f.has_thumbnail ? getThumbnailUrl(f.path) : undefined,
   }))
 
@@ -44,8 +58,8 @@ async function listDirectory(path = '/'): Promise<DirectoryListing> {
 }
 
 async function createFolder(path: string): Promise<void> {
-  const parentPath = path.substring(0, path.lastIndexOf('/')) || '/'
-  const name = path.substring(path.lastIndexOf('/') + 1)
+  const parentPath = getParentPath(path) || '/'
+  const name = getFileName(path)
 
   await handleResponse(
     await fetch(`${API_BASE}/files/mkdir`, {
@@ -67,7 +81,7 @@ async function deleteFile(path: string): Promise<void> {
 }
 
 async function rename(oldPath: string, newPath: string): Promise<void> {
-  const newName = newPath.substring(newPath.lastIndexOf('/') + 1)
+  const newName = getFileName(newPath)
   await handleResponse(
     await fetch(`${API_BASE}/files/rename`, {
       method: 'POST',

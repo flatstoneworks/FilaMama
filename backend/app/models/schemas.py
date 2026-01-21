@@ -31,8 +31,6 @@ class FileInfo(BaseModel):
     extension: Optional[str] = None
     mime_type: Optional[str] = None
     is_hidden: bool = False
-    width: Optional[int] = None
-    height: Optional[int] = None
     has_thumbnail: bool = False
 
 
@@ -76,7 +74,6 @@ class SearchResult(BaseModel):
     type: FileType
     size: int
     modified: datetime
-    match_context: Optional[str] = None
 
 
 class UploadProgress(BaseModel):
@@ -85,3 +82,17 @@ class UploadProgress(BaseModel):
     total_bytes: int
     percent: float
     status: str
+
+
+class DeleteResponse(BaseModel):
+    deleted: int
+
+
+class TextFileContent(BaseModel):
+    content: str
+    size: int
+
+
+class OperationSuccess(BaseModel):
+    success: bool
+    message: Optional[str] = None

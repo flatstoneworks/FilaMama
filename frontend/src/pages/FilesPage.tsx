@@ -17,6 +17,7 @@ import { DeleteDialog } from '@/components/DeleteDialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/use-toast'
 import { Loader2 } from 'lucide-react'
+import { joinPath } from '@/lib/utils'
 
 interface ClipboardState {
   files: FileInfo[]
@@ -90,7 +91,7 @@ export function FilesPage() {
   // Mutations
   const renameMutation = useMutation({
     mutationFn: ({ oldName, newName }: { oldName: string; newName: string }) =>
-      api.rename(currentPath + '/' + oldName, currentPath + '/' + newName),
+      api.rename(joinPath(currentPath, oldName), joinPath(currentPath, newName)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files', currentPath] })
       setRenameFile(null)
@@ -102,7 +103,7 @@ export function FilesPage() {
   })
 
   const createFolderMutation = useMutation({
-    mutationFn: (name: string) => api.createFolder(currentPath + '/' + name),
+    mutationFn: (name: string) => api.createFolder(joinPath(currentPath, name)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files', currentPath] })
       setShowNewFolder(false)
@@ -116,7 +117,7 @@ export function FilesPage() {
   const deleteMutation = useMutation({
     mutationFn: async (files: FileInfo[]) => {
       for (const file of files) {
-        await api.delete(currentPath + '/' + file.name)
+        await api.delete(joinPath(currentPath, file.name))
       }
     },
     onSuccess: () => {
@@ -134,8 +135,8 @@ export function FilesPage() {
     mutationFn: async () => {
       if (!clipboard) return
       for (const file of clipboard.files) {
-        const srcPath = clipboard.sourcePath + '/' + file.name
-        const destPath = currentPath + '/' + file.name
+        const srcPath = joinPath(clipboard.sourcePath, file.name)
+        const destPath = joinPath(currentPath, file.name)
         if (clipboard.operation === 'copy') {
           await api.copy(srcPath, destPath)
         } else {
@@ -166,7 +167,7 @@ export function FilesPage() {
 
   const handleOpen = (file: FileInfo) => {
     if (file.is_directory) {
-      handleNavigate(currentPath === '/' ? '/' + file.name : currentPath + '/' + file.name)
+      handleNavigate(joinPath(currentPath, file.name))
     } else {
       setPreviewFile(file)
     }
@@ -184,7 +185,7 @@ export function FilesPage() {
 
   const handleDownload = (file: FileInfo) => {
     const link = document.createElement('a')
-    link.href = `/api/files/download?path=${encodeURIComponent(currentPath + '/' + file.name)}`
+    link.href = `/api/files/download?path=${encodeURIComponent(joinPath(currentPath, file.name))}`
     link.download = file.name
     link.click()
   }

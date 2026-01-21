@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { X, Download, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import type { FileInfo } from '@/api/client'
 import { getFileType } from './FileIcon'
+import { joinPath } from '@/lib/utils'
 
 interface PreviewModalProps {
   open: boolean
@@ -64,7 +65,7 @@ export function PreviewModal({
 
       const ext = file.name.split('.').pop()?.toLowerCase()
       if (ext === 'txt' || ext === 'md') {
-        fetch(`/api/files/download?path=${encodeURIComponent(currentPath + '/' + file.name)}`)
+        fetch(`/api/files/download?path=${encodeURIComponent(joinPath(currentPath, file.name))}`)
           .then((res) => res.text())
           .then((text) => {
             setTextContent(text)
@@ -78,7 +79,7 @@ export function PreviewModal({
   if (!file) return null
 
   const fileType = getFileType(file.name, false)
-  const fileUrl = `/api/files/download?path=${encodeURIComponent(currentPath + '/' + file.name)}`
+  const fileUrl = `/api/files/download?path=${encodeURIComponent(joinPath(currentPath, file.name))}`
   const ext = file.name.split('.').pop()?.toLowerCase()
 
   return (
