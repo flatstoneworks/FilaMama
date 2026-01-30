@@ -173,7 +173,7 @@ export function FileList({
                       className="w-8 h-8 rounded object-cover"
                     />
                   ) : (
-                    <FileIcon name={file.name} isDirectory={file.is_directory} size={20} />
+                    <FileIcon name={file.name} isDirectory={file.is_directory ?? false} size={20} />
                   )}
                   <span className="truncate" title={file.name}>
                     {file.name}

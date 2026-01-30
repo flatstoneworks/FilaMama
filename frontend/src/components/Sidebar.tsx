@@ -1,4 +1,5 @@
-import { FileText, Image, Video, Star, Home, FolderOpen, Music, FileImage, Film, FileType } from 'lucide-react'
+import { FileText, Image, Video, Star, Home, FolderOpen, Music, FileImage, Film, FileType, HardDrive, FolderCog, Folder } from 'lucide-react'
+import type { MountPoint } from '@/api/client'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
@@ -21,6 +22,17 @@ interface SidebarProps {
   favorites?: string[]
   activeContentType?: string | null
   onContentTypeChange?: (type: string | null) => void
+  mounts?: MountPoint[]
+}
+
+const mountIconMap: Record<string, React.ReactNode> = {
+  'hard-drive': <HardDrive className="h-4 w-4" />,
+  'folder-cog': <FolderCog className="h-4 w-4" />,
+  'folder': <Folder className="h-4 w-4" />,
+}
+
+function getMountIcon(iconName?: string): React.ReactNode {
+  return mountIconMap[iconName || 'folder'] || <HardDrive className="h-4 w-4" />
 }
 
 const mainFolders: SidebarItem[] = [
@@ -46,6 +58,7 @@ export function Sidebar({
   favorites = [],
   activeContentType,
   onContentTypeChange,
+  mounts = [],
 }: SidebarProps) {
   return (
     <div className="w-52 border-r bg-muted/30 flex flex-col">
@@ -115,6 +128,36 @@ export function Sidebar({
               ))}
             </nav>
           </div>
+
+          {/* Mounts */}
+          {mounts.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 px-2">
+                Mounts
+              </h3>
+              <nav className="space-y-0.5">
+                {mounts.map((mount) => (
+                  <button
+                    key={mount.path}
+                    onClick={() => {
+                      onContentTypeChange?.(null)
+                      onNavigate(mount.path)
+                    }}
+                    className={cn(
+                      'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
+                      'hover:bg-accent hover:text-accent-foreground',
+                      (currentPath === mount.path || currentPath.startsWith(mount.path + '/')) && !activeContentType
+                        ? 'bg-accent text-accent-foreground font-medium'
+                        : 'text-muted-foreground'
+                    )}
+                  >
+                    {getMountIcon(mount.icon)}
+                    <span className="truncate">{mount.name}</span>
+                  </button>
+                ))}
+              </nav>
+            </div>
+          )}
 
           {/* Content Type */}
           <div>

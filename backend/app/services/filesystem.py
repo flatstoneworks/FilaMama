@@ -19,21 +19,49 @@ from ..models.schemas import (
 
 
 class FilesystemService:
-    def __init__(self, root_path: str):
+    def __init__(self, root_path: str, mounts: list = None):
         self.root_path = Path(root_path).resolve()
+        self.mounts = []
+        for m in (mounts or []):
+            self.mounts.append({
+                'name': m['name'],
+                'path': Path(m['path']).resolve(),
+                'icon': m.get('icon', 'folder'),
+            })
         self._magic = magic.Magic(mime=True)
 
-    def _resolve_path(self, relative_path: str) -> Path:
-        if relative_path.startswith('/'):
-            relative_path = relative_path[1:]
-        full_path = (self.root_path / relative_path).resolve()
+    def _resolve_path(self, path: str) -> Path:
+        # Check if path matches a mount point
+        for mount in self.mounts:
+            mount_str = str(mount['path'])
+            if path == mount_str or path.startswith(mount_str + '/'):
+                full_path = Path(path).resolve()
+                # Security check: ensure resolved path is within mount
+                if not str(full_path).startswith(mount_str):
+                    raise ValueError("Path traversal attempt detected")
+                return full_path
+
+        # Existing root_path logic
+        if path.startswith('/'):
+            path = path[1:]
+        full_path = (self.root_path / path).resolve()
         if not str(full_path).startswith(str(self.root_path)):
             raise ValueError("Path traversal attempt detected")
         return full_path
 
     def _get_relative_path(self, absolute_path: Path) -> str:
+        abs_str = str(absolute_path)
+        # Check mounts first - return absolute path for mount locations
+        for mount in self.mounts:
+            if abs_str.startswith(str(mount['path'])):
+                return abs_str
+        # Existing root_path logic
         try:
-            return "/" + str(absolute_path.relative_to(self.root_path))
+            rel = str(absolute_path.relative_to(self.root_path))
+            # Handle case where path equals root_path (relative_to returns ".")
+            if rel == ".":
+                return "/"
+            return "/" + rel
         except ValueError:
             return "/"
 
@@ -133,7 +161,15 @@ class FilesystemService:
         parent = None
         if path != "/":
             parent_path = dir_path.parent
-            if str(parent_path).startswith(str(self.root_path)):
+            parent_str = str(parent_path)
+            # Check if parent is within a mount
+            for mount in self.mounts:
+                mount_str = str(mount['path'])
+                if parent_str.startswith(mount_str):
+                    parent = self._get_relative_path(parent_path)
+                    break
+            # Check if parent is within root_path
+            if parent is None and parent_str.startswith(str(self.root_path)):
                 parent = self._get_relative_path(parent_path)
 
         return DirectoryListing(

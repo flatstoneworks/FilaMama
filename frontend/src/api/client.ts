@@ -22,6 +22,20 @@ export interface DirectoryListing {
   files: FileInfo[]
 }
 
+export interface MountPoint {
+  name: string
+  path: string
+  icon?: string
+}
+
+export interface AppConfig {
+  root_path: string
+  thumbnails_enabled: boolean
+  max_upload_size_mb: number
+  file_types: Record<string, string[]>
+  mounts: MountPoint[]
+}
+
 const API_BASE = '/api'
 
 async function handleResponse<T>(response: Response): Promise<T> {
@@ -153,6 +167,10 @@ function getDownloadUrl(path: string): string {
   return `${API_BASE}/files/download?path=${encodeURIComponent(path)}`
 }
 
+async function getConfig(): Promise<AppConfig> {
+  return handleResponse<AppConfig>(await fetch(`${API_BASE}/config`))
+}
+
 export const api = {
   listDirectory,
   createFolder,
@@ -163,4 +181,5 @@ export const api = {
   uploadFile,
   getThumbnailUrl,
   getDownloadUrl,
+  getConfig,
 }

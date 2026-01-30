@@ -41,11 +41,11 @@ cleanup() {
 
 trap cleanup SIGINT SIGTERM
 
-# Start backend
-echo "Starting backend on port 8011..."
+# Start backend in dev mode
+echo "Starting backend on port 8011 (dev mode)..."
 cd backend
 source venv/bin/activate
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8011 &
+FILAMAMA_DEV=1 python -m uvicorn app.main:app --host 0.0.0.0 --port 8011 --reload &
 BACKEND_PID=$!
 cd ..
 

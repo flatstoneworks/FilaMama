@@ -6,9 +6,9 @@ After=network.target
 Type=simple
 User=flatstone
 Group=flatstone
-WorkingDirectory=/home/flatstone/Claude/FLATSTONE/FilaMama/backend
-Environment="PATH=/home/flatstone/Claude/FLATSTONE/FilaMama/backend/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=/home/flatstone/Claude/FLATSTONE/FilaMama/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 1031
+WorkingDirectory=/home/flatstone/FLATSTONE/FilaMama/backend
+Environment="PATH=/home/flatstone/FLATSTONE/FilaMama/backend/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/flatstone/FLATSTONE/FilaMama/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8011
 Restart=always
 RestartSec=10
 

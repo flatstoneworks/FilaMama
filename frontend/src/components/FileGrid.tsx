@@ -183,7 +183,7 @@ export function FileGrid({
                 >
                   <FileIcon
                     name={file.name}
-                    isDirectory={file.is_directory}
+                    isDirectory={file.is_directory ?? false}
                     size={Math.min(gridSize * 0.5, 64)}
                   />
                 </div>

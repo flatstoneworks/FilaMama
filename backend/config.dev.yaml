@@ -1,4 +1,4 @@
-# FilaMama Configuration
+# FilaMama Configuration - Development
 
 server:
   host: "0.0.0.0"
@@ -7,14 +7,10 @@ server:
 # Root directory for file browsing
 root_path: "/home/flatstone"
 
-# Mount points - access directories outside root_path
-# Each mount appears in the sidebar and allows browsing that path
+# Mount points for development (no Master mount)
 mounts:
   - name: "FLATSTONE"
     path: "/home/flatstone/FLATSTONE"
-    icon: "hard-drive"
-  - name: "Master"
-    path: "/media/Master"
     icon: "hard-drive"
 
 # Thumbnail settings

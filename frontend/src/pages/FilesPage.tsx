@@ -86,6 +86,13 @@ export function FilesPage() {
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [deleteFiles, setDeleteFiles] = useState<FileInfo[]>([])
 
+  // Fetch config (for mounts)
+  const { data: config } = useQuery({
+    queryKey: ['config'],
+    queryFn: () => api.getConfig(),
+    staleTime: Infinity,
+  })
+
   // Fetch files
   const { data: listing, isLoading, error } = useQuery({
     queryKey: ['files', currentPath],
@@ -419,6 +426,7 @@ export function FilesPage() {
         onNavigate={handleNavigate}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        mounts={config?.mounts}
       />
 
       {/* Main area: sidebar + content */}
@@ -429,6 +437,7 @@ export function FilesPage() {
           onNavigate={handleNavigate}
           activeContentType={activeContentType}
           onContentTypeChange={setActiveContentType}
+          mounts={config?.mounts}
         />
 
         {/* Main content */}
