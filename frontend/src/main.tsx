@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from '@/components/ui/toaster'
 import Layout from '@/components/Layout'
 import { FilesPage } from '@/pages/FilesPage'
+import { PreviewPage } from '@/pages/PreviewPage'
 import './index.css'
 
 const queryClient = new QueryClient({
@@ -20,6 +21,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route index element={<Navigate to="/browse" replace />} />
             <Route path="browse/*" element={<FilesPage />} />
           </Route>
+          <Route path="view/*" element={<PreviewPage />} />
         </Routes>
         <Toaster />
       </BrowserRouter>

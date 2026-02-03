@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import FileResponse, StreamingResponse, Response
 from typing import List
 import zipfile
 import io
+import os
+import aiofiles
 
 from ..models.schemas import (
     FileInfo, DirectoryListing, DiskUsage, SortField, SortOrder,
@@ -184,3 +186,99 @@ async def save_text_content(path: str, content: str):
     file_path = fs_service.get_absolute_path(path)
     file_path.write_text(content, encoding='utf-8')
     return OperationSuccess(success=True, message="File saved successfully")
+
+
+@router.get("/stream")
+@handle_fs_errors
+async def stream_file(path: str, request: Request):
+    """Stream a file with HTTP Range request support for video seeking."""
+    file_path = fs_service.get_absolute_path(path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    if file_path.is_dir():
+        raise HTTPException(status_code=400, detail="Cannot stream directory")
+
+    file_size = file_path.stat().st_size
+
+    # Determine MIME type based on extension
+    ext = file_path.suffix.lower()
+    mime_types = {
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.mkv': 'video/x-matroska',
+        '.avi': 'video/x-msvideo',
+        '.mov': 'video/quicktime',
+        '.flv': 'video/x-flv',
+        '.wmv': 'video/x-ms-wmv',
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
+        '.flac': 'audio/flac',
+        '.aac': 'audio/aac',
+        '.ogg': 'audio/ogg',
+        '.m4a': 'audio/mp4',
+    }
+    content_type = mime_types.get(ext, 'application/octet-stream')
+
+    # Parse Range header
+    range_header = request.headers.get('range')
+
+    if range_header:
+        # Parse "bytes=start-end" format
+        try:
+            range_spec = range_header.replace('bytes=', '')
+            parts = range_spec.split('-')
+            start = int(parts[0]) if parts[0] else 0
+            end = int(parts[1]) if parts[1] else file_size - 1
+        except (ValueError, IndexError):
+            raise HTTPException(status_code=416, detail="Invalid range header")
+
+        # Validate range
+        if start >= file_size or end >= file_size or start > end:
+            raise HTTPException(
+                status_code=416,
+                detail="Range not satisfiable",
+                headers={'Content-Range': f'bytes */{file_size}'}
+            )
+
+        chunk_size = end - start + 1
+
+        async def range_generator():
+            async with aiofiles.open(file_path, 'rb') as f:
+                await f.seek(start)
+                remaining = chunk_size
+                while remaining > 0:
+                    read_size = min(8192, remaining)
+                    data = await f.read(read_size)
+                    if not data:
+                        break
+                    remaining -= len(data)
+                    yield data
+
+        return StreamingResponse(
+            range_generator(),
+            status_code=206,
+            media_type=content_type,
+            headers={
+                'Content-Range': f'bytes {start}-{end}/{file_size}',
+                'Accept-Ranges': 'bytes',
+                'Content-Length': str(chunk_size),
+            }
+        )
+    else:
+        # No Range header - return full file
+        async def file_generator():
+            async with aiofiles.open(file_path, 'rb') as f:
+                while True:
+                    data = await f.read(8192)
+                    if not data:
+                        break
+                    yield data
+
+        return StreamingResponse(
+            file_generator(),
+            media_type=content_type,
+            headers={
+                'Accept-Ranges': 'bytes',
+                'Content-Length': str(file_size),
+            }
+        )

@@ -23,7 +23,7 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 - Root path: `/home/flatstone` (all frontend paths are relative to this)
 - Config file: `backend/config.yaml`
 
-## Current Features (as of 2026-01-21)
+## Current Features (as of 2026-02-03)
 
 ### Navigation
 - **URL-based routing**: Browser history support with `/browse/path` URLs
@@ -48,12 +48,14 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 - Copy, cut, paste, rename, delete, move
 - Drag-and-drop upload with progress
 - Drag-and-drop moving between folders
-- File preview (images, videos, audio, PDF, text)
+- File preview (images, videos with custom player, audio, PDF, text)
 - Thumbnail generation
 - Search/filter functionality
 - Content type filtering
 
 ### Keyboard Shortcuts
+
+#### File Browser
 - **Ctrl/Cmd + A**: Select all files
 - **Ctrl/Cmd + C**: Copy selected files
 - **Ctrl/Cmd + X**: Cut selected files
@@ -64,16 +66,98 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 - **F2**: Rename selected file (single selection only)
 - **Backspace**: Navigate to parent directory
 
+#### Video Player
+- **Space / K**: Play/Pause
+- **← / J**: Seek back 10 seconds
+- **→ / L**: Seek forward 10 seconds
+- **↑ / ↓**: Volume up/down 10%
+- **M**: Mute/unmute
+- **F**: Toggle fullscreen
+- **0-9**: Jump to 0%-90% of video
+
 ## Key Files
+
+### Frontend
 - `frontend/src/pages/FilesPage.tsx` - Main page with all state management
+- `frontend/src/pages/PreviewPage.tsx` - File preview page (images, video, audio, PDF, text)
 - `frontend/src/components/Header.tsx` - Header with breadcrumbs + search
 - `frontend/src/components/Sidebar.tsx` - Navigation sidebar with folders & filters
 - `frontend/src/components/Toolbar.tsx` - Action toolbar
 - `frontend/src/components/FileGrid.tsx` - Grid view with checkbox selection
 - `frontend/src/components/FileList.tsx` - List view with checkbox selection
+- `frontend/src/components/VideoPlayer.tsx` - Custom video player with controls & keyboard shortcuts
+- `frontend/src/components/PdfViewer.tsx` - PDF viewer using react-pdf
+- `frontend/src/api/client.ts` - API client with URL helpers
+- `frontend/src/lib/utils.ts` - Utility functions (formatVideoTime, formatBytes, etc.)
 - `frontend/src/main.tsx` - Router configuration
 
+### Backend
+- `backend/app/routers/files.py` - File operations API (list, download, stream, thumbnail, etc.)
+- `backend/app/services/filesystem.py` - Filesystem operations service
+- `backend/app/services/thumbnails.py` - Thumbnail generation service
+
 ## Session Notes
+
+### Session 2026-02-03: Video Player with Seeking Support
+
+**Problem Solved:**
+Videos wouldn't seek properly because the backend returned `200 OK` with full file instead of `206 Partial Content` with byte ranges. Browsers need HTTP Range request support to seek within videos.
+
+**Changes Made:**
+
+1. **Backend: HTTP Range Request Support**
+   - Added `/api/files/stream` endpoint with Range header parsing
+   - Returns `206 Partial Content` with proper headers:
+     - `Content-Range: bytes start-end/total`
+     - `Accept-Ranges: bytes`
+     - `Content-Length: chunk_size`
+   - Streams file in chunks using `aiofiles` for async I/O
+   - Supports common video/audio MIME types
+
+2. **Frontend: Custom VideoPlayer Component**
+   - Play/pause with button and Space/K keys
+   - Progress bar with click-to-seek
+   - Time display (current / total)
+   - Volume slider with mute toggle (M key)
+   - Fullscreen support (F key)
+   - Playback speed selector (0.5x, 0.75x, 1x, 1.25x, 1.5x, 2x)
+   - Auto-hide controls after 3s of inactivity
+   - Full keyboard shortcuts (see Keyboard Shortcuts section)
+
+3. **Integration**
+   - Replaced basic `<video>` element with VideoPlayer in PreviewPage
+   - Added `getStreamUrl()` helper to API client
+   - Added `formatVideoTime()` utility function
+   - Audio files also use streaming endpoint now
+   - Arrow keys disabled for video preview (used for seeking instead of file navigation)
+
+**Files Modified:**
+- `backend/app/routers/files.py` - Added `/stream` endpoint with Range support
+- `frontend/src/pages/PreviewPage.tsx` - Uses VideoPlayer, streamUrl for video/audio
+- `frontend/src/api/client.ts` - Added `getStreamUrl()` helper
+- `frontend/src/lib/utils.ts` - Added `formatVideoTime()` utility
+
+**Files Created:**
+- `frontend/src/components/VideoPlayer.tsx` - Custom video player (446 lines)
+
+**API Endpoint:**
+```
+GET /api/files/stream?path=/path/to/video.mp4
+Headers:
+  Range: bytes=0-1023 (optional)
+Response:
+  206 Partial Content (with Range)
+  200 OK (without Range)
+```
+
+**Testing:**
+```bash
+# Test Range support
+curl -H "Range: bytes=0-1023" "http://spark.local:8011/api/files/stream?path=/Downloads/video.mp4" -v
+# Expected: 206 Partial Content, Content-Range header
+```
+
+---
 
 ### Session 2026-01-21: Drag & Drop + Keyboard Shortcuts + PDF Viewer + URL State
 
@@ -162,3 +246,6 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 - Dark/light theme toggle
 - Arrow key navigation in file grid/list
 - Drag and drop to sidebar folders
+- Video thumbnail preview on hover (timeline scrubbing)
+- Picture-in-picture mode for videos
+- Subtitle/caption support for videos

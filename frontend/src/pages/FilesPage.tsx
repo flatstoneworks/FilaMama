@@ -10,7 +10,6 @@ import { FileGrid } from '@/components/FileGrid'
 import { FileList } from '@/components/FileList'
 import { UploadDropzone } from '@/components/UploadDropzone'
 import { UploadProgress, type UploadItem } from '@/components/UploadProgress'
-import { PreviewModal } from '@/components/PreviewModal'
 import { RenameDialog } from '@/components/RenameDialog'
 import { NewFolderDialog } from '@/components/NewFolderDialog'
 import { DeleteDialog } from '@/components/DeleteDialog'
@@ -44,7 +43,6 @@ export function FilesPage() {
   const gridSize = parseInt(searchParams.get('size') || '120')
   const searchQuery = searchParams.get('search') || ''
   const activeContentType = searchParams.get('filter') || null
-  const previewFileName = searchParams.get('file') || null
 
   // Helper to update URL parameters
   const updateUrlParam = useCallback((key: string, value: string | null) => {
@@ -101,16 +99,13 @@ export function FilesPage() {
 
   const files = listing?.files || []
 
-  // Find preview file from URL parameter
-  const previewFile = useMemo(() => {
-    if (!previewFileName) return null
-    return files.find(f => f.name === previewFileName) || null
-  }, [previewFileName, files])
-
-  // Setter for preview file that updates URL
-  const setPreviewFile = useCallback((file: FileInfo | null) => {
-    updateUrlParam('file', file?.name || null)
-  }, [updateUrlParam])
+  // Navigate to preview page
+  const openPreview = useCallback((file: FileInfo) => {
+    const previewPath = joinPath(currentPath, file.name)
+    // Encode each path segment for URL
+    const encodedPath = previewPath.split('/').map(s => encodeURIComponent(s)).join('/')
+    navigate(`/view${encodedPath}`)
+  }, [currentPath, navigate])
 
   // Filter by content type and search
   const filteredFiles = useMemo(() => {
@@ -229,7 +224,7 @@ export function FilesPage() {
     if (file.is_directory) {
       handleNavigate(joinPath(currentPath, file.name))
     } else {
-      setPreviewFile(file)
+      openPreview(file)
     }
   }
 
@@ -529,7 +524,7 @@ export function FilesPage() {
                       onDelete={(files) => setDeleteFiles(files)}
                       onCopy={handleCopy}
                       onCut={handleCut}
-                      onPreview={setPreviewFile}
+                      onPreview={openPreview}
                       onDownload={handleDownload}
                       onMove={handleMove}
                     />
@@ -543,7 +538,7 @@ export function FilesPage() {
                       onDelete={(files) => setDeleteFiles(files)}
                       onCopy={handleCopy}
                       onCut={handleCut}
-                      onPreview={setPreviewFile}
+                      onPreview={openPreview}
                       onDownload={handleDownload}
                       onMove={handleMove}
                     />
@@ -587,15 +582,6 @@ export function FilesPage() {
         files={deleteFiles}
         onConfirm={() => deleteMutation.mutate(deleteFiles)}
         isLoading={deleteMutation.isPending}
-      />
-
-      <PreviewModal
-        open={!!previewFile}
-        onOpenChange={(open) => !open && setPreviewFile(null)}
-        file={previewFile}
-        files={filteredFiles}
-        currentPath={currentPath}
-        onNavigate={setPreviewFile}
       />
     </div>
   )

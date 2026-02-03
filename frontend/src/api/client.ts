@@ -167,6 +167,18 @@ function getDownloadUrl(path: string): string {
   return `${API_BASE}/files/download?path=${encodeURIComponent(path)}`
 }
 
+function getPreviewUrl(path: string, modified?: string): string {
+  const url = `${API_BASE}/files/preview?path=${encodeURIComponent(path)}`
+  // Add modified timestamp for cache-busting when file changes
+  return modified ? `${url}&t=${encodeURIComponent(modified)}` : url
+}
+
+function getStreamUrl(path: string, modified?: string): string {
+  const url = `${API_BASE}/files/stream?path=${encodeURIComponent(path)}`
+  // Add modified timestamp for cache-busting when file changes
+  return modified ? `${url}&t=${encodeURIComponent(modified)}` : url
+}
+
 async function getConfig(): Promise<AppConfig> {
   return handleResponse<AppConfig>(await fetch(`${API_BASE}/config`))
 }
@@ -181,5 +193,7 @@ export const api = {
   uploadFile,
   getThumbnailUrl,
   getDownloadUrl,
+  getPreviewUrl,
+  getStreamUrl,
   getConfig,
 }
