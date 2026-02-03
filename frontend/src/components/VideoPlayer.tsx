@@ -38,6 +38,7 @@ export function VideoPlayer({ fileUrl, fileName, onLoad }: VideoPlayerProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showSpeedMenu, setShowSpeedMenu] = useState(false)
+  const [isVertical, setIsVertical] = useState(false)
 
   // Show controls and set timeout to hide
   const showControlsTemporarily = useCallback(() => {
@@ -57,6 +58,9 @@ export function VideoPlayer({ fileUrl, fileName, onLoad }: VideoPlayerProps) {
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
       setDuration(videoRef.current.duration)
+      // Detect vertical video (portrait orientation)
+      const { videoWidth, videoHeight } = videoRef.current
+      setIsVertical(videoHeight > videoWidth)
       setIsLoading(false)
       onLoad?.()
     }
@@ -254,7 +258,11 @@ export function VideoPlayer({ fileUrl, fileName, onLoad }: VideoPlayerProps) {
       ref={containerRef}
       className={cn(
         "relative flex flex-col bg-black",
-        isFullscreen ? "w-screen h-screen" : "w-[85vw] h-[85vh]"
+        isFullscreen
+          ? "w-screen h-screen"
+          : isVertical
+            ? "w-auto h-[90vh] max-w-[60vw]"  // Vertical: taller, narrower
+            : "w-[85vw] h-[85vh]"              // Horizontal: wider
       )}
       onMouseMove={showControlsTemporarily}
       onMouseLeave={() => isPlaying && setShowControls(false)}
