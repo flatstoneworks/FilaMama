@@ -105,24 +105,42 @@ async function rename(oldPath: string, newPath: string): Promise<void> {
   )
 }
 
-async function copy(source: string, destination: string): Promise<void> {
+async function copy(source: string, destination: string, overwrite = false): Promise<void> {
   await handleResponse(
     await fetch(`${API_BASE}/files/copy`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source, destination }),
+      body: JSON.stringify({ source, destination, overwrite }),
     })
   )
 }
 
-async function move(source: string, destination: string): Promise<void> {
+async function move(source: string, destination: string, overwrite = false): Promise<void> {
   await handleResponse(
     await fetch(`${API_BASE}/files/move`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source, destination }),
+      body: JSON.stringify({ source, destination, overwrite }),
     })
   )
+}
+
+async function checkConflicts(sources: string[], destination: string): Promise<string[]> {
+  const response = await handleResponse<{ conflicts: string[] }>(
+    await fetch(`${API_BASE}/files/check-conflicts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sources, destination }),
+    })
+  )
+  return response.conflicts
+}
+
+async function getFolderSize(path: string): Promise<number> {
+  const response = await handleResponse<{ path: string; size: number }>(
+    await fetch(`${API_BASE}/files/folder-size?path=${encodeURIComponent(path)}`)
+  )
+  return response.size
 }
 
 async function uploadFile(
@@ -190,6 +208,8 @@ export const api = {
   rename,
   copy,
   move,
+  checkConflicts,
+  getFolderSize,
   uploadFile,
   getThumbnailUrl,
   getDownloadUrl,

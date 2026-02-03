@@ -10,6 +10,7 @@ from ..models.schemas import (
     FileInfo, DirectoryListing, DiskUsage, SortField, SortOrder,
     RenameRequest, DeleteRequest, CreateDirectoryRequest, FileOperation,
     DeleteResponse, TextFileContent, OperationSuccess,
+    ConflictCheckRequest, ConflictCheckResponse,
 )
 from ..services.filesystem import FilesystemService
 from ..services.thumbnails import ThumbnailService
@@ -66,13 +67,29 @@ async def rename_file(request: RenameRequest):
 @router.post("/copy", response_model=FileInfo)
 @handle_fs_errors
 async def copy_file(request: FileOperation):
-    return await fs_service.copy(request.source, request.destination)
+    return await fs_service.copy(request.source, request.destination, request.overwrite)
 
 
 @router.post("/move", response_model=FileInfo)
 @handle_fs_errors
 async def move_file(request: FileOperation):
-    return await fs_service.move(request.source, request.destination)
+    return await fs_service.move(request.source, request.destination, request.overwrite)
+
+
+@router.post("/check-conflicts", response_model=ConflictCheckResponse)
+@handle_fs_errors
+async def check_conflicts(request: ConflictCheckRequest):
+    """Check if any source files would conflict with existing files in destination."""
+    conflicts = await fs_service.check_conflicts(request.sources, request.destination)
+    return ConflictCheckResponse(conflicts=conflicts)
+
+
+@router.get("/folder-size")
+@handle_fs_errors
+async def get_folder_size(path: str):
+    """Calculate total size of a folder recursively."""
+    size = await fs_service.get_folder_size(path)
+    return {"path": path, "size": size}
 
 
 @router.get("/search")

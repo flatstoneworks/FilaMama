@@ -52,6 +52,16 @@ class DiskUsage(BaseModel):
 class FileOperation(BaseModel):
     source: str
     destination: str
+    overwrite: bool = False  # If True, replace existing files; if False, auto-rename
+
+
+class ConflictCheckRequest(BaseModel):
+    sources: List[str]  # List of source file paths
+    destination: str    # Destination directory
+
+
+class ConflictCheckResponse(BaseModel):
+    conflicts: List[str]  # List of source paths that would conflict
 
 
 class RenameRequest(BaseModel):

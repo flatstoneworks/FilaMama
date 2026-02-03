@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { FileIcon, isPreviewable } from './FileIcon'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen } from 'lucide-react'
-import type { FileInfo } from '@/api/client'
+import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen, HardDrive, Loader2 } from 'lucide-react'
+import { api, type FileInfo } from '@/api/client'
 import { cn, isFileSelected, getSelectedOrSingle, createCheckboxClickHandler, formatBytes, formatFileDate } from '@/lib/utils'
 
 interface FileListProps {
@@ -35,6 +35,39 @@ export function FileList({
 }: FileListProps) {
   const [draggedFiles, setDraggedFiles] = useState<FileInfo[]>([])
   const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const [folderSizes, setFolderSizes] = useState<Record<string, number | 'loading'>>({})
+
+  const calculateFolderSize = async (file: FileInfo) => {
+    if (!file.is_directory || folderSizes[file.path]) return
+    setFolderSizes(prev => ({ ...prev, [file.path]: 'loading' }))
+    try {
+      const size = await api.getFolderSize(file.path)
+      setFolderSizes(prev => ({ ...prev, [file.path]: size }))
+    } catch {
+      // Remove loading state on error
+      setFolderSizes(prev => {
+        const next = { ...prev }
+        delete next[file.path]
+        return next
+      })
+    }
+  }
+
+  const getFolderSizeDisplay = (file: FileInfo): React.ReactNode => {
+    if (!file.is_directory) return formatBytes(file.size)
+    const size = folderSizes[file.path]
+    if (size === 'loading') return <Loader2 className="h-3 w-3 animate-spin inline" />
+    if (typeof size === 'number') return formatBytes(size)
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); calculateFolderSize(file) }}
+        className="hover:text-foreground hover:underline"
+        title="Click to calculate folder size"
+      >
+        -
+      </button>
+    )
+  }
 
   const handleClick = (file: FileInfo) => {
     // Single click opens the file/folder
@@ -180,7 +213,7 @@ export function FileList({
                   </span>
                 </div>
                 <div className="text-right text-muted-foreground">
-                  {file.is_directory ? '-' : formatBytes(file.size)}
+                  {getFolderSizeDisplay(file)}
                 </div>
                 <div className="text-muted-foreground">
                   {formatFileDate(file.modified)}
@@ -189,10 +222,18 @@ export function FileList({
             </ContextMenuTrigger>
             <ContextMenuContent>
               {file.is_directory ? (
-                <ContextMenuItem onClick={() => onOpen(file)}>
-                  <FolderOpen className="mr-2 h-4 w-4" />
-                  Open
-                </ContextMenuItem>
+                <>
+                  <ContextMenuItem onClick={() => onOpen(file)}>
+                    <FolderOpen className="mr-2 h-4 w-4" />
+                    Open
+                  </ContextMenuItem>
+                  {!folderSizes[file.path] && (
+                    <ContextMenuItem onClick={() => calculateFolderSize(file)}>
+                      <HardDrive className="mr-2 h-4 w-4" />
+                      Calculate Size
+                    </ContextMenuItem>
+                  )}
+                </>
               ) : (
                 <>
                   {isPreviewable(file.name) && (

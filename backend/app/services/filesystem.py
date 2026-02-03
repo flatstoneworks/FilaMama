@@ -217,7 +217,7 @@ class FilesystemService:
         file_path.rename(new_path)
         return self._get_file_info(new_path)
 
-    async def copy(self, source: str, destination: str) -> FileInfo:
+    async def copy(self, source: str, destination: str, overwrite: bool = False) -> FileInfo:
         src_path = self._resolve_path(source)
         dst_path = self._resolve_path(destination)
         if not src_path.exists():
@@ -225,19 +225,27 @@ class FilesystemService:
         if dst_path.exists() and dst_path.is_dir():
             dst_path = dst_path / src_path.name
         if dst_path.exists():
-            base = dst_path.stem
-            ext = dst_path.suffix
-            counter = 1
-            while dst_path.exists():
-                dst_path = dst_path.parent / f"{base}({counter}){ext}"
-                counter += 1
+            if overwrite:
+                # Remove existing file/directory before copying
+                if dst_path.is_dir():
+                    shutil.rmtree(dst_path)
+                else:
+                    dst_path.unlink()
+            else:
+                # Auto-rename with counter
+                base = dst_path.stem
+                ext = dst_path.suffix
+                counter = 1
+                while dst_path.exists():
+                    dst_path = dst_path.parent / f"{base}({counter}){ext}"
+                    counter += 1
         if src_path.is_dir():
             shutil.copytree(src_path, dst_path)
         else:
             shutil.copy2(src_path, dst_path)
         return self._get_file_info(dst_path)
 
-    async def move(self, source: str, destination: str) -> FileInfo:
+    async def move(self, source: str, destination: str, overwrite: bool = False) -> FileInfo:
         src_path = self._resolve_path(source)
         dst_path = self._resolve_path(destination)
         if not src_path.exists():
@@ -245,14 +253,58 @@ class FilesystemService:
         if dst_path.exists() and dst_path.is_dir():
             dst_path = dst_path / src_path.name
         if dst_path.exists():
-            base = dst_path.stem
-            ext = dst_path.suffix
-            counter = 1
-            while dst_path.exists():
-                dst_path = dst_path.parent / f"{base}({counter}){ext}"
-                counter += 1
+            if overwrite:
+                # Remove existing file/directory before moving
+                if dst_path.is_dir():
+                    shutil.rmtree(dst_path)
+                else:
+                    dst_path.unlink()
+            else:
+                # Auto-rename with counter
+                base = dst_path.stem
+                ext = dst_path.suffix
+                counter = 1
+                while dst_path.exists():
+                    dst_path = dst_path.parent / f"{base}({counter}){ext}"
+                    counter += 1
         shutil.move(str(src_path), str(dst_path))
         return self._get_file_info(dst_path)
+
+    async def check_conflicts(self, sources: list[str], destination: str) -> list[str]:
+        """Check which source files would conflict with existing files in destination."""
+        dst_path = self._resolve_path(destination)
+        if not dst_path.exists() or not dst_path.is_dir():
+            return []
+
+        conflicts = []
+        for source in sources:
+            src_path = self._resolve_path(source)
+            target = dst_path / src_path.name
+            if target.exists():
+                conflicts.append(source)
+        return conflicts
+
+    async def get_folder_size(self, path: str) -> int:
+        """Calculate total size of a folder recursively."""
+        folder_path = self._resolve_path(path)
+        if not folder_path.exists():
+            raise FileNotFoundError(f"Folder not found: {path}")
+        if not folder_path.is_dir():
+            raise ValueError(f"Not a directory: {path}")
+
+        total_size = 0
+        for root, dirs, files in os.walk(folder_path):
+            # Skip hidden directories
+            dirs[:] = [d for d in dirs if not d.startswith('.')]
+            for file in files:
+                if file.startswith('.'):
+                    continue
+                try:
+                    file_path = Path(root) / file
+                    total_size += file_path.stat().st_size
+                except (OSError, PermissionError):
+                    continue
+        return total_size
 
     async def search(
         self,

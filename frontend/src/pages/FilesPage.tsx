@@ -13,6 +13,7 @@ import { UploadProgress, type UploadItem } from '@/components/UploadProgress'
 import { RenameDialog } from '@/components/RenameDialog'
 import { NewFolderDialog } from '@/components/NewFolderDialog'
 import { DeleteDialog } from '@/components/DeleteDialog'
+import { ConflictDialog, type ConflictResolution } from '@/components/ConflictDialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/use-toast'
 import { Loader2 } from 'lucide-react'
@@ -23,6 +24,9 @@ interface ClipboardState {
   operation: 'copy' | 'cut'
   sourcePath: string
 }
+
+// Maximum files to display without virtualization to prevent performance issues
+const MAX_DISPLAY_FILES = 1000
 
 export function FilesPage() {
   const queryClient = useQueryClient()
@@ -83,6 +87,7 @@ export function FilesPage() {
   const [renameFile, setRenameFile] = useState<FileInfo | null>(null)
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [deleteFiles, setDeleteFiles] = useState<FileInfo[]>([])
+  const [conflictFiles, setConflictFiles] = useState<string[]>([])  // Filenames that have conflicts
 
   // Fetch config (for mounts)
   const { data: config } = useQuery({
@@ -106,6 +111,14 @@ export function FilesPage() {
     const encodedPath = previewPath.split('/').map(s => encodeURIComponent(s)).join('/')
     navigate(`/view${encodedPath}`)
   }, [currentPath, navigate])
+
+  // State for showing all files (overriding the limit)
+  const [showAllFiles, setShowAllFiles] = useState(false)
+
+  // Reset showAllFiles when path changes
+  useEffect(() => {
+    setShowAllFiles(false)
+  }, [currentPath])
 
   // Filter by content type and search
   const filteredFiles = useMemo(() => {
@@ -131,8 +144,19 @@ export function FilesPage() {
     return result
   }, [files, activeContentType, searchQuery])
 
-  // Selection
-  const { selectedFiles, selectFile, clearSelection } = useFileSelection(filteredFiles)
+  // Limit displayed files for performance (unless user explicitly wants all)
+  const displayedFiles = useMemo(() => {
+    if (showAllFiles || filteredFiles.length <= MAX_DISPLAY_FILES) {
+      return filteredFiles
+    }
+    return filteredFiles.slice(0, MAX_DISPLAY_FILES)
+  }, [filteredFiles, showAllFiles])
+
+  const hasMoreFiles = filteredFiles.length > MAX_DISPLAY_FILES && !showAllFiles
+  const hiddenFilesCount = filteredFiles.length - MAX_DISPLAY_FILES
+
+  // Selection (based on displayed files only)
+  const { selectedFiles, selectFile, clearSelection } = useFileSelection(displayedFiles)
 
   // Mutations
   const renameMutation = useMutation({
@@ -177,30 +201,74 @@ export function FilesPage() {
     },
   })
 
+  // Execute paste with a specific conflict resolution
+  const executePaste = async (resolution: ConflictResolution) => {
+    if (!clipboard) return
+
+    const overwrite = resolution === 'replace'
+    const skipConflicts = resolution === 'skip'
+
+    for (const file of clipboard.files) {
+      const srcPath = joinPath(clipboard.sourcePath, file.name)
+      const destPath = joinPath(currentPath, file.name)
+
+      // Skip this file if user chose to skip conflicts and this file conflicts
+      if (skipConflicts && conflictFiles.includes(file.name)) {
+        continue
+      }
+
+      if (clipboard.operation === 'copy') {
+        await api.copy(srcPath, destPath, overwrite)
+      } else {
+        await api.move(srcPath, destPath, overwrite)
+      }
+    }
+  }
+
   const pasteMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (resolution?: ConflictResolution) => {
       if (!clipboard) return
-      for (const file of clipboard.files) {
-        const srcPath = joinPath(clipboard.sourcePath, file.name)
-        const destPath = joinPath(currentPath, file.name)
-        if (clipboard.operation === 'copy') {
-          await api.copy(srcPath, destPath)
-        } else {
-          await api.move(srcPath, destPath)
+
+      // If no resolution provided, check for conflicts first
+      if (!resolution) {
+        const sourcePaths = clipboard.files.map(f => joinPath(clipboard.sourcePath, f.name))
+        const conflicts = await api.checkConflicts(sourcePaths, currentPath)
+
+        if (conflicts.length > 0) {
+          // Extract just the filenames from the conflict paths
+          const conflictNames = conflicts.map(p => p.split('/').pop() || '')
+          setConflictFiles(conflictNames)
+          return // Don't proceed, dialog will handle it
         }
       }
+
+      // No conflicts or resolution provided - execute paste
+      await executePaste(resolution || 'rename')
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['files'] })
-      if (clipboard?.operation === 'cut') {
-        setClipboard(null)
+    onSuccess: (_, resolution) => {
+      // Only show success if we actually did the paste (resolution was provided or no conflicts)
+      if (resolution || conflictFiles.length === 0) {
+        queryClient.invalidateQueries({ queryKey: ['files'] })
+        if (clipboard?.operation === 'cut') {
+          setClipboard(null)
+        }
+        toast({ title: clipboard?.operation === 'copy' ? 'Copied' : 'Moved' })
+        setConflictFiles([])
       }
-      toast({ title: clipboard?.operation === 'copy' ? 'Copied' : 'Moved' })
     },
     onError: () => {
       toast({ title: 'Operation failed', variant: 'destructive' })
+      setConflictFiles([])
     },
   })
+
+  // Handle conflict resolution from dialog
+  const handleConflictResolution = (resolution: ConflictResolution) => {
+    setConflictFiles([])
+    if (resolution !== 'cancel') {
+      pasteMutation.mutate(resolution)
+    }
+  }
 
   // Handlers
   const handleNavigate = (path: string) => {
@@ -340,10 +408,10 @@ export function FilesPage() {
         return
       }
 
-      // Ctrl/Cmd + A: Select all
+      // Ctrl/Cmd + A: Select all (displayed files only)
       if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
         e.preventDefault()
-        filteredFiles.forEach((file) => selectFile(file, { ctrlKey: true } as React.MouseEvent))
+        displayedFiles.forEach((file) => selectFile(file, { ctrlKey: true } as React.MouseEvent))
       }
 
       // Ctrl/Cmd + C: Copy
@@ -361,7 +429,7 @@ export function FilesPage() {
       // Ctrl/Cmd + V: Paste
       if ((e.ctrlKey || e.metaKey) && e.key === 'v' && clipboard) {
         e.preventDefault()
-        pasteMutation.mutate()
+        pasteMutation.mutate(undefined)
       }
 
       // Delete: Delete selected files
@@ -400,7 +468,7 @@ export function FilesPage() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [
-    filteredFiles,
+    displayedFiles,
     selectedFilesList,
     clipboard,
     currentPath,
@@ -471,7 +539,7 @@ export function FilesPage() {
             onDelete={() => setDeleteFiles(selectedFilesList)}
             onCopy={() => handleCopy(selectedFilesList)}
             onCut={() => handleCut(selectedFilesList)}
-            onPaste={() => pasteMutation.mutate()}
+            onPaste={() => pasteMutation.mutate(undefined)}
             onRefresh={() => queryClient.invalidateQueries({ queryKey: ['files', currentPath] })}
           />
 
@@ -490,7 +558,7 @@ export function FilesPage() {
                 <div className="flex-1 flex items-center justify-center">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : filteredFiles.length === 0 ? (
+              ) : displayedFiles.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="text-center text-muted-foreground">
                     {activeContentType ? (
@@ -513,36 +581,53 @@ export function FilesPage() {
                 </div>
               ) : (
                 <ScrollArea className="flex-1">
-                  {viewMode === 'grid' ? (
-                    <FileGrid
-                      files={filteredFiles}
-                      selectedFiles={selectedFiles}
-                      gridSize={gridSize}
-                      onSelect={selectFile}
-                      onOpen={handleOpen}
-                      onRename={setRenameFile}
-                      onDelete={(files) => setDeleteFiles(files)}
-                      onCopy={handleCopy}
-                      onCut={handleCut}
-                      onPreview={openPreview}
-                      onDownload={handleDownload}
-                      onMove={handleMove}
-                    />
-                  ) : (
-                    <FileList
-                      files={filteredFiles}
-                      selectedFiles={selectedFiles}
-                      onSelect={selectFile}
-                      onOpen={handleOpen}
-                      onRename={setRenameFile}
-                      onDelete={(files) => setDeleteFiles(files)}
-                      onCopy={handleCopy}
-                      onCut={handleCut}
-                      onPreview={openPreview}
-                      onDownload={handleDownload}
-                      onMove={handleMove}
-                    />
-                  )}
+                  <div className="flex flex-col">
+                    {viewMode === 'grid' ? (
+                      <FileGrid
+                        files={displayedFiles}
+                        selectedFiles={selectedFiles}
+                        gridSize={gridSize}
+                        onSelect={selectFile}
+                        onOpen={handleOpen}
+                        onRename={setRenameFile}
+                        onDelete={(files) => setDeleteFiles(files)}
+                        onCopy={handleCopy}
+                        onCut={handleCut}
+                        onPreview={openPreview}
+                        onDownload={handleDownload}
+                        onMove={handleMove}
+                      />
+                    ) : (
+                      <FileList
+                        files={displayedFiles}
+                        selectedFiles={selectedFiles}
+                        onSelect={selectFile}
+                        onOpen={handleOpen}
+                        onRename={setRenameFile}
+                        onDelete={(files) => setDeleteFiles(files)}
+                        onCopy={handleCopy}
+                        onCut={handleCut}
+                        onPreview={openPreview}
+                        onDownload={handleDownload}
+                        onMove={handleMove}
+                      />
+                    )}
+                    {hasMoreFiles && (
+                      <div className="flex items-center justify-center py-4 border-t">
+                        <div className="text-center">
+                          <p className="text-sm text-muted-foreground mb-2">
+                            Showing {MAX_DISPLAY_FILES.toLocaleString()} of {filteredFiles.length.toLocaleString()} files
+                          </p>
+                          <button
+                            onClick={() => setShowAllFiles(true)}
+                            className="text-sm text-primary hover:underline"
+                          >
+                            Show all {hiddenFilesCount.toLocaleString()} more files (may be slow)
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </ScrollArea>
               )}
             </UploadDropzone>
@@ -582,6 +667,14 @@ export function FilesPage() {
         files={deleteFiles}
         onConfirm={() => deleteMutation.mutate(deleteFiles)}
         isLoading={deleteMutation.isPending}
+      />
+
+      <ConflictDialog
+        open={conflictFiles.length > 0}
+        onOpenChange={(open) => !open && setConflictFiles([])}
+        conflictFiles={conflictFiles}
+        operation={clipboard?.operation || 'copy'}
+        onResolve={handleConflictResolution}
       />
     </div>
   )
