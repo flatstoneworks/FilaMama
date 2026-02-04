@@ -38,8 +38,9 @@ export function FilesPage() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Derive currentPath from URL: /browse/home/user → /home/user
+  // Decode URI components to handle spaces and special characters in folder names
   const currentPath = useMemo(() => {
-    const path = location.pathname.replace(/^\/browse/, '') || '/'
+    const path = decodeURIComponent(location.pathname).replace(/^\/browse/, '') || '/'
     return path === '' ? '/' : path
   }, [location.pathname])
 
@@ -325,9 +326,16 @@ export function FilesPage() {
   }
 
   // Handlers
+  // Helper to encode path for URL (encode each segment, preserve slashes)
+  const encodePathForUrl = (path: string) => {
+    return path.split('/').map(segment => encodeURIComponent(segment)).join('/')
+  }
+
   const handleNavigate = (path: string) => {
     // Convert filesystem path to URL: /home/user → /browse/home/user
-    const urlPath = path === '/' ? '/browse' : `/browse${path}`
+    // Encode path segments to handle spaces and special characters
+    const encodedPath = encodePathForUrl(path)
+    const urlPath = path === '/' ? '/browse' : `/browse${encodedPath}`
 
     // Preserve view settings but clear search/filter/preview
     const newParams = new URLSearchParams()
