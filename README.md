@@ -73,7 +73,7 @@ A fast, beautiful file manager web application built with React and FastAPI. Fea
 - **Image Preview** - Full-size image viewing with navigation
 - **PDF Viewer** - Page navigation, zoom controls (50%-300%), text selection
 - **Audio Player** - Built-in audio playback
-- **Thumbnails** - Auto-generated for images, videos, and GIFs
+- **Thumbnails** - Auto-generated for images (including SVG), videos, and GIFs
 
 ### Search & Navigation
 - **Recursive Search** - Search files in current folder and all subfolders

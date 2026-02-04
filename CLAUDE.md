@@ -381,6 +381,30 @@ curl "http://spark.local:8011/api/files/search?content_type=videos&query=vacatio
 
 ---
 
+### Session 2026-02-04: SVG Preview Support
+
+**Feature Added:**
+SVG files can now be previewed with auto-generated thumbnails.
+
+**Changes Made:**
+
+1. **Backend: SVG Thumbnail Generation**
+   - Added `cairosvg` dependency for SVG to PNG conversion
+   - Added `_generate_svg_thumbnail()` method to ThumbnailService
+   - SVG files now generate JPEG thumbnails like other images
+   - Handles transparency by compositing on white background
+
+**Files Modified:**
+- `backend/app/services/thumbnails.py` - Added cairosvg import, SVG thumbnail method
+- `backend/requirements.txt` - Added cairosvg==2.8.2
+
+**Notes:**
+- SVG was already mapped as 'image' type in FileIcon.tsx
+- Browser natively displays SVG in preview (no frontend changes needed)
+- cairosvg requires system Cairo library (usually pre-installed on Linux)
+
+---
+
 ### Potential Future Work
 - Favorites management (add/remove from context menu)
 - Dark/light theme toggle

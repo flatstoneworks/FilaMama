@@ -5,6 +5,12 @@ from typing import Optional, Tuple
 from PIL import Image
 import io
 
+try:
+    import cairosvg
+    HAS_CAIROSVG = True
+except ImportError:
+    HAS_CAIROSVG = False
+
 
 class ThumbnailService:
     def __init__(self, cache_dir: str, sizes: dict, quality: int = 85):
@@ -43,6 +49,8 @@ class ThumbnailService:
 
         if suffix in ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff']:
             thumb_bytes = await self._generate_image_thumbnail(file_path, target_size)
+        elif suffix in ['.svg']:
+            thumb_bytes = await self._generate_svg_thumbnail(file_path, target_size)
         elif suffix in ['.gif']:
             thumb_bytes = await self._generate_gif_thumbnail(file_path, target_size)
         elif suffix in ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.flv', '.wmv', '.m4v']:
@@ -73,6 +81,36 @@ class ThumbnailService:
                 return buffer.getvalue()
         except Exception as e:
             print(f"Error generating image thumbnail: {e}")
+            return None
+
+    async def _generate_svg_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
+        """Generate thumbnail for SVG files using cairosvg."""
+        if not HAS_CAIROSVG:
+            return None
+        try:
+            # Convert SVG to PNG at target size
+            png_data = cairosvg.svg2png(
+                url=str(file_path),
+                output_width=target_size,
+                output_height=target_size,
+            )
+            # Convert PNG to JPEG for consistent caching
+            with Image.open(io.BytesIO(png_data)) as img:
+                # Handle transparency by compositing on white background
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    background = Image.new('RGB', img.size, (255, 255, 255))
+                    if img.mode == 'P':
+                        img = img.convert('RGBA')
+                    background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                    img = background
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+
+                buffer = io.BytesIO()
+                img.save(buffer, format='JPEG', quality=self.quality, optimize=True)
+                return buffer.getvalue()
+        except Exception as e:
+            print(f"Error generating SVG thumbnail: {e}")
             return None
 
     async def _generate_gif_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
