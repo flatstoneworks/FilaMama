@@ -211,13 +211,17 @@ export function PreviewPage() {
               )}
 
               {fileType === 'image' && (
-                <img
-                  src={fileUrl}
-                  alt={currentFile.name}
-                  className="max-w-full max-h-full object-contain"
-                  onLoad={() => setIsLoading(false)}
+                <div
+                  className={ext === 'svg' ? 'bg-white rounded-lg p-4' : ''}
                   style={{ display: isLoading ? 'none' : 'block' }}
-                />
+                >
+                  <img
+                    src={fileUrl}
+                    alt={currentFile.name}
+                    className="max-w-full max-h-full object-contain"
+                    onLoad={() => setIsLoading(false)}
+                  />
+                </div>
               )}
 
               {fileType === 'video' && (
