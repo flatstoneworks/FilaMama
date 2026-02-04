@@ -99,11 +99,13 @@ A fast, beautiful file manager web application built with React and FastAPI. Fea
 - **Thumbnails** - Auto-generated for images (including SVG), videos, and GIFs
 
 ### Search & Navigation
-- **Recursive Search** - Search files in current folder and all subfolders
+- **Recursive Filename Search** - Search files in current folder and all subfolders
+- **File Content Search** - Search inside text/code files (click document icon to enable)
 - **300ms Debounce** - Smooth typing experience without lag
-- **Truncation Warning** - Shows when results exceed 500 limit
+- **Truncation Warning** - Shows when results exceed limit
 - **Content Type Filters** - Quick filters for Photos, Videos, GIFs, PDFs, Audio
 - **URL-Based State** - Bookmarkable views, browser back/forward support
+- **Scroll Restoration** - Returns to previous scroll position when navigating back
 
 ### Keyboard Shortcuts
 
@@ -178,6 +180,7 @@ FilaMama/
 │   │   │   ├── UploadDropzone.tsx  # Drag-drop upload area
 │   │   │   ├── UploadProgress.tsx  # Upload status with speed/ETA
 │   │   │   ├── MiniPlayer.tsx      # Audio mini-player with cover art
+│   │   │   ├── ContentSearchResults.tsx # File content search results
 │   │   │   ├── RenameDialog.tsx    # Rename modal
 │   │   │   ├── NewFolderDialog.tsx # Create folder modal
 │   │   │   ├── DeleteDialog.tsx    # Delete confirmation
@@ -186,7 +189,8 @@ FilaMama/
 │   │   │   └── AudioPlayerContext.tsx  # Global audio player state
 │   │   ├── hooks/
 │   │   │   ├── useFileSelection.ts # Multi-select hook
-│   │   │   └── useDebounce.ts      # Search debounce hook
+│   │   │   ├── useDebounce.ts      # Search debounce hook
+│   │   │   └── useScrollRestoration.ts # Scroll position persistence
 │   │   ├── lib/
 │   │   │   └── utils.ts            # Utility functions
 │   │   ├── pages/
@@ -317,7 +321,8 @@ app:
 | GET | `/api/files/thumbnail` | Get file thumbnail |
 | GET | `/api/files/preview` | Preview file |
 | GET | `/api/files/text` | Get text file content |
-| GET | `/api/files/search` | Search files (recursive, with truncation info) |
+| GET | `/api/files/search` | Search files by name (recursive, with truncation info) |
+| GET | `/api/files/search-content` | Search inside file contents (uses ripgrep) |
 | GET | `/api/files/audio-metadata` | Get audio file metadata (title, artist, album, etc.) |
 | GET | `/api/files/audio-cover` | Get embedded cover art from audio file |
 | GET | `/api/files/disk-usage` | Get disk usage stats |

@@ -55,6 +55,7 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 - Thumbnail generation
 - Recursive search with 300ms debounce and truncation warnings
 - Content type filtering (Photos, Videos, GIFs, PDFs, Audio) - recursive
+- **File content search**: Search inside text/code files using ripgrep
 
 ### Audio Mini-Player (Spotify-style)
 - **Global player**: Persists across all pages (file browser, preview, etc.)
@@ -114,7 +115,9 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 - `frontend/src/components/UploadProgress.tsx` - Upload progress with speed, ETA, retry
 - `frontend/src/components/MiniPlayer.tsx` - Audio mini-player with cover art and metadata
 - `frontend/src/contexts/AudioPlayerContext.tsx` - Global audio player state management
+- `frontend/src/components/ContentSearchResults.tsx` - File content search results with match highlighting
 - `frontend/src/hooks/useDebounce.ts` - Debounce hook for search
+- `frontend/src/hooks/useScrollRestoration.ts` - Scroll position restoration hook
 - `frontend/src/api/client.ts` - API client with URL helpers
 - `frontend/src/lib/utils.ts` - Utility functions (formatVideoTime, formatBytes, formatUploadSpeed, etc.)
 - `frontend/src/main.tsx` - Router configuration, global audio player provider
@@ -561,12 +564,94 @@ curl -o cover.jpg "http://spark.local:8011/api/files/audio-cover?path=/Music/son
 
 ---
 
+### Session 2026-02-04: File Content Search
+
+**Feature Implemented:**
+Search inside text and code files for specific patterns. Uses ripgrep for fast searching with a Python fallback.
+
+**How to Use:**
+1. Click the document icon (FileText) next to the search bar to enable content search mode
+2. Type your search query (minimum 2 characters)
+3. Results show files with matching content and the specific lines that matched
+4. Click a file or matching line to open the file preview
+5. Click the icon again or clear search to return to filename search
+
+**Backend Implementation:**
+- New `/api/files/search-content` endpoint
+- Uses ripgrep subprocess for fast content searching
+- Falls back to Python-based search if ripgrep not installed
+- Configurable limits:
+  - `max_files`: Maximum files to return (default 100, max 200)
+  - `max_depth`: Maximum directory depth (default 3, max 5)
+  - `max_file_size_kb`: Max file size to search (1MB)
+  - `max_matches_per_file`: Max matches per file (5)
+- Excludes: node_modules, .git, __pycache__, dist, build, venv, minified files
+
+**Supported File Types:**
+Text files with extensions: .txt, .md, .log, .json, .xml, .yaml, .yml, .toml, .ini, .cfg, .conf, .env, .py, .js, .ts, .tsx, .jsx, .html, .css, .scss, .sh, .bash, .c, .h, .cpp, .java, .go, .rs, .rb, .php, .sql, and many more.
+
+**Frontend Implementation:**
+- Toggle button in header switches between filename and content search
+- `ContentSearchResults` component displays matches with:
+  - File name, path, size, and modification date
+  - Matching lines with line numbers
+  - Highlighted search term in matches
+- URL-backed state (`?content=true&search=query`) for bookmarkable searches
+- Scroll position restoration when navigating back from preview
+
+**UX Improvements:**
+- Scroll position saved to sessionStorage when navigating away
+- Restored when navigating back (browser back or in-app back button)
+- Search state preserved immediately (no debounce delay for UI)
+- Back button uses `navigate(-1)` for proper history navigation
+
+**Files Created:**
+- `backend/app/models/schemas.py` - ContentSearchMatch, ContentSearchResult, ContentSearchResponse
+- `frontend/src/components/ContentSearchResults.tsx` - Results display with highlighting
+- `frontend/src/hooks/useScrollRestoration.ts` - Scroll position persistence
+
+**Files Modified:**
+- `backend/app/services/filesystem.py` - Added `search_content()` method with ripgrep/Python
+- `backend/app/routers/files.py` - Added `/search-content` endpoint
+- `frontend/src/api/client.ts` - Added `searchContent()` function and types
+- `frontend/src/components/Header.tsx` - Added content search toggle button
+- `frontend/src/components/ui/scroll-area.tsx` - Added `viewportRef` prop
+- `frontend/src/pages/FilesPage.tsx` - Content search integration, scroll restoration
+- `frontend/src/pages/PreviewPage.tsx` - Back button uses history navigation
+
+**API Usage:**
+```bash
+# Search for "useState" in frontend source files
+curl "http://spark.local:8011/api/files/search-content?query=useState&path=/Claude/FLATSTONE/FilaMama/frontend/src&max_files=10"
+
+# Response includes files with matches
+{
+  "results": [
+    {
+      "path": "/path/to/file.tsx",
+      "name": "file.tsx",
+      "type": "file",
+      "size": 1234,
+      "modified": "2026-02-04T12:00:00",
+      "matches": [
+        {"line_number": 1, "line_content": "import { useState } from 'react'"},
+        {"line_number": 15, "line_content": "const [value, setValue] = useState('')"}
+      ]
+    }
+  ],
+  "files_searched": 50,
+  "files_with_matches": 5,
+  "has_more": false
+}
+```
+
+---
+
 ### Potential Future Work
 - Dark/light theme toggle
 - Drag and drop to sidebar folders
 - Picture-in-picture mode for videos
 - Subtitle/caption support for videos
-- File content search (search inside text files)
 - Audio visualizer in mini-player
 - Queue management (add/remove tracks, reorder)
 - Crossfade between tracks
