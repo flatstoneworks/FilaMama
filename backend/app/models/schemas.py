@@ -86,6 +86,12 @@ class SearchResult(BaseModel):
     modified: datetime
 
 
+class SearchResponse(BaseModel):
+    results: list[SearchResult]
+    has_more: bool
+    total_scanned: int  # How many items were scanned before hitting limit
+
+
 class UploadProgress(BaseModel):
     filename: str
     bytes_uploaded: int

@@ -143,10 +143,16 @@ async function getFolderSize(path: string): Promise<number> {
   return response.size
 }
 
+export interface UploadProgressEvent {
+  percent: number
+  bytesUploaded: number
+  totalBytes: number
+}
+
 async function uploadFile(
   file: File,
   path: string,
-  onProgress?: (percent: number) => void,
+  onProgress?: (progress: UploadProgressEvent) => void,
   relativePath?: string
 ): Promise<void> {
   const formData = new FormData()
@@ -161,17 +167,32 @@ async function uploadFile(
     const xhr = new XMLHttpRequest()
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable && onProgress) {
-        onProgress((e.loaded / e.total) * 100)
+        onProgress({
+          percent: (e.loaded / e.total) * 100,
+          bytesUploaded: e.loaded,
+          totalBytes: e.total,
+        })
       }
     })
     xhr.addEventListener('load', () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve()
       } else {
-        reject(new Error(`Upload failed: ${xhr.status}`))
+        // Try to parse error detail from server response
+        let errorMessage = `Upload failed: ${xhr.status}`
+        try {
+          const response = JSON.parse(xhr.responseText)
+          if (response.detail) {
+            errorMessage = response.detail
+          }
+        } catch {
+          // Use default error message
+        }
+        reject(new Error(errorMessage))
       }
     })
-    xhr.addEventListener('error', () => reject(new Error('Upload failed')))
+    xhr.addEventListener('error', () => reject(new Error('Network error - upload failed')))
+    xhr.addEventListener('abort', () => reject(new Error('Upload was cancelled')))
     xhr.open('POST', `${API_BASE}/upload`)
     xhr.send(formData)
   })
@@ -209,19 +230,25 @@ export interface SearchResult {
   modified: string
 }
 
+export interface SearchResponse {
+  results: SearchResult[]
+  has_more: boolean
+  total_scanned: number
+}
+
 async function searchFiles(params: {
   query?: string
   path?: string
   maxResults?: number
   contentType?: string
-}): Promise<SearchResult[]> {
+}): Promise<SearchResponse> {
   const url = new URL(`${API_BASE}/files/search`, window.location.origin)
   if (params.query) url.searchParams.set('query', params.query)
   if (params.path) url.searchParams.set('path', params.path)
   if (params.maxResults) url.searchParams.set('max_results', params.maxResults.toString())
   if (params.contentType) url.searchParams.set('content_type', params.contentType)
 
-  return handleResponse<SearchResult[]>(await fetch(url.toString()))
+  return handleResponse<SearchResponse>(await fetch(url.toString()))
 }
 
 export const api = {

@@ -131,3 +131,31 @@ export function formatVideoTime(seconds: number): string {
   }
   return `${minutes}:${secs.toString().padStart(2, '0')}`
 }
+
+const VIDEO_EXTENSIONS = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'ogg', 'ogv', 'flv', 'wmv']
+
+export function isVideoFile(filename: string): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase()
+  return VIDEO_EXTENSIONS.includes(ext || '')
+}
+
+export function formatUploadSpeed(bytesPerSecond: number): string {
+  if (bytesPerSecond === 0) return '0 B/s'
+  const k = 1024
+  const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s']
+  const i = Math.floor(Math.log(bytesPerSecond) / Math.log(k))
+  return parseFloat((bytesPerSecond / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+}
+
+export function formatETA(seconds: number): string {
+  if (!isFinite(seconds) || seconds < 0) return '--'
+  if (seconds < 60) return `${Math.ceil(seconds)}s`
+  if (seconds < 3600) {
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}m ${secs}s`
+  }
+  const hours = Math.floor(seconds / 3600)
+  const mins = Math.floor((seconds % 3600) / 60)
+  return `${hours}h ${mins}m`
+}

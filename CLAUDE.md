@@ -46,12 +46,15 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 ### File Operations
 - Grid/List views with adjustable thumbnail size
 - Copy, cut, paste, rename, delete, move
-- Drag-and-drop upload with progress
+- Drag-and-drop upload with progress, speed/ETA display, retry failed uploads
+- Parallel uploads (3 concurrent) with client-side size validation
 - Drag-and-drop moving between folders
-- File preview (images, videos with custom player, audio, PDF, text)
+- File preview (images, videos, audio, PDF, 50+ code/text formats with syntax highlighting)
+- Video hover preview with timeline scrubbing
+- Text/code hover preview with syntax highlighting
 - Thumbnail generation
-- Search/filter functionality
-- Recursive content type filtering (searches current folder and all subfolders)
+- Recursive search with 300ms debounce and truncation warnings
+- Content type filtering (Photos, Videos, GIFs, PDFs, Audio) - recursive
 
 ### Keyboard Shortcuts
 
@@ -79,16 +82,21 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 
 ### Frontend
 - `frontend/src/pages/FilesPage.tsx` - Main page with all state management
-- `frontend/src/pages/PreviewPage.tsx` - File preview page (images, video, audio, PDF, text)
+- `frontend/src/pages/PreviewPage.tsx` - File preview page (images, video, audio, PDF, code/text with syntax highlighting)
 - `frontend/src/components/Header.tsx` - Header with breadcrumbs + search
 - `frontend/src/components/Sidebar.tsx` - Navigation sidebar with folders & filters
 - `frontend/src/components/Toolbar.tsx` - Action toolbar
-- `frontend/src/components/FileGrid.tsx` - Grid view with checkbox selection
+- `frontend/src/components/FileGrid.tsx` - Grid view with checkbox selection, video/text hover previews
 - `frontend/src/components/FileList.tsx` - List view with checkbox selection
+- `frontend/src/components/FileIcon.tsx` - File type detection, icons, and preview helpers
 - `frontend/src/components/VideoPlayer.tsx` - Custom video player with controls & keyboard shortcuts
+- `frontend/src/components/VideoPreview.tsx` - Video hover preview with timeline scrubbing
+- `frontend/src/components/TextPreview.tsx` - Text/code hover preview with syntax highlighting
 - `frontend/src/components/PdfViewer.tsx` - PDF viewer using react-pdf
+- `frontend/src/components/UploadProgress.tsx` - Upload progress with speed, ETA, retry
+- `frontend/src/hooks/useDebounce.ts` - Debounce hook for search
 - `frontend/src/api/client.ts` - API client with URL helpers
-- `frontend/src/lib/utils.ts` - Utility functions (formatVideoTime, formatBytes, etc.)
+- `frontend/src/lib/utils.ts` - Utility functions (formatVideoTime, formatBytes, formatUploadSpeed, etc.)
 - `frontend/src/main.tsx` - Router configuration
 
 ### Backend
@@ -297,11 +305,87 @@ curl "http://spark.local:8011/api/files/search?content_type=videos&query=vacatio
 
 ---
 
+### Session 2026-02-04: Video Hover Preview, Text Preview & Search Improvements
+
+**Features Implemented:**
+
+#### 1. Video Hover Preview (Timeline Scrubbing)
+- Hover over video thumbnails in grid view to scrub through the video
+- Moving mouse horizontally seeks through the video timeline
+- Uses HTML5 Video API + Canvas for frame extraction
+- Progress indicator shows current position
+- No backend changes needed - reuses existing `/api/files/stream` endpoint
+
+**Files Created:**
+- `frontend/src/components/VideoPreview.tsx` - Video frame extraction component
+
+**Files Modified:**
+- `frontend/src/components/FileGrid.tsx` - Integrated VideoPreview for video files
+- `frontend/src/lib/utils.ts` - Added `isVideoFile()` helper
+
+#### 2. Text/Code File Preview with Syntax Highlighting
+- **50+ new file extensions** supported for preview (.sh, .py, .js, .ts, .json, .yaml, etc.)
+- **Syntax highlighting** using react-syntax-highlighter with oneDark theme
+- **Hover preview in grid** - shows first 12 lines of code when hovering
+- **Full preview page** - line numbers, proper language detection
+
+**Supported Languages:**
+- JavaScript/TypeScript (.js, .ts, .jsx, .tsx, .mjs)
+- Python (.py, .pyw)
+- Shell (.sh, .bash, .zsh, .ps1, .bat)
+- Web (.html, .css, .scss, .sass)
+- Data (.json, .xml, .yaml, .yml, .toml)
+- C/C++/Java/Go/Rust and many more
+- Config files (.ini, .cfg, .conf, .env, .properties)
+- Text/Markdown (.txt, .md, .log, .rst)
+
+**Files Created:**
+- `frontend/src/components/TextPreview.tsx` - Hover preview component with syntax highlighting
+
+**Files Modified:**
+- `frontend/src/components/FileIcon.tsx` - Added extensions, `isTextFile()`, `getLanguageFromExtension()`
+- `frontend/src/pages/PreviewPage.tsx` - Syntax highlighting with react-syntax-highlighter
+- `frontend/src/components/FileGrid.tsx` - Integrated TextPreview for text/code files
+
+**Dependencies Added:**
+- `react-syntax-highlighter` - Syntax highlighting library
+- `@types/react-syntax-highlighter` - TypeScript definitions
+
+#### 3. Improved Search
+- **Recursive text search** - Header search now searches subfolders (not just current folder)
+- **300ms debounce** - Reduces API calls and UI jank while typing
+- **Truncation warning** - Shows "Showing first 500 of X+ results" when results exceed limit
+
+**Files Created:**
+- `frontend/src/hooks/useDebounce.ts` - Reusable debounce hook
+
+**Files Modified:**
+- `backend/app/services/filesystem.py` - Search returns `(results, has_more, total_scanned)` tuple
+- `backend/app/routers/files.py` - Updated search endpoint response format
+- `backend/app/models/schemas.py` - Added `SearchResponse` model
+- `frontend/src/api/client.ts` - Updated `SearchResponse` type
+- `frontend/src/pages/FilesPage.tsx` - Debounced search, recursive API call, truncation UI
+
+#### 4. Upload Improvements
+- **Parallel uploads** - 3 files upload concurrently (configurable)
+- **Speed & ETA display** - Shows upload speed (MB/s) and estimated time remaining
+- **Retry failed uploads** - Retry button for failed uploads
+- **Better error messages** - Parses server responses for detailed errors
+- **Client-side size validation** - Warns about oversized files before upload
+
+**Files Modified:**
+- `frontend/src/components/UploadProgress.tsx` - Speed, ETA, retry button UI
+- `frontend/src/pages/FilesPage.tsx` - Parallel batch processing, retry handler, size validation
+- `frontend/src/api/client.ts` - Enhanced progress tracking, error parsing
+- `frontend/src/lib/utils.ts` - Added `formatUploadSpeed()`, `formatETA()`
+
+---
+
 ### Potential Future Work
 - Favorites management (add/remove from context menu)
 - Dark/light theme toggle
 - Arrow key navigation in file grid/list
 - Drag and drop to sidebar folders
-- Video thumbnail preview on hover (timeline scrubbing)
 - Picture-in-picture mode for videos
 - Subtitle/caption support for videos
+- File content search (search inside text files)

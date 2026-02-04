@@ -321,10 +321,21 @@ class FilesystemService:
         path: str = "/",
         max_results: int = 100,
         content_type: str = None,
-    ) -> AsyncGenerator[SearchResult, None]:
+    ) -> tuple[list[SearchResult], bool, int]:
+        """
+        Search for files recursively.
+
+        Returns:
+            Tuple of (results, has_more, total_scanned)
+            - results: List of SearchResult objects (up to max_results)
+            - has_more: True if there are more results beyond max_results
+            - total_scanned: Number of matching items found (may be > max_results)
+        """
         search_path = self._resolve_path(path)
         query_lower = query.lower() if query else ""
-        count = 0
+        results: list[SearchResult] = []
+        total_scanned = 0
+        has_more = False
 
         # Get extensions for content type filtering
         type_extensions = None
@@ -338,23 +349,22 @@ class FilesystemService:
             # Only search directories if not filtering by content type
             if not content_type:
                 for d in dirs:
-                    if count >= max_results:
-                        return
                     if not query_lower or query_lower in d.lower():
+                        total_scanned += 1
+                        if len(results) >= max_results:
+                            has_more = True
+                            continue  # Keep scanning to count total
                         dir_path = root_path / d
                         info = self._get_file_info(dir_path)
-                        yield SearchResult(
+                        results.append(SearchResult(
                             path=info.path,
                             name=info.name,
                             type=info.type,
                             size=info.size,
                             modified=info.modified,
-                        )
-                        count += 1
+                        ))
 
             for f in files:
-                if count >= max_results:
-                    return
                 if f.startswith('.'):
                     continue
 
@@ -368,18 +378,26 @@ class FilesystemService:
                 if query_lower and query_lower not in f.lower():
                     continue
 
+                total_scanned += 1
+                if len(results) >= max_results:
+                    has_more = True
+                    # Stop early once we know there are more results
+                    # (counting all would be too slow for large directories)
+                    return results, has_more, total_scanned
+
                 file_path = root_path / f
                 info = self._get_file_info(file_path)
-                yield SearchResult(
+                results.append(SearchResult(
                     path=info.path,
                     name=info.name,
                     type=info.type,
                     size=info.size,
                     modified=info.modified,
-                )
-                count += 1
+                ))
 
             await asyncio.sleep(0)
+
+        return results, has_more, total_scanned
 
     async def get_disk_usage(self, path: str = "/") -> DiskUsage:
         dir_path = self._resolve_path(path)

@@ -1,10 +1,13 @@
 import { useRef, useState } from 'react'
-import { FileIcon, isPreviewable } from './FileIcon'
+import { FileIcon, isPreviewable, isTextFile } from './FileIcon'
+import { VideoPreview } from './VideoPreview'
+import { TextPreview } from './TextPreview'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen } from 'lucide-react'
 import type { FileInfo } from '@/api/client'
-import { cn, isFileSelected, getSelectedOrSingle, createCheckboxClickHandler } from '@/lib/utils'
+import { api } from '@/api/client'
+import { cn, isFileSelected, getSelectedOrSingle, createCheckboxClickHandler, isVideoFile } from '@/lib/utils'
 
 interface FileGridProps {
   files: FileInfo[]
@@ -164,7 +167,26 @@ export function FileGrid({
                 />
               </div>
 
-              {file.thumbnail_url ? (
+              {file.thumbnail_url && isVideoFile(file.name) ? (
+                <div
+                  className="rounded-md overflow-hidden bg-muted flex items-center justify-center"
+                  style={{ width: gridSize - 16, height: gridSize - 16 }}
+                >
+                  <VideoPreview
+                    src={api.getStreamUrl(file.path)}
+                    posterUrl={file.thumbnail_url}
+                    width={gridSize - 16}
+                    height={gridSize - 16}
+                  />
+                </div>
+              ) : isTextFile(file.name) ? (
+                <TextPreview
+                  src={api.getDownloadUrl(file.path)}
+                  fileName={file.name}
+                  width={gridSize - 16}
+                  height={gridSize - 16}
+                />
+              ) : file.thumbnail_url ? (
                 <div
                   className="rounded-md overflow-hidden bg-muted flex items-center justify-center"
                   style={{ width: gridSize - 16, height: gridSize - 16 }}

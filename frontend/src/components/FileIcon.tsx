@@ -15,14 +15,46 @@ const iconMap: Record<string, LucideIcon> = {
 }
 
 const extensionToType: Record<string, string> = {
+  // Images
   jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', webp: 'image', svg: 'image', bmp: 'image', ico: 'image',
+  // Videos
   mp4: 'video', webm: 'video', mov: 'video', avi: 'video', mkv: 'video', wmv: 'video', flv: 'video',
+  // Audio
   mp3: 'audio', wav: 'audio', ogg: 'audio', flac: 'audio', aac: 'audio', m4a: 'audio', wma: 'audio',
-  pdf: 'document', doc: 'document', docx: 'document', txt: 'document', rtf: 'document', odt: 'document', md: 'document',
+  // Documents (binary - not previewable as text)
+  doc: 'document', docx: 'document', rtf: 'document', odt: 'document',
+  // Spreadsheets
   xls: 'spreadsheet', xlsx: 'spreadsheet', csv: 'spreadsheet', ods: 'spreadsheet',
+  // Presentations
   ppt: 'presentation', pptx: 'presentation', odp: 'presentation',
+  // Archives
   zip: 'archive', rar: 'archive', '7z': 'archive', tar: 'archive', gz: 'archive', bz2: 'archive',
-  js: 'code', ts: 'code', jsx: 'code', tsx: 'code', py: 'code', java: 'code', cpp: 'code', c: 'code', h: 'code', css: 'code', html: 'code', json: 'code', xml: 'code', yaml: 'code', yml: 'code', sh: 'code', sql: 'code',
+  // Code/programming files
+  js: 'code', ts: 'code', jsx: 'code', tsx: 'code', mjs: 'code', cjs: 'code',
+  py: 'code', pyw: 'code', pyx: 'code',
+  java: 'code', kt: 'code', scala: 'code', groovy: 'code',
+  cpp: 'code', c: 'code', h: 'code', hpp: 'code', cc: 'code', cxx: 'code',
+  cs: 'code', fs: 'code', vb: 'code',
+  go: 'code', rs: 'code', swift: 'code', m: 'code',
+  rb: 'code', php: 'code', pl: 'code', pm: 'code',
+  sh: 'code', bash: 'code', zsh: 'code', fish: 'code', ps1: 'code', bat: 'code', cmd: 'code',
+  html: 'code', htm: 'code', xhtml: 'code',
+  css: 'code', scss: 'code', sass: 'code', less: 'code',
+  json: 'code', jsonc: 'code', json5: 'code',
+  xml: 'code', xsl: 'code', xslt: 'code',
+  yaml: 'code', yml: 'code', toml: 'code',
+  sql: 'code', graphql: 'code', gql: 'code',
+  r: 'code', lua: 'code', tcl: 'code', awk: 'code', sed: 'code',
+  dockerfile: 'code', makefile: 'code',
+  // Text files (plain text, markdown, config)
+  txt: 'code', text: 'code',
+  md: 'code', markdown: 'code', rst: 'code', adoc: 'code',
+  log: 'code', out: 'code',
+  ini: 'code', cfg: 'code', conf: 'code', config: 'code',
+  env: 'code', properties: 'code',
+  gitignore: 'code', dockerignore: 'code', editorconfig: 'code',
+  pdf: 'document',
+  // Databases
   db: 'database', sqlite: 'database', sqlite3: 'database',
 }
 
@@ -72,5 +104,50 @@ export function getFileType(name: string, isDirectory: boolean): string {
 export function isPreviewable(name: string): boolean {
   const ext = name.split('.').pop()?.toLowerCase() || ''
   const type = extensionToType[ext]
-  return ['image', 'video', 'audio', 'document'].includes(type) || ext === 'pdf' || ext === 'txt' || ext === 'md'
+  // Images, videos, audio, PDFs, and all code/text files are previewable
+  return ['image', 'video', 'audio', 'code'].includes(type) || ext === 'pdf'
+}
+
+// Check if a file is a text/code file that can be syntax highlighted
+export function isTextFile(name: string): boolean {
+  const ext = name.split('.').pop()?.toLowerCase() || ''
+  const type = extensionToType[ext]
+  return type === 'code'
+}
+
+// Get the language identifier for syntax highlighting
+export function getLanguageFromExtension(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() || ''
+  const languageMap: Record<string, string> = {
+    // JavaScript/TypeScript
+    js: 'javascript', jsx: 'jsx', mjs: 'javascript', cjs: 'javascript',
+    ts: 'typescript', tsx: 'tsx',
+    // Python
+    py: 'python', pyw: 'python', pyx: 'python',
+    // Shell
+    sh: 'bash', bash: 'bash', zsh: 'bash', fish: 'bash',
+    ps1: 'powershell', bat: 'batch', cmd: 'batch',
+    // Web
+    html: 'html', htm: 'html', xhtml: 'html',
+    css: 'css', scss: 'scss', sass: 'sass', less: 'less',
+    // Data formats
+    json: 'json', jsonc: 'json', json5: 'json',
+    xml: 'xml', xsl: 'xml', xslt: 'xml',
+    yaml: 'yaml', yml: 'yaml', toml: 'toml',
+    // C family
+    c: 'c', h: 'c', cpp: 'cpp', hpp: 'cpp', cc: 'cpp', cxx: 'cpp',
+    cs: 'csharp', java: 'java', kt: 'kotlin', scala: 'scala',
+    // Other languages
+    go: 'go', rs: 'rust', swift: 'swift', rb: 'ruby',
+    php: 'php', pl: 'perl', lua: 'lua', r: 'r',
+    sql: 'sql', graphql: 'graphql', gql: 'graphql',
+    // Config/text
+    md: 'markdown', markdown: 'markdown', rst: 'text',
+    ini: 'ini', cfg: 'ini', conf: 'ini', config: 'ini',
+    env: 'bash', properties: 'properties',
+    dockerfile: 'dockerfile', makefile: 'makefile',
+    log: 'text', txt: 'text', text: 'text', out: 'text',
+    gitignore: 'text', dockerignore: 'text', editorconfig: 'ini',
+  }
+  return languageMap[ext] || 'text'
 }

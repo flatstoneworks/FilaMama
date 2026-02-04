@@ -99,16 +99,15 @@ async def search_files(
     max_results: int = Query(100, le=500),
     content_type: Optional[str] = None,
 ):
-    async def generate():
-        yield "["
-        first = True
-        async for result in fs_service.search(query, path, max_results, content_type):
-            if not first:
-                yield ","
-            first = False
-            yield result.model_dump_json()
-        yield "]"
-    return StreamingResponse(generate(), media_type="application/json")
+    """Search files recursively. Returns results with truncation info."""
+    results, has_more, total_scanned = await fs_service.search(
+        query, path, max_results, content_type
+    )
+    return {
+        "results": [r.model_dump() for r in results],
+        "has_more": has_more,
+        "total_scanned": total_scanned,
+    }
 
 
 @router.get("/disk-usage", response_model=DiskUsage)

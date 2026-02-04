@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Download, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
-import { getFileType, isPreviewable } from '@/components/FileIcon'
+import { getFileType, isPreviewable, isTextFile, getLanguageFromExtension } from '@/components/FileIcon'
 import { joinPath, getParentPath, getFileName } from '@/lib/utils'
 import { PdfViewer } from '@/components/PdfViewer'
 import { VideoPlayer } from '@/components/VideoPlayer'
@@ -99,14 +101,13 @@ export function PreviewPage() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [hasPrev, hasNext, currentIndex, fileType])
 
-  // Load text content for text files
+  // Load text content for text/code files
   useEffect(() => {
     if (currentFile) {
       setIsLoading(true)
       setTextContent(null)
 
-      const ext = currentFile.name.split('.').pop()?.toLowerCase()
-      if (ext === 'txt' || ext === 'md') {
+      if (isTextFile(currentFile.name)) {
         const downloadUrl = api.getDownloadUrl(filePath)
         fetch(downloadUrl)
           .then((res) => res.text())
@@ -248,10 +249,29 @@ export function PreviewPage() {
                 />
               )}
 
-              {(ext === 'txt' || ext === 'md') && textContent !== null && (
-                <pre className="w-full max-w-4xl h-full overflow-auto p-6 text-white text-sm font-mono whitespace-pre-wrap bg-white/5 rounded-lg">
-                  {textContent}
-                </pre>
+              {isTextFile(currentFile.name) && textContent !== null && (
+                <div className="w-full max-w-5xl h-full overflow-auto rounded-lg">
+                  <SyntaxHighlighter
+                    language={getLanguageFromExtension(currentFile.name)}
+                    style={oneDark}
+                    showLineNumbers
+                    wrapLines
+                    customStyle={{
+                      margin: 0,
+                      borderRadius: '0.5rem',
+                      fontSize: '0.875rem',
+                      minHeight: '100%',
+                    }}
+                    lineNumberStyle={{
+                      minWidth: '3em',
+                      paddingRight: '1em',
+                      color: '#636d83',
+                      userSelect: 'none',
+                    }}
+                  >
+                    {textContent}
+                  </SyntaxHighlighter>
+                </div>
               )}
             </>
           )}

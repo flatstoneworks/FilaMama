@@ -3,6 +3,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type FileInfo, type SearchResult } from '@/api/client'
 import { useFileSelection } from '@/hooks/useFileSelection'
+import { useDebounce } from '@/hooks/useDebounce'
 import { Header } from '@/components/Header'
 import { Sidebar } from '@/components/Sidebar'
 import { Toolbar, type ViewMode } from '@/components/Toolbar'
@@ -16,7 +17,7 @@ import { DeleteDialog } from '@/components/DeleteDialog'
 import { ConflictDialog, type ConflictResolution } from '@/components/ConflictDialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/use-toast'
-import { Loader2, X, FolderSearch } from 'lucide-react'
+import { Loader2, X, FolderSearch, AlertTriangle } from 'lucide-react'
 import { joinPath } from '@/lib/utils'
 
 interface ClipboardState {
@@ -104,18 +105,27 @@ export function FilesPage() {
 
   const files = listing?.files || []
 
-  // Recursive search for content type filtering
-  const { data: searchResults, isLoading: isSearching } = useQuery({
-    queryKey: ['content-search', activeContentType, currentPath],
+  // Debounce search query to avoid excessive API calls
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+
+  // Recursive search - triggered by either text search or content type filter
+  const isSearchActive = !!debouncedSearchQuery || !!activeContentType
+  const { data: searchResponse, isLoading: isSearching } = useQuery({
+    queryKey: ['recursive-search', debouncedSearchQuery, activeContentType, currentPath],
     queryFn: () => api.searchFiles({
-      contentType: activeContentType!,
+      query: debouncedSearchQuery || undefined,
+      contentType: activeContentType || undefined,
       path: currentPath,
       maxResults: 500,
     }),
-    enabled: !!activeContentType,
+    enabled: isSearchActive,
   })
 
-  const isLoading = isLoadingDir || (!!activeContentType && isSearching)
+  const searchResults = searchResponse?.results
+  const searchHasMore = searchResponse?.has_more ?? false
+  const searchTotalScanned = searchResponse?.total_scanned ?? 0
+
+  const isLoading = isLoadingDir || (isSearchActive && isSearching)
 
   // Navigate to preview page
   const openPreview = useCallback((file: FileInfo) => {
@@ -156,18 +166,14 @@ export function FilesPage() {
     })
   }, [searchResults])
 
-  // Filter by content type (uses recursive search) and search query
+  // Use search results when search is active, otherwise show directory listing
   const filteredFiles = useMemo(() => {
-    // Use recursive search results when content type filter is active
-    let result = activeContentType ? searchResultsAsFiles : files
-
-    // Filter by search query (applies to both modes)
-    if (searchQuery) {
-      result = result.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    // Use recursive search results when any search is active
+    if (isSearchActive) {
+      return searchResultsAsFiles
     }
-
-    return result
-  }, [files, activeContentType, searchQuery, searchResultsAsFiles])
+    return files
+  }, [files, isSearchActive, searchResultsAsFiles])
 
   // Limit displayed files for performance (unless user explicitly wants all)
   const displayedFiles = useMemo(() => {
@@ -355,37 +361,76 @@ export function FilesPage() {
     }
   }
 
+  // Parallel upload configuration
+  const CONCURRENT_UPLOADS = 3
+
   const handleUpload = useCallback(
     async (fileList: FileList | File[]) => {
       const filesArray = Array.isArray(fileList) ? fileList : Array.from(fileList)
 
+      // Client-side size validation
+      const maxSizeBytes = (config?.max_upload_size_mb || 1024) * 1024 * 1024
+      const oversizedFiles = filesArray.filter(f => f.size > maxSizeBytes)
+      if (oversizedFiles.length > 0) {
+        const sizeLimit = config?.max_upload_size_mb || 1024
+        toast({
+          title: `${oversizedFiles.length} file(s) exceed size limit`,
+          description: `Maximum file size is ${sizeLimit} MB. Oversized files will be skipped.`,
+          variant: 'destructive',
+        })
+      }
+
+      // Filter out oversized files
+      const validFiles = filesArray.filter(f => f.size <= maxSizeBytes)
+      if (validFiles.length === 0) {
+        setIsPreparingUpload(false)
+        return
+      }
+
       // Show upload panel immediately with all files
-      const newUploads: UploadItem[] = filesArray.map((file) => ({
+      const newUploads: UploadItem[] = validFiles.map((file) => ({
         id: Math.random().toString(36).slice(2),
         name: (file as any).customRelativePath || (file as any).webkitRelativePath || file.name,
         progress: 0,
         status: 'pending' as const,
+        file: file, // Store file for retry
+        relativePath: (file as any).customRelativePath || (file as any).webkitRelativePath || '',
+        totalBytes: file.size,
+        bytesUploaded: 0,
       }))
 
       // Add all files to the upload list immediately so user sees them
       setUploads((prev) => [...prev, ...newUploads])
       setIsPreparingUpload(false)
 
-      for (let i = 0; i < filesArray.length; i++) {
-        const file = filesArray[i]
-        const uploadItem = newUploads[i]
-        // Get relative path for folder uploads (e.g., "folder/subfolder/file.txt")
-        // Check both customRelativePath (from drag-drop) and webkitRelativePath (from folder input)
-        const relativePath = (file as any).customRelativePath || (file as any).webkitRelativePath || ''
+      // Upload files in parallel batches
+      const uploadSingleFile = async (uploadItem: UploadItem, file: File) => {
+        const relativePath = uploadItem.relativePath || ''
+        let lastBytesUploaded = 0
+        let lastTimestamp = Date.now()
 
         try {
           setUploads((prev) =>
-            prev.map((u) => (u.id === uploadItem.id ? { ...u, status: 'uploading' } : u))
+            prev.map((u) => (u.id === uploadItem.id ? { ...u, status: 'uploading', startTime: Date.now() } : u))
           )
 
           await api.uploadFile(file, currentPath, (progress) => {
+            const now = Date.now()
+            const timeDelta = (now - lastTimestamp) / 1000 // seconds
+            const bytesDelta = progress.bytesUploaded - lastBytesUploaded
+            const speed = timeDelta > 0 ? bytesDelta / timeDelta : 0
+
+            lastBytesUploaded = progress.bytesUploaded
+            lastTimestamp = now
+
             setUploads((prev) =>
-              prev.map((u) => (u.id === uploadItem.id ? { ...u, progress } : u))
+              prev.map((u) => (u.id === uploadItem.id ? {
+                ...u,
+                progress: progress.percent,
+                bytesUploaded: progress.bytesUploaded,
+                totalBytes: progress.totalBytes,
+                speed: speed > 0 ? speed : u.speed, // Keep last valid speed if current is 0
+              } : u))
             )
           }, relativePath)
 
@@ -395,17 +440,96 @@ export function FilesPage() {
             )
           )
         } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : 'Upload failed'
           setUploads((prev) =>
             prev.map((u) =>
               u.id === uploadItem.id
-                ? { ...u, status: 'error', error: 'Upload failed' }
+                ? { ...u, status: 'error', error: errorMessage }
                 : u
             )
           )
         }
       }
 
+      // Process files in parallel batches
+      const processInBatches = async () => {
+        for (let i = 0; i < validFiles.length; i += CONCURRENT_UPLOADS) {
+          const batch = validFiles.slice(i, i + CONCURRENT_UPLOADS)
+          const batchUploads = newUploads.slice(i, i + CONCURRENT_UPLOADS)
+          await Promise.all(
+            batch.map((file, idx) => uploadSingleFile(batchUploads[idx], file))
+          )
+        }
+      }
+
+      await processInBatches()
       queryClient.invalidateQueries({ queryKey: ['files', currentPath] })
+    },
+    [currentPath, queryClient, config?.max_upload_size_mb]
+  )
+
+  const handleRetry = useCallback(
+    async (item: UploadItem) => {
+      if (!item.file) return
+
+      // Reset the upload item status
+      setUploads((prev) =>
+        prev.map((u) => (u.id === item.id ? {
+          ...u,
+          status: 'pending' as const,
+          progress: 0,
+          error: undefined,
+          bytesUploaded: 0,
+          speed: undefined,
+        } : u))
+      )
+
+      const file = item.file
+      const relativePath = item.relativePath || ''
+      let lastBytesUploaded = 0
+      let lastTimestamp = Date.now()
+
+      try {
+        setUploads((prev) =>
+          prev.map((u) => (u.id === item.id ? { ...u, status: 'uploading', startTime: Date.now() } : u))
+        )
+
+        await api.uploadFile(file, currentPath, (progress) => {
+          const now = Date.now()
+          const timeDelta = (now - lastTimestamp) / 1000
+          const bytesDelta = progress.bytesUploaded - lastBytesUploaded
+          const speed = timeDelta > 0 ? bytesDelta / timeDelta : 0
+
+          lastBytesUploaded = progress.bytesUploaded
+          lastTimestamp = now
+
+          setUploads((prev) =>
+            prev.map((u) => (u.id === item.id ? {
+              ...u,
+              progress: progress.percent,
+              bytesUploaded: progress.bytesUploaded,
+              totalBytes: progress.totalBytes,
+              speed: speed > 0 ? speed : u.speed,
+            } : u))
+          )
+        }, relativePath)
+
+        setUploads((prev) =>
+          prev.map((u) =>
+            u.id === item.id ? { ...u, status: 'completed', progress: 100 } : u
+          )
+        )
+        queryClient.invalidateQueries({ queryKey: ['files', currentPath] })
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Upload failed'
+        setUploads((prev) =>
+          prev.map((u) =>
+            u.id === item.id
+              ? { ...u, status: 'error', error: errorMessage }
+              : u
+          )
+        )
+      }
     },
     [currentPath, queryClient]
   )
@@ -569,21 +693,48 @@ export function FilesPage() {
             onRefresh={() => queryClient.invalidateQueries({ queryKey: ['files', currentPath] })}
           />
 
-          {/* Recursive search indicator */}
-          {activeContentType && (
+          {/* Search indicator */}
+          {isSearchActive && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 border-b text-sm">
               <FolderSearch className="h-4 w-4 text-muted-foreground" />
               <span className="text-muted-foreground">
-                Showing all <span className="font-medium text-foreground">{activeContentType}</span> in{' '}
-                <span className="font-medium text-foreground">{currentPath === '/' ? 'Home' : currentPath.split('/').pop()}</span>{' '}
+                {debouncedSearchQuery && activeContentType ? (
+                  <>
+                    Searching for "<span className="font-medium text-foreground">{debouncedSearchQuery}</span>" in{' '}
+                    <span className="font-medium text-foreground">{activeContentType}</span>
+                  </>
+                ) : debouncedSearchQuery ? (
+                  <>
+                    Searching for "<span className="font-medium text-foreground">{debouncedSearchQuery}</span>"
+                  </>
+                ) : activeContentType ? (
+                  <>
+                    Showing all <span className="font-medium text-foreground">{activeContentType}</span>
+                  </>
+                ) : null}{' '}
+                in <span className="font-medium text-foreground">{currentPath === '/' ? 'Home' : currentPath.split('/').pop()}</span>{' '}
                 and subfolders
               </span>
+
+              {/* Truncation warning */}
+              {searchHasMore && !isSearching && (
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <span className="text-xs font-medium">
+                    Showing first 500 of {searchTotalScanned}+ results
+                  </span>
+                </div>
+              )}
+
               <button
-                onClick={() => setActiveContentType(null)}
+                onClick={() => {
+                  setSearchQuery('')
+                  setActiveContentType(null)
+                }}
                 className="ml-auto flex items-center gap-1 text-muted-foreground hover:text-foreground"
               >
                 <X className="h-3.5 w-3.5" />
-                <span>Clear filter</span>
+                <span>Clear</span>
               </button>
             </div>
           )}
@@ -684,6 +835,7 @@ export function FilesPage() {
             isPreparing={isPreparingUpload}
             onDismiss={dismissUpload}
             onDismissAll={dismissAllUploads}
+            onRetry={handleRetry}
           />
         </main>
       </div>
