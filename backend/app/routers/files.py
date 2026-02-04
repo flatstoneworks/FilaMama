@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, StreamingResponse, Response
-from typing import List
+from typing import List, Optional
 import zipfile
 import io
 import os
@@ -97,7 +97,7 @@ async def search_files(
     query: str = "",
     path: str = "/",
     max_results: int = Query(100, le=500),
-    content_type: str = None,
+    content_type: Optional[str] = None,
 ):
     async def generate():
         yield "["
