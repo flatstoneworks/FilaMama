@@ -23,7 +23,7 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 - Root path: `/home/flatstone` (all frontend paths are relative to this)
 - Config file: `backend/config.yaml`
 
-## Current Features (as of 2026-02-03)
+## Current Features (as of 2026-02-04)
 
 ### Navigation
 - **URL-based routing**: Browser history support with `/browse/path` URLs
@@ -37,7 +37,7 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 - **Sidebar**:
   - Favorites (top) - user-defined bookmarks
   - Main Folders: Home, Documents, Downloads, Pictures, Videos, Music
-  - Content Type filters: Photos, Videos, GIFs, PDFs, Audio
+  - Content Type filters: Photos, Videos, GIFs, PDFs, Audio (recursive search)
 - **Toolbar**:
   - Left: item count, refresh, selection actions (copy/cut/delete/paste)
   - Right: size slider, grid/list toggle, new folder, upload
@@ -51,7 +51,7 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 - File preview (images, videos with custom player, audio, PDF, text)
 - Thumbnail generation
 - Search/filter functionality
-- Content type filtering
+- Recursive content type filtering (searches current folder and all subfolders)
 
 ### Keyboard Shortcuts
 
@@ -240,8 +240,64 @@ curl -H "Range: bytes=0-1023" "http://spark.local:8011/api/files/stream?path=/Do
 9. Fixed selection to use `file.path` instead of `file.name`
 10. Fixed sidebar paths to be relative to backend root
 
+### Session 2026-02-04: Recursive Content Type Search
+
+**Problem Solved:**
+Content type filters (Photos, Videos, GIFs, PDFs, Audio) in the sidebar only filtered the current folder. Users needed to see all matching files in subfolders as well.
+
+**Changes Made:**
+
+1. **Backend: Extended Search API**
+   - Added `CONTENT_TYPES` dictionary in `filesystem.py` with file extension mappings
+   - Extended `search()` method with optional `content_type` parameter
+   - Query parameter now optional (empty string matches all files)
+   - Search filters by extension when content type specified
+   - Added `content_type` query param to `/api/files/search` endpoint
+
+2. **Frontend: API Client**
+   - Added `searchFiles()` function to `api/client.ts`
+   - Added `SearchResult` type export
+   - Supports `query`, `path`, `maxResults`, and `contentType` parameters
+
+3. **Frontend: FilesPage Integration**
+   - Added `useQuery` hook for recursive content type search
+   - Search query uses `content_type` and `path` params
+   - Converts `SearchResult` to `FileInfo` format for display
+   - Uses search results when filter active, otherwise uses directory listing
+   - Fixed `handleOpen` and `openPreview` to use `file.path` directly
+
+4. **UI Updates**
+   - Added info bar below toolbar when filter is active
+   - Shows "Showing all [Photos] in [folder] and subfolders"
+   - Clear filter button in info bar
+   - Updated empty state message for search results
+
+**Files Modified:**
+- `backend/app/services/filesystem.py` - Added CONTENT_TYPES, extended search()
+- `backend/app/routers/files.py` - Added content_type param to search endpoint
+- `frontend/src/api/client.ts` - Added searchFiles() and SearchResult type
+- `frontend/src/pages/FilesPage.tsx` - Added search query, UI indicator
+
+**API Usage:**
+```bash
+# Search by content type from a directory (recursive)
+curl "http://spark.local:8011/api/files/search?content_type=photos&path=/Pictures&max_results=100"
+
+# Combine with text query
+curl "http://spark.local:8011/api/files/search?content_type=videos&query=vacation&path=/&max_results=50"
+```
+
+**Testing:**
+1. Start dev servers: `./start.sh`
+2. Open http://spark.local:8010
+3. Navigate to a folder with subfolders
+4. Click "Photos" in sidebar - should show all photos recursively
+5. Navigate to different folder - search updates to that folder's scope
+6. Click filter again to deselect - returns to normal directory view
+
+---
+
 ### Potential Future Work
-- Recursive content type search across entire filesystem (requires backend API)
 - Favorites management (add/remove from context menu)
 - Dark/light theme toggle
 - Arrow key navigation in file grid/list

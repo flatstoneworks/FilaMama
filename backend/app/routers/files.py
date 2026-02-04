@@ -93,11 +93,16 @@ async def get_folder_size(path: str):
 
 
 @router.get("/search")
-async def search_files(query: str, path: str = "/", max_results: int = Query(100, le=500)):
+async def search_files(
+    query: str = "",
+    path: str = "/",
+    max_results: int = Query(100, le=500),
+    content_type: str = None,
+):
     async def generate():
         yield "["
         first = True
-        async for result in fs_service.search(query, path, max_results):
+        async for result in fs_service.search(query, path, max_results, content_type):
             if not first:
                 yield ","
             first = False

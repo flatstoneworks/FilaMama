@@ -201,6 +201,29 @@ async function getConfig(): Promise<AppConfig> {
   return handleResponse<AppConfig>(await fetch(`${API_BASE}/config`))
 }
 
+export interface SearchResult {
+  path: string
+  name: string
+  type: FileType
+  size: number
+  modified: string
+}
+
+async function searchFiles(params: {
+  query?: string
+  path?: string
+  maxResults?: number
+  contentType?: string
+}): Promise<SearchResult[]> {
+  const url = new URL(`${API_BASE}/files/search`, window.location.origin)
+  if (params.query) url.searchParams.set('query', params.query)
+  if (params.path) url.searchParams.set('path', params.path)
+  if (params.maxResults) url.searchParams.set('max_results', params.maxResults.toString())
+  if (params.contentType) url.searchParams.set('content_type', params.contentType)
+
+  return handleResponse<SearchResult[]>(await fetch(url.toString()))
+}
+
 export const api = {
   listDirectory,
   createFolder,
@@ -216,4 +239,5 @@ export const api = {
   getPreviewUrl,
   getStreamUrl,
   getConfig,
+  searchFiles,
 }

@@ -17,6 +17,15 @@ from ..models.schemas import (
     SearchResult,
 )
 
+# Content type definitions for filtering
+CONTENT_TYPES = {
+    'photos': ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.raw', '.cr2', '.nef'],
+    'videos': ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v'],
+    'gifs': ['.gif'],
+    'pdfs': ['.pdf'],
+    'audio': ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'],
+}
+
 
 class FilesystemService:
     def __init__(self, root_path: str, mounts: list = None):
@@ -308,49 +317,67 @@ class FilesystemService:
 
     async def search(
         self,
-        query: str,
+        query: str = "",
         path: str = "/",
         max_results: int = 100,
+        content_type: str = None,
     ) -> AsyncGenerator[SearchResult, None]:
         search_path = self._resolve_path(path)
-        query_lower = query.lower()
+        query_lower = query.lower() if query else ""
         count = 0
+
+        # Get extensions for content type filtering
+        type_extensions = None
+        if content_type and content_type in CONTENT_TYPES:
+            type_extensions = CONTENT_TYPES[content_type]
 
         for root, dirs, files in os.walk(search_path):
             dirs[:] = [d for d in dirs if not d.startswith('.')]
             root_path = Path(root)
 
-            for d in dirs:
-                if count >= max_results:
-                    return
-                if query_lower in d.lower():
-                    dir_path = root_path / d
-                    info = self._get_file_info(dir_path)
-                    yield SearchResult(
-                        path=info.path,
-                        name=info.name,
-                        type=info.type,
-                        size=info.size,
-                        modified=info.modified,
-                    )
-                    count += 1
+            # Only search directories if not filtering by content type
+            if not content_type:
+                for d in dirs:
+                    if count >= max_results:
+                        return
+                    if not query_lower or query_lower in d.lower():
+                        dir_path = root_path / d
+                        info = self._get_file_info(dir_path)
+                        yield SearchResult(
+                            path=info.path,
+                            name=info.name,
+                            type=info.type,
+                            size=info.size,
+                            modified=info.modified,
+                        )
+                        count += 1
 
             for f in files:
                 if count >= max_results:
                     return
                 if f.startswith('.'):
                     continue
-                if query_lower in f.lower():
-                    file_path = root_path / f
-                    info = self._get_file_info(file_path)
-                    yield SearchResult(
-                        path=info.path,
-                        name=info.name,
-                        type=info.type,
-                        size=info.size,
-                        modified=info.modified,
-                    )
-                    count += 1
+
+                # Check content type filter
+                if type_extensions:
+                    ext = Path(f).suffix.lower()
+                    if ext not in type_extensions:
+                        continue
+
+                # Check query filter
+                if query_lower and query_lower not in f.lower():
+                    continue
+
+                file_path = root_path / f
+                info = self._get_file_info(file_path)
+                yield SearchResult(
+                    path=info.path,
+                    name=info.name,
+                    type=info.type,
+                    size=info.size,
+                    modified=info.modified,
+                )
+                count += 1
 
             await asyncio.sleep(0)
 

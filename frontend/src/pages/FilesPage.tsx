@@ -1,10 +1,10 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, type FileInfo } from '@/api/client'
+import { api, type FileInfo, type SearchResult } from '@/api/client'
 import { useFileSelection } from '@/hooks/useFileSelection'
 import { Header } from '@/components/Header'
-import { Sidebar, contentTypes } from '@/components/Sidebar'
+import { Sidebar } from '@/components/Sidebar'
 import { Toolbar, type ViewMode } from '@/components/Toolbar'
 import { FileGrid } from '@/components/FileGrid'
 import { FileList } from '@/components/FileList'
@@ -16,7 +16,7 @@ import { DeleteDialog } from '@/components/DeleteDialog'
 import { ConflictDialog, type ConflictResolution } from '@/components/ConflictDialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/use-toast'
-import { Loader2 } from 'lucide-react'
+import { Loader2, X, FolderSearch } from 'lucide-react'
 import { joinPath } from '@/lib/utils'
 
 interface ClipboardState {
@@ -97,20 +97,34 @@ export function FilesPage() {
   })
 
   // Fetch files
-  const { data: listing, isLoading, error } = useQuery({
+  const { data: listing, isLoading: isLoadingDir, error } = useQuery({
     queryKey: ['files', currentPath],
     queryFn: () => api.listDirectory(currentPath),
   })
 
   const files = listing?.files || []
 
+  // Recursive search for content type filtering
+  const { data: searchResults, isLoading: isSearching } = useQuery({
+    queryKey: ['content-search', activeContentType, currentPath],
+    queryFn: () => api.searchFiles({
+      contentType: activeContentType!,
+      path: currentPath,
+      maxResults: 500,
+    }),
+    enabled: !!activeContentType,
+  })
+
+  const isLoading = isLoadingDir || (!!activeContentType && isSearching)
+
   // Navigate to preview page
   const openPreview = useCallback((file: FileInfo) => {
-    const previewPath = joinPath(currentPath, file.name)
+    // Use file.path directly - it already contains the full path
+    const previewPath = file.path
     // Encode each path segment for URL
     const encodedPath = previewPath.split('/').map(s => encodeURIComponent(s)).join('/')
     navigate(`/view${encodedPath}`)
-  }, [currentPath, navigate])
+  }, [navigate])
 
   // State for showing all files (overriding the limit)
   const [showAllFiles, setShowAllFiles] = useState(false)
@@ -120,29 +134,40 @@ export function FilesPage() {
     setShowAllFiles(false)
   }, [currentPath])
 
-  // Filter by content type and search
-  const filteredFiles = useMemo(() => {
-    let result = files
-
-    // Filter by content type
-    if (activeContentType) {
-      const typeConfig = contentTypes.find(t => t.type === activeContentType)
-      if (typeConfig) {
-        result = result.filter(f => {
-          if (f.is_directory) return false
-          const ext = '.' + f.name.split('.').pop()?.toLowerCase()
-          return typeConfig.extensions.includes(ext)
-        })
+  // Convert search results to FileInfo format
+  const searchResultsAsFiles: FileInfo[] = useMemo(() => {
+    if (!searchResults) return []
+    const thumbnailExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.mov', '.avi', '.mkv', '.webm']
+    return searchResults.map((r: SearchResult) => {
+      const ext = r.name.includes('.') ? '.' + r.name.split('.').pop()?.toLowerCase() : ''
+      const hasThumbnail = r.type === 'file' && thumbnailExtensions.includes(ext)
+      return {
+        name: r.name,
+        path: r.path,
+        type: r.type,
+        size: r.size,
+        modified: r.modified,
+        is_hidden: false,
+        has_thumbnail: hasThumbnail,
+        thumbnail_url: hasThumbnail ? api.getThumbnailUrl(r.path) : undefined,
+        is_directory: r.type === 'directory',
+        extension: ext ? ext.slice(1) : undefined,
       }
-    }
+    })
+  }, [searchResults])
 
-    // Filter by search
+  // Filter by content type (uses recursive search) and search query
+  const filteredFiles = useMemo(() => {
+    // Use recursive search results when content type filter is active
+    let result = activeContentType ? searchResultsAsFiles : files
+
+    // Filter by search query (applies to both modes)
     if (searchQuery) {
       result = result.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
     }
 
     return result
-  }, [files, activeContentType, searchQuery])
+  }, [files, activeContentType, searchQuery, searchResultsAsFiles])
 
   // Limit displayed files for performance (unless user explicitly wants all)
   const displayedFiles = useMemo(() => {
@@ -290,7 +315,8 @@ export function FilesPage() {
 
   const handleOpen = (file: FileInfo) => {
     if (file.is_directory) {
-      handleNavigate(joinPath(currentPath, file.name))
+      // Use file.path directly - it contains the full path
+      handleNavigate(file.path)
     } else {
       openPreview(file)
     }
@@ -543,6 +569,25 @@ export function FilesPage() {
             onRefresh={() => queryClient.invalidateQueries({ queryKey: ['files', currentPath] })}
           />
 
+          {/* Recursive search indicator */}
+          {activeContentType && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 border-b text-sm">
+              <FolderSearch className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">
+                Showing all <span className="font-medium text-foreground">{activeContentType}</span> in{' '}
+                <span className="font-medium text-foreground">{currentPath === '/' ? 'Home' : currentPath.split('/').pop()}</span>{' '}
+                and subfolders
+              </span>
+              <button
+                onClick={() => setActiveContentType(null)}
+                className="ml-auto flex items-center gap-1 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+                <span>Clear filter</span>
+              </button>
+            </div>
+          )}
+
           {/* Error state */}
           {error ? (
             <div className="flex-1 flex items-center justify-center">
@@ -563,8 +608,8 @@ export function FilesPage() {
                   <div className="text-center text-muted-foreground">
                     {activeContentType ? (
                       <>
-                        <p className="text-lg">No {activeContentType} in this folder</p>
-                        <p className="text-sm mt-1">Try navigating to a different folder</p>
+                        <p className="text-lg">No {activeContentType} found</p>
+                        <p className="text-sm mt-1">No matching files in this folder or subfolders</p>
                       </>
                     ) : searchQuery ? (
                       <>
