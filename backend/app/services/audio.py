@@ -60,6 +60,8 @@ class AudioMetadataService:
                 'sample_rate': None,
                 'channels': None,
                 'has_cover': False,
+                'has_lyrics': False,
+                'format': file_path.suffix.lower().lstrip('.').upper(),
             }
 
             # Get audio info
@@ -123,6 +125,12 @@ class AudioMetadataService:
                 metadata['has_cover'] = True
                 break
 
+        # Check for lyrics (USLT frames)
+        for key in tags.keys():
+            if key.startswith('USLT'):
+                metadata['has_lyrics'] = True
+                break
+
         return metadata
 
     def _extract_flac_tags(self, audio, metadata: Dict) -> Dict:
@@ -147,6 +155,10 @@ class AudioMetadataService:
         # Check for cover art
         if audio.pictures:
             metadata['has_cover'] = True
+
+        # Check for lyrics
+        if 'lyrics' in audio.tags:
+            metadata['has_lyrics'] = True
 
         return metadata
 
@@ -179,6 +191,10 @@ class AudioMetadataService:
         if 'covr' in tags:
             metadata['has_cover'] = True
 
+        # Check for lyrics
+        if '©lyr' in tags:
+            metadata['has_lyrics'] = True
+
         return metadata
 
     def _extract_vorbis_tags(self, audio, metadata: Dict) -> Dict:
@@ -203,6 +219,10 @@ class AudioMetadataService:
         # Check for cover art in metadata_block_picture
         if 'metadata_block_picture' in audio.tags:
             metadata['has_cover'] = True
+
+        # Check for lyrics
+        if 'lyrics' in audio.tags:
+            metadata['has_lyrics'] = True
 
         return metadata
 
@@ -229,6 +249,52 @@ class AudioMetadataService:
                 break
 
         return metadata
+
+    def get_lyrics(self, file_path: Path) -> Optional[str]:
+        """
+        Extract lyrics from an audio file.
+        Returns lyrics text or None if no lyrics found.
+        """
+        if not HAS_MUTAGEN:
+            return None
+
+        if not file_path.exists() or not self.is_supported(file_path):
+            return None
+
+        try:
+            audio = MutagenFile(file_path)
+            if audio is None:
+                return None
+
+            # MP3 with ID3 tags (USLT frame)
+            if isinstance(audio, MP3) or hasattr(audio, 'ID3'):
+                tags = audio.tags
+                if tags:
+                    for key in tags.keys():
+                        if key.startswith('USLT'):
+                            return str(tags[key].text)
+
+            # FLAC (lyrics in LYRICS tag)
+            elif isinstance(audio, FLAC):
+                if audio.tags and 'lyrics' in audio.tags:
+                    return audio.tags['lyrics'][0]
+
+            # MP4/M4A (©lyr tag)
+            elif isinstance(audio, MP4):
+                tags = audio.tags
+                if tags and '©lyr' in tags:
+                    return tags['©lyr'][0]
+
+            # OGG Vorbis (LYRICS tag)
+            elif isinstance(audio, OggVorbis):
+                if audio.tags and 'lyrics' in audio.tags:
+                    return audio.tags['lyrics'][0]
+
+            return None
+
+        except Exception as e:
+            print(f"Error extracting lyrics: {e}")
+            return None
 
     def get_cover_art(self, file_path: Path) -> Optional[tuple[bytes, str]]:
         """

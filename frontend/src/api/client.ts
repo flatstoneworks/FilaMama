@@ -280,6 +280,8 @@ export interface AudioMetadata {
   sample_rate: number | null
   channels: number | null
   has_cover: boolean
+  has_lyrics: boolean
+  format: string
 }
 
 async function getAudioMetadata(path: string): Promise<AudioMetadata | null> {
@@ -294,6 +296,17 @@ async function getAudioMetadata(path: string): Promise<AudioMetadata | null> {
 
 function getAudioCoverUrl(path: string): string {
   return `${API_BASE}/files/audio-cover?path=${encodeURIComponent(path)}`
+}
+
+async function getAudioLyrics(path: string): Promise<string | null> {
+  try {
+    const response = await handleResponse<{ lyrics: string }>(
+      await fetch(`${API_BASE}/files/audio-lyrics?path=${encodeURIComponent(path)}`)
+    )
+    return response.lyrics
+  } catch {
+    return null
+  }
 }
 
 export const api = {
@@ -314,4 +327,5 @@ export const api = {
   searchFiles,
   getAudioMetadata,
   getAudioCoverUrl,
+  getAudioLyrics,
 }

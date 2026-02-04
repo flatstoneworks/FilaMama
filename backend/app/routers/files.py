@@ -343,3 +343,21 @@ async def get_audio_cover(path: str):
 
     image_bytes, mime_type = cover
     return Response(content=image_bytes, media_type=mime_type)
+
+
+@router.get("/audio-lyrics")
+@handle_fs_errors
+async def get_audio_lyrics(path: str):
+    """Get lyrics from an audio file."""
+    if not audio_service:
+        raise HTTPException(status_code=501, detail="Audio metadata service not available")
+
+    file_path = fs_service.get_absolute_path(path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    lyrics = audio_service.get_lyrics(file_path)
+    if lyrics is None:
+        raise HTTPException(status_code=404, detail="No lyrics found")
+
+    return {"lyrics": lyrics}

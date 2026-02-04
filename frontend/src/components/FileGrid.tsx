@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
-import { FileIcon, isPreviewable, isTextFile } from './FileIcon'
+import { FileIcon, isPreviewable, isTextFile, isAudioFile } from './FileIcon'
 import { VideoPreview } from './VideoPreview'
 import { TextPreview } from './TextPreview'
+import { AudioCover } from './AudioCover'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen, Star, StarOff } from 'lucide-react'
@@ -196,6 +197,11 @@ export function FileGrid({
                   fileName={file.name}
                   width={gridSize - 16}
                   height={gridSize - 16}
+                />
+              ) : isAudioFile(file.name) ? (
+                <AudioCover
+                  path={file.path}
+                  size={gridSize - 16}
                 />
               ) : file.thumbnail_url ? (
                 <div

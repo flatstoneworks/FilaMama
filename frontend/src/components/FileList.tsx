@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { FileIcon, isPreviewable } from './FileIcon'
+import { FileIcon, isPreviewable, isAudioFile } from './FileIcon'
+import { AudioCover } from './AudioCover'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen, HardDrive, Loader2, Star, StarOff } from 'lucide-react'
@@ -216,6 +217,8 @@ export function FileList({
                       alt={file.name}
                       className="w-8 h-8 rounded object-cover"
                     />
+                  ) : isAudioFile(file.name) ? (
+                    <AudioCover path={file.path} size={32} />
                   ) : (
                     <FileIcon name={file.name} isDirectory={file.is_directory ?? false} size={20} />
                   )}
