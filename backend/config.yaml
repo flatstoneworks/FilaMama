@@ -33,10 +33,11 @@ upload:
 
 # File type icons mapping
 file_types:
-  image: ["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "ico", "tiff"]
+  image: ["jpg", "jpeg", "jfif", "png", "gif", "webp", "svg", "bmp", "ico", "tiff", "tif", "avif", "heic", "heif"]
   video: ["mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v"]
   audio: ["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "opus"]
   document: ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods"]
   code: ["py", "js", "ts", "tsx", "jsx", "html", "css", "json", "yaml", "yml", "md", "sh", "go", "rs", "java", "c", "cpp", "h"]
   archive: ["zip", "tar", "gz", "bz2", "xz", "7z", "rar"]
   text: ["txt", "log", "csv", "ini", "cfg", "conf"]
+  ebook: ["epub", "mobi", "azw", "azw3", "fb2"]

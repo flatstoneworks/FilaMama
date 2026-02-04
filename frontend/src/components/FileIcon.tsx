@@ -1,4 +1,4 @@
-import { Folder, File, Image, Video, Music, FileText, Archive, Code, Database, FileSpreadsheet, Presentation, type LucideIcon } from 'lucide-react'
+import { Folder, File, Image, Video, Music, FileText, Archive, Code, Database, FileSpreadsheet, Presentation, BookOpen, type LucideIcon } from 'lucide-react'
 
 const iconMap: Record<string, LucideIcon> = {
   folder: Folder,
@@ -11,12 +11,14 @@ const iconMap: Record<string, LucideIcon> = {
   archive: Archive,
   code: Code,
   database: Database,
+  ebook: BookOpen,
   default: File,
 }
 
 const extensionToType: Record<string, string> = {
   // Images
-  jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', webp: 'image', svg: 'image', bmp: 'image', ico: 'image',
+  jpg: 'image', jpeg: 'image', jfif: 'image', png: 'image', gif: 'image', webp: 'image', svg: 'image', bmp: 'image', ico: 'image',
+  tiff: 'image', tif: 'image', avif: 'image', heic: 'image', heif: 'image',
   // Videos
   mp4: 'video', webm: 'video', mov: 'video', avi: 'video', mkv: 'video', wmv: 'video', flv: 'video',
   // Audio
@@ -56,6 +58,8 @@ const extensionToType: Record<string, string> = {
   pdf: 'document',
   // Databases
   db: 'database', sqlite: 'database', sqlite3: 'database',
+  // E-books
+  epub: 'ebook', mobi: 'ebook', azw: 'ebook', azw3: 'ebook', fb2: 'ebook',
 }
 
 const typeColors: Record<string, string> = {
@@ -69,6 +73,7 @@ const typeColors: Record<string, string> = {
   archive: 'text-yellow-600',
   code: 'text-cyan-500',
   database: 'text-indigo-500',
+  ebook: 'text-rose-500',
   default: 'text-gray-400',
 }
 

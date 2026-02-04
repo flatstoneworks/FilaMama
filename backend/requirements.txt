@@ -9,3 +9,4 @@ pydantic-settings==2.1.0
 pyyaml==6.0.1
 watchfiles==0.21.0
 cairosvg==2.8.2
+pillow-heif==1.2.0

@@ -1,5 +1,7 @@
 import hashlib
 import subprocess
+import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Optional, Tuple
 from PIL import Image
@@ -10,6 +12,14 @@ try:
     HAS_CAIROSVG = True
 except ImportError:
     HAS_CAIROSVG = False
+
+# Register HEIC/HEIF/AVIF support if available
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+    HAS_HEIF = True
+except ImportError:
+    HAS_HEIF = False
 
 
 class ThumbnailService:
@@ -47,7 +57,9 @@ class ThumbnailService:
 
         suffix = file_path.suffix.lower()
 
-        if suffix in ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff']:
+        if suffix in ['.jpg', '.jpeg', '.jfif', '.png', '.webp', '.bmp', '.tiff', '.tif']:
+            thumb_bytes = await self._generate_image_thumbnail(file_path, target_size)
+        elif suffix in ['.heic', '.heif', '.avif'] and HAS_HEIF:
             thumb_bytes = await self._generate_image_thumbnail(file_path, target_size)
         elif suffix in ['.svg']:
             thumb_bytes = await self._generate_svg_thumbnail(file_path, target_size)
@@ -55,6 +67,8 @@ class ThumbnailService:
             thumb_bytes = await self._generate_gif_thumbnail(file_path, target_size)
         elif suffix in ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.flv', '.wmv', '.m4v']:
             thumb_bytes = await self._generate_video_thumbnail(file_path, target_size)
+        elif suffix in ['.epub']:
+            thumb_bytes = await self._generate_epub_thumbnail(file_path, target_size)
         else:
             return None
 
@@ -124,6 +138,89 @@ class ThumbnailService:
                 return buffer.getvalue()
         except Exception as e:
             print(f"Error generating GIF thumbnail: {e}")
+            return None
+
+    async def _generate_epub_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
+        """Generate thumbnail for EPUB files by extracting the cover image."""
+        try:
+            with zipfile.ZipFile(file_path, 'r') as epub:
+                # Try to find cover image in common locations
+                cover_paths = []
+
+                # Method 1: Look in META-INF/container.xml for the OPF file
+                try:
+                    container = epub.read('META-INF/container.xml')
+                    root = ET.fromstring(container)
+                    ns = {'cont': 'urn:oasis:names:tc:opendocument:xmlns:container'}
+                    rootfile = root.find('.//cont:rootfile', ns)
+                    if rootfile is not None:
+                        opf_path = rootfile.get('full-path', '')
+                        opf_dir = '/'.join(opf_path.split('/')[:-1])
+                        opf_content = epub.read(opf_path)
+                        opf_root = ET.fromstring(opf_content)
+
+                        # Find cover in metadata
+                        ns_opf = {'opf': 'http://www.idpf.org/2007/opf', 'dc': 'http://purl.org/dc/elements/1.1/'}
+                        for meta in opf_root.findall('.//{http://www.idpf.org/2007/opf}meta'):
+                            if meta.get('name') == 'cover':
+                                cover_id = meta.get('content')
+                                for item in opf_root.findall('.//{http://www.idpf.org/2007/opf}item'):
+                                    if item.get('id') == cover_id:
+                                        href = item.get('href', '')
+                                        cover_paths.append(f"{opf_dir}/{href}" if opf_dir else href)
+
+                        # Also look for items with cover in id/properties
+                        for item in opf_root.findall('.//{http://www.idpf.org/2007/opf}item'):
+                            item_id = item.get('id', '').lower()
+                            props = item.get('properties', '').lower()
+                            if 'cover' in item_id or 'cover' in props:
+                                href = item.get('href', '')
+                                cover_paths.append(f"{opf_dir}/{href}" if opf_dir else href)
+                except Exception:
+                    pass
+
+                # Method 2: Common cover image paths
+                common_covers = [
+                    'cover.jpg', 'cover.jpeg', 'cover.png',
+                    'OEBPS/cover.jpg', 'OEBPS/cover.jpeg', 'OEBPS/cover.png',
+                    'OEBPS/images/cover.jpg', 'OEBPS/images/cover.jpeg', 'OEBPS/images/cover.png',
+                    'images/cover.jpg', 'images/cover.jpeg', 'images/cover.png',
+                    'OPS/cover.jpg', 'OPS/cover.jpeg', 'OPS/cover.png',
+                ]
+                cover_paths.extend(common_covers)
+
+                # Method 3: Find any image with 'cover' in name
+                for name in epub.namelist():
+                    name_lower = name.lower()
+                    if 'cover' in name_lower and any(name_lower.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.gif']):
+                        cover_paths.append(name)
+
+                # Try to extract and process the first valid cover
+                for cover_path in cover_paths:
+                    # Normalize path
+                    cover_path = cover_path.replace('//', '/').lstrip('/')
+                    try:
+                        cover_data = epub.read(cover_path)
+                        with Image.open(io.BytesIO(cover_data)) as img:
+                            if img.mode in ('RGBA', 'LA', 'P'):
+                                background = Image.new('RGB', img.size, (255, 255, 255))
+                                if img.mode == 'P':
+                                    img = img.convert('RGBA')
+                                background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                                img = background
+                            elif img.mode != 'RGB':
+                                img = img.convert('RGB')
+
+                            img.thumbnail((target_size, target_size), Image.Resampling.LANCZOS)
+                            buffer = io.BytesIO()
+                            img.save(buffer, format='JPEG', quality=self.quality, optimize=True)
+                            return buffer.getvalue()
+                    except (KeyError, Exception):
+                        continue
+
+                return None
+        except Exception as e:
+            print(f"Error generating EPUB thumbnail: {e}")
             return None
 
     async def _generate_video_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
