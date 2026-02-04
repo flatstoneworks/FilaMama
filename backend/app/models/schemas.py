@@ -92,6 +92,29 @@ class SearchResponse(BaseModel):
     total_scanned: int  # How many items were scanned before hitting limit
 
 
+class ContentSearchMatch(BaseModel):
+    path: str
+    name: str
+    line_number: int
+    line_content: str  # The matching line with context
+
+
+class ContentSearchResult(BaseModel):
+    path: str
+    name: str
+    type: FileType
+    size: int
+    modified: datetime
+    matches: list[ContentSearchMatch]  # All matches in this file
+
+
+class ContentSearchResponse(BaseModel):
+    results: list[ContentSearchResult]
+    files_searched: int
+    files_with_matches: int
+    has_more: bool
+
+
 class UploadProgress(BaseModel):
     filename: str
     bytes_uploaded: int

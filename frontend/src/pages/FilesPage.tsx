@@ -1,14 +1,16 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, type FileInfo, type SearchResult } from '@/api/client'
+import { api, type FileInfo, type SearchResult, type ContentSearchResult } from '@/api/client'
 import { useFileSelection } from '@/hooks/useFileSelection'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useScrollRestoration } from '@/hooks/useScrollRestoration'
 import { Header } from '@/components/Header'
 import { Sidebar } from '@/components/Sidebar'
 import { Toolbar, type ViewMode } from '@/components/Toolbar'
 import { FileGrid } from '@/components/FileGrid'
 import { FileList } from '@/components/FileList'
+import { ContentSearchResults } from '@/components/ContentSearchResults'
 import { isAudioFile } from '@/components/FileIcon'
 import { useAudioPlayer } from '@/contexts/AudioPlayerContext'
 import { UploadDropzone } from '@/components/UploadDropzone'
@@ -19,7 +21,7 @@ import { DeleteDialog } from '@/components/DeleteDialog'
 import { ConflictDialog, type ConflictResolution } from '@/components/ConflictDialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/use-toast'
-import { Loader2, X, FolderSearch, AlertTriangle } from 'lucide-react'
+import { Loader2, X, FolderSearch, FileText, AlertTriangle } from 'lucide-react'
 import { joinPath } from '@/lib/utils'
 
 interface ClipboardState {
@@ -35,6 +37,7 @@ export function FilesPage() {
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
+  const scrollViewportRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -51,6 +54,7 @@ export function FilesPage() {
   const gridSize = parseInt(searchParams.get('size') || '120')
   const searchQuery = searchParams.get('search') || ''
   const activeContentType = searchParams.get('filter') || null
+  const contentSearchMode = searchParams.get('content') === 'true'
 
   // Helper to update URL parameters
   const updateUrlParam = useCallback((key: string, value: string | null) => {
@@ -82,6 +86,10 @@ export function FilesPage() {
     updateUrlParam('filter', type)
   }, [updateUrlParam])
 
+  const setContentSearchMode = useCallback((enabled: boolean) => {
+    updateUrlParam('content', enabled ? 'true' : null)
+  }, [updateUrlParam])
+
   // Non-URL state (transient, doesn't need to be bookmarkable)
   const [clipboard, setClipboard] = useState<ClipboardState | null>(null)
   const [uploads, setUploads] = useState<UploadItem[]>([])
@@ -104,6 +112,9 @@ export function FilesPage() {
 
   // Global audio player
   const { playTrack, isOpen: isPlayerOpen } = useAudioPlayer()
+
+  // Scroll restoration
+  useScrollRestoration(scrollViewportRef)
 
   // Focused file index for keyboard navigation
   const [focusedIndex, setFocusedIndex] = useState<number>(-1)
@@ -132,8 +143,16 @@ export function FilesPage() {
   // Debounce search query to avoid excessive API calls
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
-  // Recursive search - triggered by either text search or content type filter
-  const isSearchActive = !!debouncedSearchQuery || !!activeContentType
+  // UI mode flags (use non-debounced for immediate UI response when navigating back)
+  // These determine which UI to show
+  const isFilenameSearchMode = (!!searchQuery || !!activeContentType) && !contentSearchMode
+  const isContentSearchMode = !!searchQuery && contentSearchMode && searchQuery.length >= 2
+
+  // API query flags (use debounced to avoid excessive API calls while typing)
+  const isFilenameSearchReady = (!!debouncedSearchQuery || !!activeContentType) && !contentSearchMode
+  const isContentSearchReady = !!debouncedSearchQuery && contentSearchMode && debouncedSearchQuery.length >= 2
+
+  // Recursive filename search
   const { data: searchResponse, isLoading: isSearching } = useQuery({
     queryKey: ['recursive-search', debouncedSearchQuery, activeContentType, currentPath],
     queryFn: () => api.searchFiles({
@@ -142,14 +161,36 @@ export function FilesPage() {
       path: currentPath,
       maxResults: 500,
     }),
-    enabled: isSearchActive,
+    enabled: isFilenameSearchReady,
+  })
+
+  // Content search - search inside files
+  const { data: contentSearchResponse, isLoading: isContentSearching } = useQuery({
+    queryKey: ['content-search', debouncedSearchQuery, currentPath],
+    queryFn: () => api.searchContent({
+      query: debouncedSearchQuery,
+      path: currentPath,
+      maxFiles: 100,
+      maxDepth: 3,
+    }),
+    enabled: isContentSearchReady,
   })
 
   const searchResults = searchResponse?.results
   const searchHasMore = searchResponse?.has_more ?? false
   const searchTotalScanned = searchResponse?.total_scanned ?? 0
 
-  const isLoading = isLoadingDir || (isSearchActive && isSearching)
+  const contentSearchResults = contentSearchResponse?.results
+  const contentSearchFilesSearched = contentSearchResponse?.files_searched ?? 0
+  const contentSearchFilesWithMatches = contentSearchResponse?.files_with_matches ?? 0
+  const contentSearchHasMore = contentSearchResponse?.has_more ?? false
+
+  // Combined flags for UI (used for determining which view to show)
+  const isFilenameSearchActive = isFilenameSearchMode
+  const isContentSearchActive = isContentSearchMode
+
+  const isSearchActive = isFilenameSearchActive || isContentSearchActive
+  const isLoading = isLoadingDir || (isFilenameSearchActive && isSearching) || (isContentSearchActive && isContentSearching)
 
   // Reset focused index when path or search changes
   useEffect(() => {
@@ -173,7 +214,7 @@ export function FilesPage() {
     setShowAllFiles(false)
   }, [currentPath])
 
-  // Convert search results to FileInfo format
+  // Convert filename search results to FileInfo format
   const searchResultsAsFiles: FileInfo[] = useMemo(() => {
     if (!searchResults) return []
     const thumbnailExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.mov', '.avi', '.mkv', '.webm']
@@ -195,14 +236,41 @@ export function FilesPage() {
     })
   }, [searchResults])
 
+  // Convert content search results to FileInfo format (with matches stored for display)
+  const contentSearchResultsAsFiles: (FileInfo & { contentMatches?: ContentSearchResult['matches'] })[] = useMemo(() => {
+    if (!contentSearchResults) return []
+    const thumbnailExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.mov', '.avi', '.mkv', '.webm']
+    return contentSearchResults.map((r: ContentSearchResult) => {
+      const ext = r.name.includes('.') ? '.' + r.name.split('.').pop()?.toLowerCase() : ''
+      const hasThumbnail = r.type === 'file' && thumbnailExtensions.includes(ext)
+      return {
+        name: r.name,
+        path: r.path,
+        type: r.type,
+        size: r.size,
+        modified: r.modified,
+        is_hidden: false,
+        has_thumbnail: hasThumbnail,
+        thumbnail_url: hasThumbnail ? api.getThumbnailUrl(r.path) : undefined,
+        is_directory: r.type === 'directory',
+        extension: ext ? ext.slice(1) : undefined,
+        contentMatches: r.matches,
+      }
+    })
+  }, [contentSearchResults])
+
   // Use search results when search is active, otherwise show directory listing
   const filteredFiles = useMemo(() => {
-    // Use recursive search results when any search is active
-    if (isSearchActive) {
+    // Use content search results
+    if (isContentSearchActive) {
+      return contentSearchResultsAsFiles
+    }
+    // Use filename search results
+    if (isFilenameSearchActive) {
       return searchResultsAsFiles
     }
     return files
-  }, [files, isSearchActive, searchResultsAsFiles])
+  }, [files, isFilenameSearchActive, isContentSearchActive, searchResultsAsFiles, contentSearchResultsAsFiles])
 
   // Limit displayed files for performance (unless user explicitly wants all)
   const displayedFiles = useMemo(() => {
@@ -758,6 +826,8 @@ export function FilesPage() {
         onNavigate={handleNavigate}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        searchContent={contentSearchMode}
+        onSearchContentChange={setContentSearchMode}
         mounts={config?.mounts}
       />
 
@@ -817,9 +887,23 @@ export function FilesPage() {
           {/* Search indicator */}
           {isSearchActive && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 border-b text-sm">
-              <FolderSearch className="h-4 w-4 text-muted-foreground" />
+              {isContentSearchActive ? (
+                <FileText className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <FolderSearch className="h-4 w-4 text-muted-foreground" />
+              )}
               <span className="text-muted-foreground">
-                {debouncedSearchQuery && activeContentType ? (
+                {isContentSearchActive ? (
+                  <>
+                    Searching inside files for "<span className="font-medium text-foreground">{debouncedSearchQuery}</span>"
+                    {' '}in <span className="font-medium text-foreground">{currentPath === '/' ? 'Home' : currentPath.split('/').pop()}</span>
+                    {contentSearchFilesWithMatches > 0 && !isContentSearching && (
+                      <span className="ml-1">
+                        ({contentSearchFilesWithMatches} file{contentSearchFilesWithMatches !== 1 ? 's' : ''} with matches)
+                      </span>
+                    )}
+                  </>
+                ) : debouncedSearchQuery && activeContentType ? (
                   <>
                     Searching for "<span className="font-medium text-foreground">{debouncedSearchQuery}</span>" in{' '}
                     <span className="font-medium text-foreground">{activeContentType}</span>
@@ -832,13 +916,17 @@ export function FilesPage() {
                   <>
                     Showing all <span className="font-medium text-foreground">{activeContentType}</span>
                   </>
-                ) : null}{' '}
-                in <span className="font-medium text-foreground">{currentPath === '/' ? 'Home' : currentPath.split('/').pop()}</span>{' '}
-                and subfolders
+                ) : null}
+                {!isContentSearchActive && (
+                  <>
+                    {' '}in <span className="font-medium text-foreground">{currentPath === '/' ? 'Home' : currentPath.split('/').pop()}</span>{' '}
+                    and subfolders
+                  </>
+                )}
               </span>
 
-              {/* Truncation warning */}
-              {searchHasMore && !isSearching && (
+              {/* Truncation warning for filename search */}
+              {searchHasMore && !isSearching && !isContentSearchActive && (
                 <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
                   <AlertTriangle className="h-3.5 w-3.5" />
                   <span className="text-xs font-medium">
@@ -847,10 +935,21 @@ export function FilesPage() {
                 </div>
               )}
 
+              {/* Truncation warning for content search */}
+              {contentSearchHasMore && !isContentSearching && isContentSearchActive && (
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  <span className="text-xs font-medium">
+                    More results available (searched {contentSearchFilesSearched} files)
+                  </span>
+                </div>
+              )}
+
               <button
                 onClick={() => {
                   setSearchQuery('')
                   setActiveContentType(null)
+                  setContentSearchMode(false)
                 }}
                 className="ml-auto flex items-center gap-1 text-muted-foreground hover:text-foreground"
               >
@@ -878,7 +977,12 @@ export function FilesPage() {
               ) : displayedFiles.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="text-center text-muted-foreground">
-                    {activeContentType ? (
+                    {isContentSearchActive ? (
+                      <>
+                        <p className="text-lg">No matches found in file contents</p>
+                        <p className="text-sm mt-1">Try a different search term or search in a different folder</p>
+                      </>
+                    ) : activeContentType ? (
                       <>
                         <p className="text-lg">No {activeContentType} found</p>
                         <p className="text-sm mt-1">No matching files in this folder or subfolders</p>
@@ -897,9 +1001,15 @@ export function FilesPage() {
                   </div>
                 </div>
               ) : (
-                <ScrollArea className="flex-1">
+                <ScrollArea className="flex-1" viewportRef={scrollViewportRef}>
                   <div className={`flex flex-col ${isPlayerOpen ? 'pb-20' : ''}`}>
-                    {viewMode === 'grid' ? (
+                    {isContentSearchActive ? (
+                      <ContentSearchResults
+                        files={displayedFiles}
+                        onOpen={handleOpen}
+                        searchQuery={debouncedSearchQuery}
+                      />
+                    ) : viewMode === 'grid' ? (
                       <FileGrid
                         files={displayedFiles}
                         selectedFiles={selectedFiles}

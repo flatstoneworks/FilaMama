@@ -80,9 +80,9 @@ export function PreviewPage() {
   }
 
   const handleBack = () => {
-    // Navigate back to the directory
-    const browseUrl = dirPath === '/' ? '/browse' : `/browse${encodePathForUrl(dirPath)}`
-    navigate(browseUrl)
+    // Use browser history to go back, preserving search params and scroll position
+    // This is equivalent to the browser's back button
+    navigate(-1)
   }
 
   // Keyboard navigation

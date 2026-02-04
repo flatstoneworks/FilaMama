@@ -1,6 +1,8 @@
-import { Search, X, ChevronRight, Home, HardDrive } from 'lucide-react'
+import { Search, X, ChevronRight, Home, HardDrive, FileText } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import type { MountPoint } from '@/api/client'
 
 interface HeaderProps {
@@ -8,10 +10,12 @@ interface HeaderProps {
   onNavigate: (path: string) => void
   searchQuery: string
   onSearchChange: (query: string) => void
+  searchContent?: boolean
+  onSearchContentChange?: (enabled: boolean) => void
   mounts?: MountPoint[]
 }
 
-export function Header({ path, onNavigate, searchQuery, onSearchChange, mounts = [] }: HeaderProps) {
+export function Header({ path, onNavigate, searchQuery, onSearchChange, searchContent = false, onSearchContentChange, mounts = [] }: HeaderProps) {
   // Check if current path is within a mount
   const activeMount = mounts.find(m => path === m.path || path.startsWith(m.path + '/'))
 
@@ -72,23 +76,48 @@ export function Header({ path, onNavigate, searchQuery, onSearchChange, mounts =
       </nav>
 
       {/* Search */}
-      <div className="relative w-72 shrink-0">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search files..."
-          className="pl-9 pr-9 h-8 bg-muted/50"
-        />
-        {searchQuery && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-0 top-0 h-8 w-8"
-            onClick={() => onSearchChange('')}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <div className="relative w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder={searchContent ? "Search in files..." : "Search files..."}
+            className="pl-9 pr-9 h-8 bg-muted/50"
+          />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-0 top-0 h-8 w-8"
+              onClick={() => onSearchChange('')}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+        {onSearchContentChange && (
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => onSearchContentChange(!searchContent)}
+                  className={cn(
+                    "h-8 w-8",
+                    searchContent && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground"
+                  )}
+                  aria-label="Search file contents"
+                >
+                  <FileText className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p>{searchContent ? "Searching file contents (click to search filenames)" : "Search file contents"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
     </header>

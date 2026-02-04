@@ -1,6 +1,8 @@
 import os
 import shutil
 import asyncio
+import subprocess
+import json
 from pathlib import Path
 from datetime import datetime
 from typing import List, Optional, AsyncGenerator
@@ -15,6 +17,8 @@ from ..models.schemas import (
     SortField,
     SortOrder,
     SearchResult,
+    ContentSearchMatch,
+    ContentSearchResult,
 )
 
 # Content type definitions for filtering
@@ -411,3 +415,244 @@ class FilesystemService:
 
     def get_absolute_path(self, relative_path: str) -> Path:
         return self._resolve_path(relative_path)
+
+    # Text file extensions for content search
+    TEXT_EXTENSIONS = {
+        '.txt', '.md', '.markdown', '.rst', '.log', '.csv', '.tsv',
+        '.json', '.xml', '.yaml', '.yml', '.toml', '.ini', '.cfg', '.conf', '.env',
+        '.py', '.pyw', '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs',
+        '.html', '.htm', '.css', '.scss', '.sass', '.less',
+        '.sh', '.bash', '.zsh', '.fish', '.ps1', '.bat', '.cmd',
+        '.c', '.h', '.cpp', '.hpp', '.cc', '.cxx', '.java', '.kt', '.kts',
+        '.go', '.rs', '.rb', '.php', '.pl', '.pm', '.swift', '.scala',
+        '.sql', '.r', '.R', '.lua', '.vim', '.el', '.clj', '.ex', '.exs',
+        '.erl', '.hrl', '.hs', '.fs', '.fsx', '.ml', '.mli',
+        '.dockerfile', '.makefile', '.cmake', '.gradle', '.sbt',
+        '.gitignore', '.gitattributes', '.editorconfig', '.prettierrc',
+        '.eslintrc', '.babelrc', '.npmrc', '.nvmrc',
+    }
+
+    async def search_content(
+        self,
+        query: str,
+        path: str = "/",
+        max_files: int = 100,
+        max_depth: int = 3,
+        max_file_size_kb: int = 1024,  # 1MB max per file
+        max_matches_per_file: int = 5,
+    ) -> tuple[list[ContentSearchResult], int, int, bool]:
+        """
+        Search file contents using ripgrep.
+
+        Returns:
+            Tuple of (results, files_searched, files_with_matches, has_more)
+        """
+        search_path = self._resolve_path(path)
+
+        if not search_path.exists():
+            raise FileNotFoundError(f"Path not found: {path}")
+
+        # Build ripgrep command
+        # -n: line numbers, -i: case insensitive, --json: JSON output
+        # --max-depth: limit depth, --max-filesize: limit file size
+        # --type: only search text files (rg's built-in types)
+        cmd = [
+            'rg',
+            '--json',                           # JSON output for parsing
+            '-i',                               # Case insensitive
+            '-n',                               # Line numbers
+            '--max-depth', str(max_depth),      # Limit search depth
+            '--max-filesize', f'{max_file_size_kb}K',  # Limit file size
+            '--max-count', str(max_matches_per_file),  # Max matches per file
+            '--hidden',                         # Include hidden files
+            '--no-heading',                     # Don't group by file
+            '--glob', '!.git',                  # Exclude .git directory
+            '--glob', '!node_modules',          # Exclude node_modules
+            '--glob', '!__pycache__',           # Exclude pycache
+            '--glob', '!*.min.js',              # Exclude minified JS
+            '--glob', '!*.min.css',             # Exclude minified CSS
+            '--glob', '!dist',                  # Exclude dist folders
+            '--glob', '!build',                 # Exclude build folders
+            '--glob', '!.venv',                 # Exclude venv
+            '--glob', '!venv',                  # Exclude venv
+            query,
+            str(search_path)
+        ]
+
+        try:
+            # Run ripgrep
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                limit=1024*1024*10  # 10MB buffer
+            )
+            stdout, stderr = await asyncio.wait_for(
+                proc.communicate(),
+                timeout=30  # 30 second timeout
+            )
+        except asyncio.TimeoutError:
+            return [], 0, 0, True
+        except FileNotFoundError:
+            # ripgrep not installed - fall back to Python search
+            return await self._search_content_python(
+                query, search_path, max_files, max_depth, max_file_size_kb, max_matches_per_file
+            )
+
+        # Parse JSON output
+        results_by_file: dict[str, ContentSearchResult] = {}
+        files_searched = 0
+        has_more = False
+
+        for line in stdout.decode('utf-8', errors='replace').strip().split('\n'):
+            if not line:
+                continue
+
+            try:
+                data = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            if data.get('type') == 'summary':
+                files_searched = data.get('data', {}).get('stats', {}).get('searched_files', 0)
+                continue
+
+            if data.get('type') != 'match':
+                continue
+
+            match_data = data.get('data', {})
+            abs_path = match_data.get('path', {}).get('text', '')
+
+            if not abs_path:
+                continue
+
+            # Check if we've hit file limit
+            if abs_path not in results_by_file and len(results_by_file) >= max_files:
+                has_more = True
+                continue
+
+            file_path = Path(abs_path)
+
+            # Get relative path
+            rel_path = self._get_relative_path(file_path)
+
+            # Get line info
+            line_number = match_data.get('line_number', 0)
+            lines = match_data.get('lines', {})
+            line_content = lines.get('text', '').strip()[:200]  # Limit line length
+
+            # Create or update result entry
+            if abs_path not in results_by_file:
+                try:
+                    info = self._get_file_info(file_path)
+                    results_by_file[abs_path] = ContentSearchResult(
+                        path=rel_path,
+                        name=file_path.name,
+                        type=info.type,
+                        size=info.size,
+                        modified=info.modified,
+                        matches=[]
+                    )
+                except Exception:
+                    continue
+
+            # Add match
+            results_by_file[abs_path].matches.append(
+                ContentSearchMatch(
+                    path=rel_path,
+                    name=file_path.name,
+                    line_number=line_number,
+                    line_content=line_content,
+                )
+            )
+
+        results = list(results_by_file.values())
+        return results, files_searched, len(results), has_more
+
+    async def _search_content_python(
+        self,
+        query: str,
+        search_path: Path,
+        max_files: int,
+        max_depth: int,
+        max_file_size_kb: int,
+        max_matches_per_file: int,
+    ) -> tuple[list[ContentSearchResult], int, int, bool]:
+        """
+        Fallback Python-based content search when ripgrep is not available.
+        """
+        query_lower = query.lower()
+        results: list[ContentSearchResult] = []
+        files_searched = 0
+        has_more = False
+
+        def walk_with_depth(start_path: Path, current_depth: int = 0):
+            if current_depth > max_depth:
+                return
+
+            try:
+                for entry in start_path.iterdir():
+                    # Skip hidden and common excluded directories
+                    if entry.name.startswith('.') and entry.is_dir():
+                        continue
+                    if entry.name in {'node_modules', '__pycache__', 'dist', 'build', 'venv', '.venv'}:
+                        continue
+
+                    if entry.is_dir():
+                        yield from walk_with_depth(entry, current_depth + 1)
+                    elif entry.is_file():
+                        yield entry
+            except PermissionError:
+                pass
+
+        for file_path in walk_with_depth(search_path):
+            if len(results) >= max_files:
+                has_more = True
+                break
+
+            # Check extension
+            ext = file_path.suffix.lower()
+            if ext not in self.TEXT_EXTENSIONS:
+                continue
+
+            # Check file size
+            try:
+                size = file_path.stat().st_size
+                if size > max_file_size_kb * 1024:
+                    continue
+            except OSError:
+                continue
+
+            files_searched += 1
+
+            # Search file content
+            matches: list[ContentSearchMatch] = []
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    for line_num, line in enumerate(f, 1):
+                        if query_lower in line.lower():
+                            matches.append(ContentSearchMatch(
+                                path=self._get_relative_path(file_path),
+                                name=file_path.name,
+                                line_number=line_num,
+                                line_content=line.strip()[:200],
+                            ))
+                            if len(matches) >= max_matches_per_file:
+                                break
+            except Exception:
+                continue
+
+            if matches:
+                info = self._get_file_info(file_path)
+                results.append(ContentSearchResult(
+                    path=info.path,
+                    name=info.name,
+                    type=info.type,
+                    size=info.size,
+                    modified=info.modified,
+                    matches=matches,
+                ))
+
+            await asyncio.sleep(0)  # Yield to event loop
+
+        return results, files_searched, len(results), has_more

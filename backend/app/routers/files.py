@@ -113,6 +113,37 @@ async def search_files(
     }
 
 
+@router.get("/search-content")
+async def search_content(
+    query: str,
+    path: str = "/",
+    max_files: int = Query(100, le=200),
+    max_depth: int = Query(3, le=5),
+):
+    """
+    Search file contents for a text pattern.
+    Uses ripgrep for fast searching when available.
+
+    Args:
+        query: Text pattern to search for
+        path: Directory to search in
+        max_files: Maximum number of files to return (up to 200)
+        max_depth: Maximum directory depth to search (up to 5)
+    """
+    if not query or len(query) < 2:
+        raise HTTPException(status_code=400, detail="Query must be at least 2 characters")
+
+    results, files_searched, files_with_matches, has_more = await fs_service.search_content(
+        query, path, max_files, max_depth
+    )
+    return {
+        "results": [r.model_dump() for r in results],
+        "files_searched": files_searched,
+        "files_with_matches": files_with_matches,
+        "has_more": has_more,
+    }
+
+
 @router.get("/disk-usage", response_model=DiskUsage)
 @handle_fs_errors
 async def get_disk_usage(path: str = "/"):

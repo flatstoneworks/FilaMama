@@ -252,6 +252,29 @@ export interface SearchResponse {
   total_scanned: number
 }
 
+export interface ContentSearchMatch {
+  path: string
+  name: string
+  line_number: number
+  line_content: string
+}
+
+export interface ContentSearchResult {
+  path: string
+  name: string
+  type: FileType
+  size: number
+  modified: string
+  matches: ContentSearchMatch[]
+}
+
+export interface ContentSearchResponse {
+  results: ContentSearchResult[]
+  files_searched: number
+  files_with_matches: number
+  has_more: boolean
+}
+
 async function searchFiles(params: {
   query?: string
   path?: string
@@ -265,6 +288,21 @@ async function searchFiles(params: {
   if (params.contentType) url.searchParams.set('content_type', params.contentType)
 
   return handleResponse<SearchResponse>(await fetch(url.toString()))
+}
+
+async function searchContent(params: {
+  query: string
+  path?: string
+  maxFiles?: number
+  maxDepth?: number
+}): Promise<ContentSearchResponse> {
+  const url = new URL(`${API_BASE}/files/search-content`, window.location.origin)
+  url.searchParams.set('query', params.query)
+  if (params.path) url.searchParams.set('path', params.path)
+  if (params.maxFiles) url.searchParams.set('max_files', params.maxFiles.toString())
+  if (params.maxDepth) url.searchParams.set('max_depth', params.maxDepth.toString())
+
+  return handleResponse<ContentSearchResponse>(await fetch(url.toString()))
 }
 
 export interface AudioMetadata {
@@ -325,6 +363,7 @@ export const api = {
   getStreamUrl,
   getConfig,
   searchFiles,
+  searchContent,
   getAudioMetadata,
   getAudioCoverUrl,
   getAudioLyrics,
