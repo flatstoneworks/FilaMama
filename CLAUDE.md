@@ -400,8 +400,9 @@ SVG files can now be previewed with auto-generated thumbnails.
 
 **Notes:**
 - SVG was already mapped as 'image' type in FileIcon.tsx
-- Browser natively displays SVG in preview (no frontend changes needed)
 - cairosvg requires system Cairo library (usually pre-installed on Linux)
+
+**Bug Fix:** SVG files with dark fill colors (e.g., black) were invisible on the dark preview page background. Added white background container for SVG files in PreviewPage.tsx.
 
 ---
 
