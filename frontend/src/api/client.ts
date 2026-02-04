@@ -176,23 +176,39 @@ async function uploadFile(
     })
     xhr.addEventListener('load', () => {
       if (xhr.status >= 200 && xhr.status < 300) {
+        // Check for per-file errors in the response
+        try {
+          const response = JSON.parse(xhr.responseText)
+          if (response.errors && response.errors.length > 0) {
+            // Backend returned errors for this file
+            const fileError = response.errors[0]
+            reject(new Error(fileError.error || 'Upload failed on server'))
+            return
+          }
+        } catch {
+          // If we can't parse the response, assume success
+        }
         resolve()
       } else {
-        // Try to parse error detail from server response
-        let errorMessage = `Upload failed: ${xhr.status}`
+        // HTTP error - try to parse error detail from server response
+        let errorMessage = `Upload failed (HTTP ${xhr.status})`
         try {
           const response = JSON.parse(xhr.responseText)
           if (response.detail) {
             errorMessage = response.detail
           }
         } catch {
-          // Use default error message
+          // Use default error message with status text
+          if (xhr.statusText) {
+            errorMessage = `Upload failed: ${xhr.statusText}`
+          }
         }
         reject(new Error(errorMessage))
       }
     })
-    xhr.addEventListener('error', () => reject(new Error('Network error - upload failed')))
+    xhr.addEventListener('error', () => reject(new Error('Network error - check your connection')))
     xhr.addEventListener('abort', () => reject(new Error('Upload was cancelled')))
+    xhr.addEventListener('timeout', () => reject(new Error('Upload timed out - file may be too large')))
     xhr.open('POST', `${API_BASE}/upload`)
     xhr.send(formData)
   })
@@ -251,6 +267,35 @@ async function searchFiles(params: {
   return handleResponse<SearchResponse>(await fetch(url.toString()))
 }
 
+export interface AudioMetadata {
+  title: string | null
+  artist: string | null
+  album: string | null
+  album_artist: string | null
+  track_number: string | null
+  year: string | null
+  genre: string | null
+  duration: number | null
+  bitrate: number | null
+  sample_rate: number | null
+  channels: number | null
+  has_cover: boolean
+}
+
+async function getAudioMetadata(path: string): Promise<AudioMetadata | null> {
+  try {
+    return await handleResponse<AudioMetadata>(
+      await fetch(`${API_BASE}/files/audio-metadata?path=${encodeURIComponent(path)}`)
+    )
+  } catch {
+    return null
+  }
+}
+
+function getAudioCoverUrl(path: string): string {
+  return `${API_BASE}/files/audio-cover?path=${encodeURIComponent(path)}`
+}
+
 export const api = {
   listDirectory,
   createFolder,
@@ -267,4 +312,6 @@ export const api = {
   getStreamUrl,
   getConfig,
   searchFiles,
+  getAudioMetadata,
+  getAudioCoverUrl,
 }

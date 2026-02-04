@@ -9,6 +9,7 @@ import yaml
 from .routers import files, upload
 from .services.filesystem import FilesystemService
 from .services.thumbnails import ThumbnailService
+from .services.audio import AudioMetadataService
 
 import os
 
@@ -28,6 +29,9 @@ thumb_service = ThumbnailService(
     sizes=config["thumbnails"]["sizes"],
     quality=config["thumbnails"]["quality"],
 )
+audio_service = AudioMetadataService(
+    root_path=Path(config["root_path"]),
+)
 
 
 @asynccontextmanager
@@ -35,7 +39,7 @@ async def lifespan(app: FastAPI):
     print(f"FilaMama starting...")
     print(f"Root path: {config['root_path']}")
     print(f"Server: http://{config['server']['host']}:{config['server']['port']}")
-    files.init_services(fs_service, thumb_service)
+    files.init_services(fs_service, thumb_service, audio_service)
     upload.init_services(fs_service)
     yield
     print("FilaMama shutting down...")

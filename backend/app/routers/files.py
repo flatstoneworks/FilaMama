@@ -14,18 +14,21 @@ from ..models.schemas import (
 )
 from ..services.filesystem import FilesystemService
 from ..services.thumbnails import ThumbnailService
+from ..services.audio import AudioMetadataService
 from ..utils.error_handlers import handle_fs_errors
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
 fs_service: FilesystemService = None
 thumb_service: ThumbnailService = None
+audio_service: AudioMetadataService = None
 
 
-def init_services(filesystem: FilesystemService, thumbnails: ThumbnailService):
-    global fs_service, thumb_service
+def init_services(filesystem: FilesystemService, thumbnails: ThumbnailService, audio: AudioMetadataService = None):
+    global fs_service, thumb_service, audio_service
     fs_service = filesystem
     thumb_service = thumbnails
+    audio_service = audio
 
 
 @router.get("/list", response_model=DirectoryListing)
@@ -303,3 +306,40 @@ async def stream_file(path: str, request: Request):
                 'Content-Length': str(file_size),
             }
         )
+
+
+@router.get("/audio-metadata")
+@handle_fs_errors
+async def get_audio_metadata(path: str):
+    """Get metadata (title, artist, album, etc.) from an audio file."""
+    if not audio_service:
+        raise HTTPException(status_code=501, detail="Audio metadata service not available")
+
+    file_path = fs_service.get_absolute_path(path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    metadata = audio_service.get_metadata(file_path)
+    if metadata is None:
+        raise HTTPException(status_code=400, detail="Could not extract audio metadata")
+
+    return metadata
+
+
+@router.get("/audio-cover")
+@handle_fs_errors
+async def get_audio_cover(path: str):
+    """Get cover art from an audio file."""
+    if not audio_service:
+        raise HTTPException(status_code=501, detail="Audio metadata service not available")
+
+    file_path = fs_service.get_absolute_path(path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    cover = audio_service.get_cover_art(file_path)
+    if cover is None:
+        raise HTTPException(status_code=404, detail="No cover art found")
+
+    image_bytes, mime_type = cover
+    return Response(content=image_bytes, media_type=mime_type)

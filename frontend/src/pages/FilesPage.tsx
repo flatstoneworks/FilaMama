@@ -9,6 +9,8 @@ import { Sidebar } from '@/components/Sidebar'
 import { Toolbar, type ViewMode } from '@/components/Toolbar'
 import { FileGrid } from '@/components/FileGrid'
 import { FileList } from '@/components/FileList'
+import { isAudioFile } from '@/components/FileIcon'
+import { useAudioPlayer } from '@/contexts/AudioPlayerContext'
 import { UploadDropzone } from '@/components/UploadDropzone'
 import { UploadProgress, type UploadItem } from '@/components/UploadProgress'
 import { RenameDialog } from '@/components/RenameDialog'
@@ -99,6 +101,9 @@ export function FilesPage() {
   useEffect(() => {
     localStorage.setItem('filamama-favorites', JSON.stringify(favorites))
   }, [favorites])
+
+  // Global audio player
+  const { playTrack, isOpen: isPlayerOpen } = useAudioPlayer()
 
   // Focused file index for keyboard navigation
   const [focusedIndex, setFocusedIndex] = useState<number>(-1)
@@ -354,6 +359,9 @@ export function FilesPage() {
     if (file.is_directory) {
       // Use file.path directly - it contains the full path
       handleNavigate(file.path)
+    } else if (isAudioFile(file.name)) {
+      // For audio files, play using global audio player with all audio files as playlist
+      playTrack(file, displayedFiles)
     } else {
       openPreview(file)
     }
@@ -890,7 +898,7 @@ export function FilesPage() {
                 </div>
               ) : (
                 <ScrollArea className="flex-1">
-                  <div className="flex flex-col">
+                  <div className={`flex flex-col ${isPlayerOpen ? 'pb-20' : ''}`}>
                     {viewMode === 'grid' ? (
                       <FileGrid
                         files={displayedFiles}

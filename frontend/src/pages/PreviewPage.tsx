@@ -10,12 +10,14 @@ import { getFileType, isPreviewable, isTextFile, getLanguageFromExtension } from
 import { joinPath, getParentPath, getFileName } from '@/lib/utils'
 import { PdfViewer } from '@/components/PdfViewer'
 import { VideoPlayer } from '@/components/VideoPlayer'
+import { useAudioPlayer } from '@/contexts/AudioPlayerContext'
 
 export function PreviewPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [isLoading, setIsLoading] = useState(true)
   const [textContent, setTextContent] = useState<string | null>(null)
+  const { isOpen: isPlayerOpen } = useAudioPlayer()
 
   // Derive file path from URL: /view/Documents/image.jpg → /Documents/image.jpg
   // Need to decode the pathname since React Router may not decode it
@@ -133,7 +135,7 @@ export function PreviewPage() {
   const downloadUrl = api.getDownloadUrl(filePath)
 
   return (
-    <div className="h-screen flex flex-col bg-black">
+    <div className={`h-screen flex flex-col bg-black ${isPlayerOpen ? 'pb-16' : ''}`}>
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3 bg-black/80 border-b border-white/10">
         <div className="flex items-center gap-3">

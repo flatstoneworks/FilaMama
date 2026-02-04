@@ -120,6 +120,13 @@ export function isTextFile(name: string): boolean {
   return type === 'code'
 }
 
+// Check if a file is an audio file
+export function isAudioFile(name: string): boolean {
+  const ext = name.split('.').pop()?.toLowerCase() || ''
+  const type = extensionToType[ext]
+  return type === 'audio'
+}
+
 // Get the language identifier for syntax highlighting
 export function getLanguageFromExtension(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase() || ''
