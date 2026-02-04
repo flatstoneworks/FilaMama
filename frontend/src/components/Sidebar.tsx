@@ -1,4 +1,4 @@
-import { FileText, Image, Video, Star, Home, FolderOpen, Music, FileImage, Film, FileType, HardDrive, FolderCog, Folder } from 'lucide-react'
+import { FileText, Image, Video, Star, Home, FolderOpen, Music, FileImage, Film, FileType, HardDrive, FolderCog, Folder, X } from 'lucide-react'
 import type { MountPoint } from '@/api/client'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -20,6 +20,7 @@ interface SidebarProps {
   currentPath: string
   onNavigate: (path: string) => void
   favorites?: string[]
+  onRemoveFavorite?: (path: string) => void
   activeContentType?: string | null
   onContentTypeChange?: (type: string | null) => void
   mounts?: MountPoint[]
@@ -56,6 +57,7 @@ export function Sidebar({
   currentPath,
   onNavigate,
   favorites = [],
+  onRemoveFavorite,
   activeContentType,
   onContentTypeChange,
   mounts = [],
@@ -78,23 +80,39 @@ export function Sidebar({
                 favorites.map((path) => {
                   const name = path.split('/').pop() || path
                   return (
-                    <button
+                    <div
                       key={path}
-                      onClick={() => {
-                        onContentTypeChange?.(null)
-                        onNavigate(path)
-                      }}
                       className={cn(
-                        'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
+                        'group w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
                         'hover:bg-accent hover:text-accent-foreground',
                         currentPath === path && !activeContentType
                           ? 'bg-accent text-accent-foreground font-medium'
                           : 'text-muted-foreground'
                       )}
                     >
-                      <Star className="h-4 w-4" />
-                      <span className="truncate">{name}</span>
-                    </button>
+                      <button
+                        onClick={() => {
+                          onContentTypeChange?.(null)
+                          onNavigate(path)
+                        }}
+                        className="flex items-center gap-2 flex-1 min-w-0"
+                      >
+                        <Star className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{name}</span>
+                      </button>
+                      {onRemoveFavorite && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onRemoveFavorite(path)
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive transition-opacity"
+                          title="Remove from favorites"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   )
                 })
               )}

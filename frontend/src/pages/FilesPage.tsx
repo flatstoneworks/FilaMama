@@ -84,6 +84,24 @@ export function FilesPage() {
   const [uploads, setUploads] = useState<UploadItem[]>([])
   const [isPreparingUpload, setIsPreparingUpload] = useState(false)
 
+  // Favorites (persisted to localStorage)
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('filamama-favorites')
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  })
+
+  // Persist favorites to localStorage
+  useEffect(() => {
+    localStorage.setItem('filamama-favorites', JSON.stringify(favorites))
+  }, [favorites])
+
+  // Focused file index for keyboard navigation
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1)
+
   // Dialogs
   const [renameFile, setRenameFile] = useState<FileInfo | null>(null)
   const [showNewFolder, setShowNewFolder] = useState(false)
@@ -126,6 +144,11 @@ export function FilesPage() {
   const searchTotalScanned = searchResponse?.total_scanned ?? 0
 
   const isLoading = isLoadingDir || (isSearchActive && isSearching)
+
+  // Reset focused index when path or search changes
+  useEffect(() => {
+    setFocusedIndex(-1)
+  }, [currentPath, isSearchActive])
 
   // Navigate to preview page
   const openPreview = useCallback((file: FileInfo) => {
@@ -360,6 +383,26 @@ export function FilesPage() {
       toast({ title: 'Failed to move files', variant: 'destructive' })
     }
   }
+
+  // Favorites management
+  const addToFavorites = useCallback((path: string) => {
+    setFavorites(prev => {
+      if (prev.includes(path)) return prev
+      return [...prev, path]
+    })
+    const name = path.split('/').pop() || path
+    toast({ title: `Added "${name}" to favorites` })
+  }, [])
+
+  const removeFromFavorites = useCallback((path: string) => {
+    setFavorites(prev => prev.filter(p => p !== path))
+    const name = path.split('/').pop() || path
+    toast({ title: `Removed "${name}" from favorites` })
+  }, [])
+
+  const isFavorite = useCallback((path: string) => {
+    return favorites.includes(path)
+  }, [favorites])
 
   // Parallel upload configuration
   const CONCURRENT_UPLOADS = 3
@@ -613,6 +656,63 @@ export function FilesPage() {
         const parentPath = currentPath.split('/').slice(0, -1).join('/') || '/'
         handleNavigate(parentPath)
       }
+
+      // Arrow key navigation
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && displayedFiles.length > 0) {
+        e.preventDefault()
+
+        // Calculate grid columns based on container width and grid size
+        // For list view, treat as single column
+        const columns = viewMode === 'list' ? 1 : Math.max(1, Math.floor((window.innerWidth - 208) / (gridSize + 8)))
+
+        let newIndex = focusedIndex
+        if (focusedIndex === -1) {
+          // If nothing focused, start at first item
+          newIndex = 0
+        } else {
+          switch (e.key) {
+            case 'ArrowUp':
+              newIndex = Math.max(0, focusedIndex - columns)
+              break
+            case 'ArrowDown':
+              newIndex = Math.min(displayedFiles.length - 1, focusedIndex + columns)
+              break
+            case 'ArrowLeft':
+              if (viewMode === 'grid') {
+                newIndex = Math.max(0, focusedIndex - 1)
+              }
+              break
+            case 'ArrowRight':
+              if (viewMode === 'grid') {
+                newIndex = Math.min(displayedFiles.length - 1, focusedIndex + 1)
+              }
+              break
+          }
+        }
+
+        setFocusedIndex(newIndex)
+
+        // Shift+Arrow: extend selection
+        if (e.shiftKey && newIndex !== focusedIndex) {
+          selectFile(displayedFiles[newIndex], { shiftKey: true, ctrlKey: false } as React.MouseEvent)
+        } else if (!e.shiftKey && !e.ctrlKey) {
+          // Plain arrow: select only the focused item
+          clearSelection()
+          selectFile(displayedFiles[newIndex], { ctrlKey: true } as React.MouseEvent)
+        }
+      }
+
+      // Space: toggle selection of focused item
+      if (e.key === ' ' && focusedIndex >= 0 && focusedIndex < displayedFiles.length) {
+        e.preventDefault()
+        selectFile(displayedFiles[focusedIndex], { ctrlKey: true } as React.MouseEvent)
+      }
+
+      // Enter with focused item (no selection): open focused item
+      if (e.key === 'Enter' && selectedFilesList.length === 0 && focusedIndex >= 0) {
+        e.preventDefault()
+        handleOpen(displayedFiles[focusedIndex])
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -629,6 +729,9 @@ export function FilesPage() {
     handleOpen,
     handleNavigate,
     pasteMutation,
+    focusedIndex,
+    viewMode,
+    gridSize,
   ])
 
   return (
@@ -648,6 +751,8 @@ export function FilesPage() {
         <Sidebar
           currentPath={currentPath}
           onNavigate={handleNavigate}
+          favorites={favorites}
+          onRemoveFavorite={removeFromFavorites}
           activeContentType={activeContentType}
           onContentTypeChange={setActiveContentType}
           mounts={config?.mounts}
@@ -783,6 +888,7 @@ export function FilesPage() {
                         files={displayedFiles}
                         selectedFiles={selectedFiles}
                         gridSize={gridSize}
+                        focusedIndex={focusedIndex}
                         onSelect={selectFile}
                         onOpen={handleOpen}
                         onRename={setRenameFile}
@@ -792,11 +898,15 @@ export function FilesPage() {
                         onPreview={openPreview}
                         onDownload={handleDownload}
                         onMove={handleMove}
+                        onAddFavorite={addToFavorites}
+                        onRemoveFavorite={removeFromFavorites}
+                        isFavorite={isFavorite}
                       />
                     ) : (
                       <FileList
                         files={displayedFiles}
                         selectedFiles={selectedFiles}
+                        focusedIndex={focusedIndex}
                         onSelect={selectFile}
                         onOpen={handleOpen}
                         onRename={setRenameFile}
@@ -806,6 +916,9 @@ export function FilesPage() {
                         onPreview={openPreview}
                         onDownload={handleDownload}
                         onMove={handleMove}
+                        onAddFavorite={addToFavorites}
+                        onRemoveFavorite={removeFromFavorites}
+                        isFavorite={isFavorite}
                       />
                     )}
                     {hasMoreFiles && (

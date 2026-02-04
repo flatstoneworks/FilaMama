@@ -406,10 +406,48 @@ SVG files can now be previewed with auto-generated thumbnails.
 
 ---
 
+### Session 2026-02-04: Favorites Management & Arrow Key Navigation
+
+**Features Added:**
+
+#### 1. Favorites Management
+- Favorites persisted to localStorage (`filamama-favorites`)
+- Add folders to favorites via right-click context menu
+- Remove folders from favorites via context menu or sidebar X button
+- Favorites section in sidebar shows all bookmarked folders
+- Visual star icon in sidebar for favorites
+
+**Files Modified:**
+- `frontend/src/pages/FilesPage.tsx` - Added favorites state, localStorage persistence, add/remove handlers
+- `frontend/src/components/Sidebar.tsx` - Added remove button (X) on hover for favorites
+- `frontend/src/components/FileGrid.tsx` - Added "Add to Favorites" / "Remove from Favorites" context menu
+- `frontend/src/components/FileList.tsx` - Added "Add to Favorites" / "Remove from Favorites" context menu
+
+#### 2. Arrow Key Navigation
+- Navigate files in grid/list view using arrow keys
+- ArrowUp/ArrowDown moves by row (respects grid columns)
+- ArrowLeft/ArrowRight moves by column in grid view
+- Shift+Arrow extends selection
+- Space toggles selection of focused item
+- Enter opens focused item when nothing selected
+- Visual focus indicator (ring outline) shows current position
+
+**Keyboard Shortcuts Added:**
+| Shortcut | Action |
+|----------|--------|
+| `Arrow Keys` | Navigate between files |
+| `Shift + Arrow` | Extend selection |
+| `Space` | Toggle selection of focused item |
+
+**Files Modified:**
+- `frontend/src/pages/FilesPage.tsx` - Added focusedIndex state, arrow key handlers
+- `frontend/src/components/FileGrid.tsx` - Added focus visual indicator, focusedIndex prop
+- `frontend/src/components/FileList.tsx` - Added focus visual indicator, focusedIndex prop
+
+---
+
 ### Potential Future Work
-- Favorites management (add/remove from context menu)
 - Dark/light theme toggle
-- Arrow key navigation in file grid/list
 - Drag and drop to sidebar folders
 - Picture-in-picture mode for videos
 - Subtitle/caption support for videos

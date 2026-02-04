@@ -34,6 +34,8 @@ A fast, beautiful file manager web application built with React and FastAPI. Fea
 - **Drag & Drop Moving** - Drag files/folders onto folders to move them
 - **Multi-Selection** - Click checkboxes or Ctrl/Cmd+Click to select multiple files
 - **Context Menu** - Right-click for quick actions
+- **Favorites** - Bookmark folders for quick access (right-click → Add to Favorites)
+- **Arrow Key Navigation** - Navigate files with arrow keys, Shift+Arrow to extend selection
 
 ### Upload Experience
 - **Parallel Uploads** - 3 concurrent uploads for faster batch transfers
@@ -96,7 +98,9 @@ A fast, beautiful file manager web application built with React and FastAPI. Fea
 | `Escape` | Clear selection and search |
 | `F2` | Rename selected file |
 | `Backspace` | Navigate to parent directory |
-| `Arrow Keys` | Navigate in preview modal |
+| `Arrow Keys` | Navigate between files in grid/list |
+| `Shift + Arrow` | Extend selection while navigating |
+| `Space` | Toggle selection of focused file |
 
 #### Video Player
 | Shortcut | Action |

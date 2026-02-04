@@ -4,7 +4,7 @@ import { VideoPreview } from './VideoPreview'
 import { TextPreview } from './TextPreview'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen } from 'lucide-react'
+import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen, Star, StarOff } from 'lucide-react'
 import type { FileInfo } from '@/api/client'
 import { api } from '@/api/client'
 import { cn, isFileSelected, getSelectedOrSingle, createCheckboxClickHandler, isVideoFile } from '@/lib/utils'
@@ -13,6 +13,7 @@ interface FileGridProps {
   files: FileInfo[]
   selectedFiles: Set<string>
   gridSize: number
+  focusedIndex?: number
   onSelect: (file: FileInfo, e: React.MouseEvent) => void
   onOpen: (file: FileInfo) => void
   onRename: (file: FileInfo) => void
@@ -22,12 +23,16 @@ interface FileGridProps {
   onPreview: (file: FileInfo) => void
   onDownload: (file: FileInfo) => void
   onMove?: (files: FileInfo[], targetFolder: FileInfo) => void
+  onAddFavorite?: (path: string) => void
+  onRemoveFavorite?: (path: string) => void
+  isFavorite?: (path: string) => boolean
 }
 
 export function FileGrid({
   files,
   selectedFiles,
   gridSize,
+  focusedIndex = -1,
   onSelect,
   onOpen,
   onRename,
@@ -37,6 +42,9 @@ export function FileGrid({
   onPreview,
   onDownload,
   onMove,
+  onAddFavorite,
+  onRemoveFavorite,
+  isFavorite,
 }: FileGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [draggedFiles, setDraggedFiles] = useState<FileInfo[]>([])
@@ -130,9 +138,11 @@ export function FileGrid({
         gridTemplateColumns: `repeat(auto-fill, minmax(${gridSize}px, 1fr))`,
       }}
     >
-      {files.map((file) => {
+      {files.map((file, index) => {
         const isDragging = draggedFiles.some(f => f.path === file.path)
         const isDroppable = dropTarget === file.path && file.is_directory
+        const isFocused = index === focusedIndex
+        const isFileFavorite = file.is_directory && isFavorite?.(file.path)
 
         return (
           <ContextMenu key={file.path}>
@@ -142,6 +152,7 @@ export function FileGrid({
                   'group relative flex flex-col items-center p-2 rounded-lg cursor-pointer transition-colors',
                   'hover:bg-accent/50',
                   isFileSelected(file, selectedFiles) && 'bg-accent ring-2 ring-primary',
+                  isFocused && !isFileSelected(file, selectedFiles) && 'ring-2 ring-primary/50 bg-accent/30',
                   isDragging && 'opacity-50',
                   isDroppable && 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950'
                 )}
@@ -220,10 +231,23 @@ export function FileGrid({
           </ContextMenuTrigger>
           <ContextMenuContent>
             {file.is_directory ? (
-              <ContextMenuItem onClick={() => onOpen(file)}>
-                <FolderOpen className="mr-2 h-4 w-4" />
-                Open
-              </ContextMenuItem>
+              <>
+                <ContextMenuItem onClick={() => onOpen(file)}>
+                  <FolderOpen className="mr-2 h-4 w-4" />
+                  Open
+                </ContextMenuItem>
+                {isFileFavorite ? (
+                  <ContextMenuItem onClick={() => onRemoveFavorite?.(file.path)}>
+                    <StarOff className="mr-2 h-4 w-4" />
+                    Remove from Favorites
+                  </ContextMenuItem>
+                ) : (
+                  <ContextMenuItem onClick={() => onAddFavorite?.(file.path)}>
+                    <Star className="mr-2 h-4 w-4" />
+                    Add to Favorites
+                  </ContextMenuItem>
+                )}
+              </>
             ) : (
               <>
                 {isPreviewable(file.name) && (

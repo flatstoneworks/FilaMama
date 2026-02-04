@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { FileIcon, isPreviewable } from './FileIcon'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen, HardDrive, Loader2 } from 'lucide-react'
+import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen, HardDrive, Loader2, Star, StarOff } from 'lucide-react'
 import { api, type FileInfo } from '@/api/client'
 import { cn, isFileSelected, getSelectedOrSingle, createCheckboxClickHandler, formatBytes, formatFileDate } from '@/lib/utils'
 
 interface FileListProps {
   files: FileInfo[]
   selectedFiles: Set<string>
+  focusedIndex?: number
   onSelect: (file: FileInfo, e: React.MouseEvent) => void
   onOpen: (file: FileInfo) => void
   onRename: (file: FileInfo) => void
@@ -18,11 +19,15 @@ interface FileListProps {
   onPreview: (file: FileInfo) => void
   onDownload: (file: FileInfo) => void
   onMove?: (files: FileInfo[], targetFolder: FileInfo) => void
+  onAddFavorite?: (path: string) => void
+  onRemoveFavorite?: (path: string) => void
+  isFavorite?: (path: string) => boolean
 }
 
 export function FileList({
   files,
   selectedFiles,
+  focusedIndex = -1,
   onSelect,
   onOpen,
   onRename,
@@ -32,6 +37,9 @@ export function FileList({
   onPreview,
   onDownload,
   onMove,
+  onAddFavorite,
+  onRemoveFavorite,
+  isFavorite,
 }: FileListProps) {
   const [draggedFiles, setDraggedFiles] = useState<FileInfo[]>([])
   const [dropTarget, setDropTarget] = useState<string | null>(null)
@@ -161,9 +169,11 @@ export function FileList({
 
       {/* File list */}
       <div className="flex flex-col">
-        {files.map((file) => {
+        {files.map((file, index) => {
           const isDragging = draggedFiles.some(f => f.path === file.path)
           const isDroppable = dropTarget === file.path && file.is_directory
+          const isFocused = index === focusedIndex
+          const isFileFavorite = file.is_directory && isFavorite?.(file.path)
 
           return (
             <ContextMenu key={file.path}>
@@ -173,6 +183,7 @@ export function FileList({
                     'group grid grid-cols-[auto_1fr_100px_150px] gap-4 px-4 py-2 text-sm cursor-pointer transition-colors',
                     'hover:bg-accent/50',
                     isFileSelected(file, selectedFiles) && 'bg-accent',
+                    isFocused && !isFileSelected(file, selectedFiles) && 'bg-accent/30 ring-1 ring-primary/50',
                     isDragging && 'opacity-50',
                     isDroppable && 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950'
                   )}
@@ -227,6 +238,17 @@ export function FileList({
                     <FolderOpen className="mr-2 h-4 w-4" />
                     Open
                   </ContextMenuItem>
+                  {isFileFavorite ? (
+                    <ContextMenuItem onClick={() => onRemoveFavorite?.(file.path)}>
+                      <StarOff className="mr-2 h-4 w-4" />
+                      Remove from Favorites
+                    </ContextMenuItem>
+                  ) : (
+                    <ContextMenuItem onClick={() => onAddFavorite?.(file.path)}>
+                      <Star className="mr-2 h-4 w-4" />
+                      Add to Favorites
+                    </ContextMenuItem>
+                  )}
                   {!folderSizes[file.path] && (
                     <ContextMenuItem onClick={() => calculateFolderSize(file)}>
                       <HardDrive className="mr-2 h-4 w-4" />
