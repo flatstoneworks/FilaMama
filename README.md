@@ -1,6 +1,6 @@
 # FilaMama
 
-A fast, beautiful file manager web application built with React and FastAPI. Features video timeline scrubbing, syntax-highlighted code previews, recursive search, and parallel uploads.
+A fast, beautiful file manager web application built with React and FastAPI. Features a Spotify-style audio player with metadata and cover art, video timeline scrubbing, syntax-highlighted code previews, recursive search, and parallel uploads.
 
 ![FilaMama Screenshot](https://img.shields.io/badge/Status-Active-brightgreen)
 
@@ -23,6 +23,7 @@ A fast, beautiful file manager web application built with React and FastAPI. Fea
 - Pillow (image thumbnails)
 - aiofiles (async file I/O)
 - ffmpeg (video thumbnails)
+- mutagen (audio metadata & cover art extraction)
 
 ## Features
 
@@ -71,10 +72,30 @@ A fast, beautiful file manager web application built with React and FastAPI. Fea
 | Config | `.ini`, `.cfg`, `.conf`, `.env`, `.properties` |
 | Text | `.txt`, `.md`, `.log`, `.rst` |
 
+#### Audio Mini-Player (Spotify-style)
+- **Global Player** - Persists across all pages (file browser, preview, etc.)
+- **Playlist Mode** - Click any audio file to play all audio files in the current folder
+- **Playback Controls** - Play/pause, previous/next track, progress bar with seek
+- **Shuffle & Repeat** - Shuffle mode, repeat modes (off, repeat all, repeat one)
+- **Volume Control** - Volume slider with mute toggle
+- **Metadata Display** - Shows title, artist, album extracted from ID3/Vorbis tags
+- **Cover Art** - Displays embedded album artwork from audio files
+- **Keyboard Shortcuts** - Space (play/pause), Shift+Arrow (prev/next), M (mute)
+
+**Supported Audio Formats:**
+| Format | Metadata Support |
+|--------|------------------|
+| MP3 | ID3v1, ID3v2 tags |
+| FLAC | Vorbis comments |
+| OGG | Vorbis comments |
+| M4A/AAC | iTunes-style tags |
+| WAV | Basic metadata |
+| WMA | ASF metadata |
+| OPUS | Vorbis comments |
+
 #### Other Previews
 - **Image Preview** - Full-size image viewing with navigation
 - **PDF Viewer** - Page navigation, zoom controls (50%-300%), text selection
-- **Audio Player** - Built-in audio playback
 - **Thumbnails** - Auto-generated for images (including SVG), videos, and GIFs
 
 ### Search & Navigation
@@ -113,6 +134,14 @@ A fast, beautiful file manager web application built with React and FastAPI. Fea
 | `F` | Toggle fullscreen |
 | `0-9` | Jump to 0%-90% of video |
 
+#### Audio Mini-Player
+| Shortcut | Action |
+|----------|--------|
+| `Space` | Play/Pause (when not in input field) |
+| `Shift + ←` | Previous track |
+| `Shift + →` | Next track |
+| `M` | Mute/unmute |
+
 ## Project Structure
 
 ```
@@ -123,7 +152,8 @@ FilaMama/
 │   │   │   └── schemas.py          # Pydantic models
 │   │   ├── services/
 │   │   │   ├── filesystem.py       # File operations service
-│   │   │   └── thumbnails.py       # Thumbnail generation
+│   │   │   ├── thumbnails.py       # Thumbnail generation
+│   │   │   └── audio.py            # Audio metadata & cover art extraction
 │   │   ├── routers/
 │   │   │   ├── files.py            # File API endpoints
 │   │   │   └── upload.py           # Upload endpoint
@@ -147,10 +177,13 @@ FilaMama/
 │   │   │   ├── PdfViewer.tsx       # PDF viewer with zoom
 │   │   │   ├── UploadDropzone.tsx  # Drag-drop upload area
 │   │   │   ├── UploadProgress.tsx  # Upload status with speed/ETA
+│   │   │   ├── MiniPlayer.tsx      # Audio mini-player with cover art
 │   │   │   ├── RenameDialog.tsx    # Rename modal
 │   │   │   ├── NewFolderDialog.tsx # Create folder modal
 │   │   │   ├── DeleteDialog.tsx    # Delete confirmation
 │   │   │   └── ui/                 # shadcn/ui components
+│   │   ├── contexts/
+│   │   │   └── AudioPlayerContext.tsx  # Global audio player state
 │   │   ├── hooks/
 │   │   │   ├── useFileSelection.ts # Multi-select hook
 │   │   │   └── useDebounce.ts      # Search debounce hook
@@ -285,6 +318,8 @@ app:
 | GET | `/api/files/preview` | Preview file |
 | GET | `/api/files/text` | Get text file content |
 | GET | `/api/files/search` | Search files (recursive, with truncation info) |
+| GET | `/api/files/audio-metadata` | Get audio file metadata (title, artist, album, etc.) |
+| GET | `/api/files/audio-cover` | Get embedded cover art from audio file |
 | GET | `/api/files/disk-usage` | Get disk usage stats |
 | POST | `/api/files/mkdir` | Create directory |
 | POST | `/api/files/delete` | Delete files |
