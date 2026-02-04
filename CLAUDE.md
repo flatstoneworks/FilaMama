@@ -5,7 +5,7 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 
 ## Tech Stack
 - **Frontend**: React 18, TypeScript, Vite, TanStack Query, Tailwind CSS, shadcn/ui, React Router
-- **Backend**: FastAPI, Python, Pydantic, Pillow (thumbnails)
+- **Backend**: FastAPI, Python, Pydantic, Pillow (thumbnails), mutagen (audio metadata)
 
 ## URLs & Ports
 
@@ -56,6 +56,18 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 - Recursive search with 300ms debounce and truncation warnings
 - Content type filtering (Photos, Videos, GIFs, PDFs, Audio) - recursive
 
+### Audio Mini-Player (Spotify-style)
+- **Global player**: Persists across all pages (file browser, preview, etc.)
+- **Playlist mode**: Click any audio file to play all audio files in current folder
+- **Playback controls**: Play/pause, previous/next track, progress bar with seek
+- **Shuffle & Repeat**: Shuffle mode, repeat modes (off, all, one)
+- **Volume control**: Volume slider with mute toggle
+- **Metadata display**: Shows title, artist, album from ID3 tags
+- **Cover art**: Extracts and displays embedded album artwork
+- **Keyboard shortcuts**: Space (play/pause), Shift+Arrow (prev/next), M (mute)
+- **Supported formats**: MP3, FLAC, OGG, M4A, WAV, WMA, AAC, OPUS
+- **Position**: Fixed at bottom of content area (doesn't cover sidebar)
+
 ### Keyboard Shortcuts
 
 #### File Browser
@@ -78,6 +90,12 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 - **F**: Toggle fullscreen
 - **0-9**: Jump to 0%-90% of video
 
+#### Audio Mini-Player
+- **Space**: Play/Pause (when not in input field)
+- **Shift + ←**: Previous track
+- **Shift + →**: Next track
+- **M**: Mute/unmute
+
 ## Key Files
 
 ### Frontend
@@ -94,15 +112,18 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 - `frontend/src/components/TextPreview.tsx` - Text/code hover preview with syntax highlighting
 - `frontend/src/components/PdfViewer.tsx` - PDF viewer using react-pdf
 - `frontend/src/components/UploadProgress.tsx` - Upload progress with speed, ETA, retry
+- `frontend/src/components/MiniPlayer.tsx` - Audio mini-player with cover art and metadata
+- `frontend/src/contexts/AudioPlayerContext.tsx` - Global audio player state management
 - `frontend/src/hooks/useDebounce.ts` - Debounce hook for search
 - `frontend/src/api/client.ts` - API client with URL helpers
 - `frontend/src/lib/utils.ts` - Utility functions (formatVideoTime, formatBytes, formatUploadSpeed, etc.)
-- `frontend/src/main.tsx` - Router configuration
+- `frontend/src/main.tsx` - Router configuration, global audio player provider
 
 ### Backend
-- `backend/app/routers/files.py` - File operations API (list, download, stream, thumbnail, etc.)
+- `backend/app/routers/files.py` - File operations API (list, download, stream, thumbnail, audio metadata, etc.)
 - `backend/app/services/filesystem.py` - Filesystem operations service
 - `backend/app/services/thumbnails.py` - Thumbnail generation service
+- `backend/app/services/audio.py` - Audio metadata and cover art extraction service
 
 ## Session Notes
 
@@ -446,9 +467,106 @@ SVG files can now be previewed with auto-generated thumbnails.
 
 ---
 
+### Session 2026-02-04: Audio Mini-Player with Metadata & Cover Art
+
+**Features Implemented:**
+
+#### 1. Global Audio Player (Spotify-style)
+- Fixed player bar at bottom of content area (doesn't cover sidebar)
+- Persists across all pages using React Context
+- Playlist mode: plays all audio files in current folder
+- Auto-advances to next track when current ends
+
+**Components:**
+- `MiniPlayer.tsx` - UI component with controls, cover art, metadata display
+- `AudioPlayerContext.tsx` - Global state management (playlist, current track, playback state)
+
+**Playback Controls:**
+- Play/pause button
+- Previous/Next track buttons
+- Progress bar with click-to-seek
+- Time display (current / total)
+- Volume slider with mute toggle
+- Shuffle mode (randomize track order)
+- Repeat modes: off, repeat all, repeat one
+
+#### 2. Audio Metadata Extraction
+- Uses `mutagen` library for cross-format metadata extraction
+- Extracts: title, artist, album, album artist, track number, year, genre
+- Also extracts: duration, bitrate, sample rate, channels
+- Falls back to filename if no metadata available
+
+**Supported Formats:**
+- MP3 (ID3v2 tags)
+- FLAC (Vorbis comments)
+- OGG Vorbis
+- M4A/MP4 (iTunes tags)
+- WAV, WMA, AAC, OPUS
+
+#### 3. Cover Art Display
+- Extracts embedded album artwork from audio files
+- Supports APIC frames (MP3), FLAC pictures, MP4 covr atom
+- Displays 48x48 thumbnail in player
+- Falls back to music icon if no cover art
+
+**Backend Endpoints:**
+```
+GET /api/files/audio-metadata?path=/Music/song.mp3
+Response: {
+  "title": "Song Title",
+  "artist": "Artist Name",
+  "album": "Album Name",
+  "year": "2024",
+  "genre": "Pop",
+  "duration": 245.5,
+  "bitrate": 320000,
+  "has_cover": true
+}
+
+GET /api/files/audio-cover?path=/Music/song.mp3
+Response: image/jpeg (binary)
+```
+
+**Files Created:**
+- `backend/app/services/audio.py` - AudioMetadataService class
+- `frontend/src/components/MiniPlayer.tsx` - Player UI component
+- `frontend/src/contexts/AudioPlayerContext.tsx` - Global state context
+
+**Files Modified:**
+- `backend/app/main.py` - Initialize audio service
+- `backend/app/routers/files.py` - Added audio-metadata and audio-cover endpoints
+- `backend/requirements.txt` - Added mutagen==1.47.0
+- `frontend/src/main.tsx` - Added AudioPlayerProvider and GlobalAudioPlayer
+- `frontend/src/api/client.ts` - Added getAudioMetadata() and getAudioCoverUrl()
+- `frontend/src/pages/FilesPage.tsx` - Uses playTrack from context
+- `frontend/src/pages/PreviewPage.tsx` - Bottom padding when player open
+- `frontend/src/components/FileIcon.tsx` - Added isAudioFile() helper
+
+**Keyboard Shortcuts:**
+| Shortcut | Action |
+|----------|--------|
+| `Space` | Play/Pause |
+| `Shift + ←` | Previous track |
+| `Shift + →` | Next track |
+| `M` | Mute/unmute |
+
+**Testing:**
+```bash
+# Test metadata extraction
+curl "http://spark.local:8011/api/files/audio-metadata?path=/Music/song.mp3"
+
+# Test cover art
+curl -o cover.jpg "http://spark.local:8011/api/files/audio-cover?path=/Music/song.mp3"
+```
+
+---
+
 ### Potential Future Work
 - Dark/light theme toggle
 - Drag and drop to sidebar folders
 - Picture-in-picture mode for videos
 - Subtitle/caption support for videos
 - File content search (search inside text files)
+- Audio visualizer in mini-player
+- Queue management (add/remove tracks, reorder)
+- Crossfade between tracks
