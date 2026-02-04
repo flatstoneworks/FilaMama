@@ -212,8 +212,21 @@ export function PreviewPage() {
 
               {fileType === 'image' && (
                 <div
-                  className={ext === 'svg' ? 'bg-white rounded-lg p-4' : ''}
-                  style={{ display: isLoading ? 'none' : 'block' }}
+                  className={ext === 'svg' ? 'rounded-lg p-4' : ''}
+                  style={{
+                    display: isLoading ? 'none' : 'block',
+                    ...(ext === 'svg' ? {
+                      backgroundImage: `
+                        linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
+                        linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
+                        linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
+                        linear-gradient(-45deg, transparent 75%, #e0e0e0 75%)
+                      `,
+                      backgroundSize: '20px 20px',
+                      backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
+                      backgroundColor: '#fff',
+                    } : {}),
+                  }}
                 >
                   <img
                     src={fileUrl}
