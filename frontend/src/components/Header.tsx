@@ -45,7 +45,7 @@ export function Header({ path, onNavigate, searchQuery, onSearchChange, searchCo
   }
 
   return (
-    <header className="h-12 border-b bg-background flex items-center px-3 gap-4">
+    <header className="h-12 border-b bg-background flex items-center px-4 gap-4">
       {/* Breadcrumbs */}
       <nav className="flex items-center gap-0.5 text-sm flex-1 min-w-0 overflow-x-auto">
         <Button

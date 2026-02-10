@@ -43,7 +43,7 @@ export function Toolbar({
 }: ToolbarProps) {
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center gap-2 px-3 py-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="flex items-center gap-2 px-4 py-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         {/* Left side: item count, refresh, selection info */}
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">

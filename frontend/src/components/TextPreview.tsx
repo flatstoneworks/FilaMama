@@ -79,7 +79,7 @@ export function TextPreview({
 
   return (
     <div
-      className={cn('relative overflow-hidden bg-[#282c34] rounded', className)}
+      className={cn('relative overflow-hidden bg-muted rounded', className)}
       style={style}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -140,7 +140,7 @@ export function TextPreview({
 
       {/* Hover indicator */}
       {isHovering && content && (
-        <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-[#282c34] to-transparent pointer-events-none" />
+        <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-muted to-transparent pointer-events-none" />
       )}
     </div>
   )

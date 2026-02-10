@@ -73,10 +73,10 @@ export function FileGrid({
                 className={cn(
                   'group relative flex flex-col items-center p-2 rounded-lg cursor-pointer transition-colors',
                   'hover:bg-accent/50',
-                  isFileSelected(file, selectedFiles) && 'bg-accent ring-2 ring-primary',
-                  isFocused && !isFileSelected(file, selectedFiles) && 'ring-2 ring-primary/50 bg-accent/30',
+                  isFileSelected(file, selectedFiles) && 'bg-primary/10 ring-2 ring-primary',
+                  isFocused && !isFileSelected(file, selectedFiles) && 'ring-2 ring-primary/50 bg-primary/5',
                   isDragging && 'opacity-50',
-                  isDroppable && 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950'
+                  isDroppable && 'ring-2 ring-primary bg-primary/10'
                 )}
                 onClick={() => onOpen(file)}
                 draggable
@@ -152,7 +152,10 @@ export function FileGrid({
                 </div>
               )}
               <span
-                className="mt-2 text-xs text-center line-clamp-2 w-full px-1"
+                className={cn(
+                  'mt-2 text-center line-clamp-2 w-full px-1',
+                  file.is_directory ? 'text-sm font-medium' : 'text-xs text-muted-foreground'
+                )}
                 title={file.name}
               >
                 {file.name}

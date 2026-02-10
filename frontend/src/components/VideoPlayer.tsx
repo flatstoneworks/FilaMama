@@ -291,7 +291,7 @@ export function VideoPlayer({ fileUrl, fileName, onLoad }: VideoPlayerProps) {
         {error ? (
           <div className="flex flex-col items-center justify-center gap-4 p-8">
             <p className="text-red-400 text-sm text-center">{error}</p>
-            <p className="text-gray-400 text-xs">Try downloading the file instead</p>
+            <p className="text-muted-foreground text-xs">Try downloading the file instead</p>
           </div>
         ) : (
           <video
@@ -416,13 +416,13 @@ export function VideoPlayer({ fileUrl, fileName, onLoad }: VideoPlayerProps) {
                 {playbackSpeed}x
               </Button>
               {showSpeedMenu && (
-                <div className="absolute bottom-full mb-2 right-0 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden">
+                <div className="absolute bottom-full mb-2 right-0 bg-popover border rounded-lg shadow-xl overflow-hidden">
                   {PLAYBACK_SPEEDS.map((speed) => (
                     <button
                       key={speed}
                       className={cn(
-                        "block w-full px-4 py-2 text-sm text-left hover:bg-gray-800",
-                        speed === playbackSpeed ? "text-blue-400 bg-gray-800" : "text-white"
+                        "block w-full px-4 py-2 text-sm text-left hover:bg-accent",
+                        speed === playbackSpeed ? "text-primary bg-accent" : "text-white"
                       )}
                       onClick={() => setSpeed(speed)}
                     >

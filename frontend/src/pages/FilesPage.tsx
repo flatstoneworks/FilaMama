@@ -392,7 +392,7 @@ export function FilesPage() {
 
           {/* Search indicator */}
           {isSearchActive && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 border-b text-sm">
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-muted/50 border-b text-sm">
               {isContentSearchActive ? (
                 <FileText className="h-4 w-4 text-muted-foreground" />
               ) : (

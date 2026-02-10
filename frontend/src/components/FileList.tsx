@@ -137,10 +137,10 @@ export function FileList({
                     className={cn(
                       'group grid grid-cols-[auto_1fr_100px_150px] gap-4 px-4 py-2 text-sm cursor-pointer transition-colors h-full',
                       'hover:bg-accent/50',
-                      isFileSelected(file, selectedFiles) && 'bg-accent',
-                      isFocused && !isFileSelected(file, selectedFiles) && 'bg-accent/30 ring-1 ring-primary/50',
+                      isFileSelected(file, selectedFiles) && 'bg-primary/10 border-l-2 border-primary',
+                      isFocused && !isFileSelected(file, selectedFiles) && 'bg-primary/5 ring-1 ring-primary/50',
                       isDragging && 'opacity-50',
-                      isDroppable && 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950'
+                      isDroppable && 'ring-2 ring-primary bg-primary/10'
                     )}
                     onClick={() => onOpen(file)}
                     draggable

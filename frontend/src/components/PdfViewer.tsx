@@ -73,9 +73,9 @@ export function PdfViewer({ fileUrl, fileName, onLoad }: PdfViewerProps) {
   const zoomOut = () => setScale((prev) => Math.max(prev - 0.2, 0.5))
 
   return (
-    <div className="flex flex-col w-[85vw] h-[85vh] bg-gray-900">
+    <div className="flex flex-col w-[85vw] h-[85vh] bg-background">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-800 text-white border-b border-gray-700">
+      <div className="flex items-center justify-between px-4 py-2 bg-card text-foreground border-b">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium truncate max-w-[300px]">{fileName}</span>
         </div>
@@ -87,7 +87,7 @@ export function PdfViewer({ fileUrl, fileName, onLoad }: PdfViewerProps) {
             size="sm"
             onClick={goToPrevPage}
             disabled={pageNumber <= 1 || isLoading || !!error}
-            className="text-white hover:bg-gray-700 disabled:opacity-30"
+            className="text-foreground hover:bg-accent disabled:opacity-30"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -99,12 +99,12 @@ export function PdfViewer({ fileUrl, fileName, onLoad }: PdfViewerProps) {
             size="sm"
             onClick={goToNextPage}
             disabled={pageNumber >= numPages || isLoading || !!error}
-            className="text-white hover:bg-gray-700 disabled:opacity-30"
+            className="text-foreground hover:bg-accent disabled:opacity-30"
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
 
-          <div className="w-px h-6 bg-gray-700 mx-2" />
+          <div className="w-px h-6 bg-border mx-2" />
 
           {/* Zoom Controls */}
           <Button
@@ -112,7 +112,7 @@ export function PdfViewer({ fileUrl, fileName, onLoad }: PdfViewerProps) {
             size="sm"
             onClick={zoomOut}
             disabled={scale <= 0.5 || isLoading || !!error}
-            className="text-white hover:bg-gray-700 disabled:opacity-30"
+            className="text-foreground hover:bg-accent disabled:opacity-30"
           >
             <ZoomOut className="h-4 w-4" />
           </Button>
@@ -122,7 +122,7 @@ export function PdfViewer({ fileUrl, fileName, onLoad }: PdfViewerProps) {
             size="sm"
             onClick={zoomIn}
             disabled={scale >= 3.0 || isLoading || !!error}
-            className="text-white hover:bg-gray-700 disabled:opacity-30"
+            className="text-foreground hover:bg-accent disabled:opacity-30"
           >
             <ZoomIn className="h-4 w-4" />
           </Button>
@@ -130,18 +130,18 @@ export function PdfViewer({ fileUrl, fileName, onLoad }: PdfViewerProps) {
       </div>
 
       {/* PDF Document */}
-      <div className="flex-1 overflow-auto flex items-start justify-center bg-gray-800 p-4">
+      <div className="flex-1 overflow-auto flex items-start justify-center bg-muted p-4">
         {isLoading && (
           <div className="flex flex-col items-center justify-center h-full gap-4">
-            <Loader2 className="h-8 w-8 text-white animate-spin" />
-            <p className="text-white text-sm">Loading PDF...</p>
+            <Loader2 className="h-8 w-8 text-foreground animate-spin" />
+            <p className="text-foreground text-sm">Loading PDF...</p>
           </div>
         )}
 
         {error && (
           <div className="flex flex-col items-center justify-center h-full gap-4">
             <p className="text-red-400 text-sm">{error}</p>
-            <p className="text-gray-400 text-xs">Try downloading the file instead</p>
+            <p className="text-muted-foreground text-xs">Try downloading the file instead</p>
           </div>
         )}
 
@@ -167,7 +167,7 @@ export function PdfViewer({ fileUrl, fileName, onLoad }: PdfViewerProps) {
               className="shadow-2xl"
               loading={
                 <div className="flex items-center justify-center min-h-[600px]">
-                  <Loader2 className="h-6 w-6 text-white animate-spin" />
+                  <Loader2 className="h-6 w-6 text-foreground animate-spin" />
                 </div>
               }
             />
