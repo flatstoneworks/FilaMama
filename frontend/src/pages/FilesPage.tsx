@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, type FileInfo, type SearchResult, type ContentSearchResult, type SortField, type SortOrder } from '@/api/client'
+import { api, type FileInfo, type TrashItem, type SearchResult, type ContentSearchResult, type SortField, type SortOrder } from '@/api/client'
 import { useFileSelection } from '@/hooks/useFileSelection'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useScrollRestoration } from '@/hooks/useScrollRestoration'
@@ -45,6 +45,9 @@ export function FilesPage() {
     const path = decodeURIComponent(location.pathname).replace(/^\/browse/, '') || '/'
     return path === '' ? '/' : path
   }, [location.pathname])
+
+  // Trash view detection
+  const isTrashView = currentPath === '/.deleted_items'
 
   // URL-backed state
   const viewMode = (searchParams.get('view') as ViewMode) || 'grid'
@@ -117,13 +120,50 @@ export function FilesPage() {
     staleTime: Infinity,
   })
 
-  // Fetch files
+  // Trash info for sidebar badge
+  const { data: trashInfo } = useQuery({
+    queryKey: ['trash-info'],
+    queryFn: () => api.getTrashInfo(),
+    staleTime: 30000,
+  })
+
+  // Trash listing
+  const { data: trashListing, isLoading: isLoadingTrash } = useQuery({
+    queryKey: ['trash-list'],
+    queryFn: () => api.listTrash(),
+    enabled: isTrashView,
+  })
+
+  // Fetch files (skip in trash view)
   const { data: listing, isLoading: isLoadingDir, error } = useQuery({
     queryKey: ['files', currentPath, sortBy, sortOrder],
     queryFn: () => api.listDirectory(currentPath, sortBy, sortOrder),
+    enabled: !isTrashView,
   })
 
-  const files = listing?.files || []
+  // Convert trash items to FileInfo format
+  const trashFiles: FileInfo[] = useMemo(() => {
+    if (!trashListing?.items) return []
+    const thumbnailExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.mov', '.avi', '.mkv', '.webm']
+    return trashListing.items.map((item: TrashItem) => {
+      const ext = item.original_name?.includes('.') ? '.' + item.original_name.split('.').pop()?.toLowerCase() : ''
+      const hasThumbnail = item.type === 'file' && thumbnailExtensions.includes(ext)
+      return {
+        name: item.original_name,
+        path: item.name, // Use trash_name as path identifier for operations
+        type: item.type,
+        size: item.size,
+        modified: item.deleted_at,
+        is_hidden: false,
+        has_thumbnail: hasThumbnail,
+        thumbnail_url: hasThumbnail ? api.getThumbnailUrl(item.path) : undefined,
+        is_directory: item.type === 'directory',
+        extension: ext ? ext.slice(1) : undefined,
+      }
+    })
+  }, [trashListing])
+
+  const files = isTrashView ? trashFiles : (listing?.files || [])
 
   // Debounce search
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
@@ -177,7 +217,7 @@ export function FilesPage() {
   const isFilenameSearchActive = isFilenameSearchMode
   const isContentSearchActive = isContentSearchMode
   const isSearchActive = isFilenameSearchActive || isContentSearchActive
-  const isLoading = isLoadingDir || (isFilenameSearchActive && isSearching) || (isContentSearchActive && isContentSearching)
+  const isLoading = (isTrashView ? isLoadingTrash : isLoadingDir) || (isFilenameSearchActive && isSearching) || (isContentSearchActive && isContentSearching)
 
   // State for showing all files
   const [showAllFiles, setShowAllFiles] = useState(false)
@@ -246,12 +286,12 @@ export function FilesPage() {
   const hiddenFilesCount = filteredFiles.length - MAX_DISPLAY_FILES
 
   // Scroll restoration - wait until files are loaded before restoring position
-  const scrollReady = !isLoadingDir && displayedFiles.length > 0
+  const scrollReady = !isLoading && displayedFiles.length > 0
   useScrollRestoration(scrollViewportRef, scrollReady)
 
   // Selection
   const { selectedFiles, selectFile, clearSelection } = useFileSelection(displayedFiles)
-  const selectedFilesList = files.filter((f) => selectedFiles.has(f.path))
+  const selectedFilesList = displayedFiles.filter((f) => selectedFiles.has(f.path))
 
   // Extracted hooks
   const { favorites, addToFavorites, removeFromFavorites, isFavorite } = useFavorites()
@@ -334,21 +374,65 @@ export function FilesPage() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: async (files: FileInfo[]) => {
-      for (const file of files) {
-        await api.delete(joinPath(currentPath, file.name))
+    mutationFn: async (filesToDelete: FileInfo[]) => {
+      if (isTrashView) {
+        // Permanently delete from trash - file.path contains trash_name
+        await api.deletePermanent(filesToDelete.map(f => f.path))
+      } else {
+        // Move to trash
+        const paths = filesToDelete.map(f => f.path)
+        await api.moveToTrash(paths)
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['files', currentPath] })
+      if (isTrashView) {
+        queryClient.invalidateQueries({ queryKey: ['trash-list'] })
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['files', currentPath] })
+      }
+      queryClient.invalidateQueries({ queryKey: ['trash-info'] })
       setDeleteFiles([])
       clearSelection()
-      toast({ title: 'Deleted successfully' })
+      toast({ title: isTrashView ? 'Permanently deleted' : 'Moved to Trash' })
     },
     onError: (error: Error) => {
-      toast({ title: 'Failed to delete', description: error.message, variant: 'destructive' })
+      toast({ title: isTrashView ? 'Failed to delete' : 'Failed to move to Trash', description: error.message, variant: 'destructive' })
     },
   })
+
+  const restoreMutation = useMutation({
+    mutationFn: async (filesToRestore: FileInfo[]) => {
+      // file.path contains trash_name in trash view
+      await api.restoreFromTrash(filesToRestore.map(f => f.path))
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trash-list'] })
+      queryClient.invalidateQueries({ queryKey: ['trash-info'] })
+      queryClient.invalidateQueries({ queryKey: ['files'] })
+      clearSelection()
+      toast({ title: 'Restored successfully' })
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Failed to restore', description: error.message, variant: 'destructive' })
+    },
+  })
+
+  const emptyTrashMutation = useMutation({
+    mutationFn: () => api.emptyTrash(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trash-list'] })
+      queryClient.invalidateQueries({ queryKey: ['trash-info'] })
+      clearSelection()
+      toast({ title: 'Trash emptied' })
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Failed to empty trash', description: error.message, variant: 'destructive' })
+    },
+  })
+
+  const handleRestore = useCallback((filesToRestore: FileInfo[]) => {
+    restoreMutation.mutate(filesToRestore)
+  }, [restoreMutation])
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -378,6 +462,7 @@ export function FilesPage() {
           onContentTypeChange={setActiveContentType}
           mounts={config?.mounts}
           contentTypes={config?.content_types}
+          trashCount={trashInfo?.count ?? 0}
         />
 
         <main id="main-content" className="flex-1 flex flex-col overflow-hidden">
@@ -406,6 +491,7 @@ export function FilesPage() {
             itemCount={filteredFiles.length}
             selectedCount={selectedFiles.size}
             hasClipboard={!!clipboard}
+            isTrashView={isTrashView}
             sortBy={sortBy}
             sortOrder={sortOrder}
             onSortChange={handleSortChange}
@@ -416,7 +502,16 @@ export function FilesPage() {
             onCopy={() => handleCopy(selectedFilesList)}
             onCut={() => handleCut(selectedFilesList)}
             onPaste={() => pasteMutation.mutate(undefined)}
-            onRefresh={() => queryClient.invalidateQueries({ queryKey: ['files', currentPath] })}
+            onRefresh={() => {
+              if (isTrashView) {
+                queryClient.invalidateQueries({ queryKey: ['trash-list'] })
+                queryClient.invalidateQueries({ queryKey: ['trash-info'] })
+              } else {
+                queryClient.invalidateQueries({ queryKey: ['files', currentPath] })
+              }
+            }}
+            onRestore={() => handleRestore(selectedFilesList)}
+            onEmptyTrash={() => emptyTrashMutation.mutate()}
           />
 
           {/* Search indicator */}
@@ -524,6 +619,11 @@ export function FilesPage() {
                         <p className="text-lg">No matching files</p>
                         <p className="text-sm mt-1">Try a different search term</p>
                       </>
+                    ) : isTrashView ? (
+                      <>
+                        <p className="text-lg">Trash is empty</p>
+                        <p className="text-sm mt-1">Deleted items will appear here</p>
+                      </>
                     ) : (
                       <>
                         <p className="text-lg">This folder is empty</p>
@@ -547,6 +647,7 @@ export function FilesPage() {
                         selectedFiles={selectedFiles}
                         gridSize={gridSize}
                         focusedIndex={focusedIndex}
+                        trashMode={isTrashView}
                         onSelect={selectFile}
                         onOpen={handleOpenFile}
                         onRename={setRenameFile}
@@ -555,7 +656,8 @@ export function FilesPage() {
                         onCut={handleCut}
                         onPreview={openPreview}
                         onDownload={handleDownload}
-                        onMove={handleMove}
+                        onMove={isTrashView ? undefined : handleMove}
+                        onRestore={isTrashView ? handleRestore : undefined}
                         onAddFavorite={addToFavorites}
                         onRemoveFavorite={removeFromFavorites}
                         isFavorite={isFavorite}
@@ -565,6 +667,7 @@ export function FilesPage() {
                         files={displayedFiles}
                         selectedFiles={selectedFiles}
                         focusedIndex={focusedIndex}
+                        trashMode={isTrashView}
                         onSelect={selectFile}
                         onOpen={handleOpenFile}
                         onRename={setRenameFile}
@@ -573,7 +676,8 @@ export function FilesPage() {
                         onCut={handleCut}
                         onPreview={openPreview}
                         onDownload={handleDownload}
-                        onMove={handleMove}
+                        onMove={isTrashView ? undefined : handleMove}
+                        onRestore={isTrashView ? handleRestore : undefined}
                         onAddFavorite={addToFavorites}
                         onRemoveFavorite={removeFromFavorites}
                         isFavorite={isFavorite}
@@ -653,6 +757,7 @@ export function FilesPage() {
         files={deleteFiles}
         onConfirm={() => deleteMutation.mutate(deleteFiles)}
         isLoading={deleteMutation.isPending}
+        permanent={isTrashView}
       />
 
       <ConflictDialog

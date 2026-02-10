@@ -7,6 +7,7 @@ interface DeleteDialogProps {
   files: FileInfo[]
   onConfirm: () => void
   isLoading?: boolean
+  permanent?: boolean
 }
 
 export function DeleteDialog({
@@ -15,6 +16,7 @@ export function DeleteDialog({
   files,
   onConfirm,
   isLoading = false,
+  permanent = false,
 }: DeleteDialogProps) {
   const itemCount = files.length
   const hasDirectories = files.some((f) => f.is_directory)
@@ -35,11 +37,25 @@ export function DeleteDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete {itemCount === 1 ? 'item' : 'items'}?</AlertDialogTitle>
+          <AlertDialogTitle>
+            {permanent ? 'Permanently delete' : 'Move to Trash'}?
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete {itemDescription}?
-            {hasDirectories && ' This will also delete all contents inside.'}
-            {' '}This action cannot be undone.
+            {permanent ? (
+              <>
+                Are you sure you want to permanently delete {itemDescription}?
+                {hasDirectories && ' This will also delete all contents inside.'}
+                {' '}This action cannot be undone.
+              </>
+            ) : (
+              <>
+                {itemCount === 1
+                  ? `"${files[0].name}" will be moved to Trash.`
+                  : `${itemDescription} will be moved to Trash.`
+                }
+                {' '}You can restore {itemCount === 1 ? 'it' : 'them'} later from the Trash.
+              </>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -47,9 +63,15 @@ export function DeleteDialog({
           <AlertDialogAction
             onClick={onConfirm}
             disabled={isLoading}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            className={permanent
+              ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+              : ''
+            }
           >
-            {isLoading ? 'Deleting...' : 'Delete'}
+            {isLoading
+              ? (permanent ? 'Deleting...' : 'Moving...')
+              : (permanent ? 'Delete Permanently' : 'Move to Trash')
+            }
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

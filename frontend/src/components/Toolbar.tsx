@@ -1,4 +1,4 @@
-import { Grid, List, Upload, FolderPlus, FolderUp, Trash2, Copy, Scissors, Clipboard, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Grid, List, Upload, FolderPlus, FolderUp, Trash2, Copy, Scissors, Clipboard, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, ArchiveRestore } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
@@ -28,6 +28,7 @@ interface ToolbarProps {
   itemCount: number
   selectedCount: number
   hasClipboard: boolean
+  isTrashView?: boolean
   sortBy?: SortField
   sortOrder?: SortOrder
   onSortChange?: (field: SortField, order: SortOrder) => void
@@ -39,6 +40,8 @@ interface ToolbarProps {
   onCut: () => void
   onPaste: () => void
   onRefresh: () => void
+  onRestore?: () => void
+  onEmptyTrash?: () => void
 }
 
 export function Toolbar({
@@ -49,6 +52,7 @@ export function Toolbar({
   itemCount,
   selectedCount,
   hasClipboard,
+  isTrashView,
   sortBy = 'name',
   sortOrder = 'asc',
   onSortChange,
@@ -60,6 +64,8 @@ export function Toolbar({
   onCut,
   onPaste,
   onRefresh,
+  onRestore,
+  onEmptyTrash,
 }: ToolbarProps) {
   const handleSortClick = (field: SortField) => {
     if (!onSortChange) return
@@ -97,37 +103,61 @@ export function Toolbar({
                 {selectedCount} selected
               </span>
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onCopy} aria-label="Copy">
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Copy</TooltipContent>
-              </Tooltip>
+              {isTrashView ? (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onRestore} aria-label="Restore">
+                        <ArchiveRestore className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Restore</TooltipContent>
+                  </Tooltip>
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onCut} aria-label="Cut">
-                    <Scissors className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Cut</TooltipContent>
-              </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onDelete} aria-label="Delete Permanently">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete Permanently</TooltipContent>
+                  </Tooltip>
+                </>
+              ) : (
+                <>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onCopy} aria-label="Copy">
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Copy</TooltipContent>
+                  </Tooltip>
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onDelete} aria-label="Delete">
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Delete</TooltipContent>
-              </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onCut} aria-label="Cut">
+                        <Scissors className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Cut</TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onDelete} aria-label="Delete">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete</TooltipContent>
+                  </Tooltip>
+                </>
+              )}
             </>
           )}
 
           {/* Paste action */}
-          {hasClipboard && (
+          {hasClipboard && !isTrashView && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onPaste} aria-label="Paste">
@@ -136,6 +166,22 @@ export function Toolbar({
               </TooltipTrigger>
               <TooltipContent>Paste</TooltipContent>
             </Tooltip>
+          )}
+
+          {/* Empty Trash button */}
+          {isTrashView && itemCount > 0 && (
+            <>
+              <div className="w-px h-5 bg-border" />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 text-xs text-destructive hover:text-destructive" onClick={onEmptyTrash} aria-label="Empty Trash">
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Empty Trash
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Permanently delete all items in Trash</TooltipContent>
+              </Tooltip>
+            </>
           )}
         </div>
 
@@ -208,34 +254,38 @@ export function Toolbar({
             </ToggleGroupItem>
           </ToggleGroup>
 
-          <div className="w-px h-5 bg-border" />
+          {!isTrashView && (
+            <>
+              <div className="w-px h-5 bg-border" />
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onNewFolder} aria-label="New Folder">
-                <FolderPlus className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>New Folder</TooltipContent>
-          </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onNewFolder} aria-label="New Folder">
+                    <FolderPlus className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>New Folder</TooltipContent>
+              </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onUpload} aria-label="Upload Files">
-                <Upload className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Upload Files</TooltipContent>
-          </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onUpload} aria-label="Upload Files">
+                    <Upload className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Upload Files</TooltipContent>
+              </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onUploadFolder} aria-label="Upload Folder">
-                <FolderUp className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Upload Folder</TooltipContent>
-          </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onUploadFolder} aria-label="Upload Folder">
+                    <FolderUp className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Upload Folder</TooltipContent>
+              </Tooltip>
+            </>
+          )}
         </div>
       </div>
     </TooltipProvider>

@@ -1,4 +1,4 @@
-import { FileText, Image, Video, Star, Home, FolderOpen, Music, FileImage, Film, FileType, HardDrive, FolderCog, Folder, X } from 'lucide-react'
+import { FileText, Image, Video, Star, Home, FolderOpen, Music, FileImage, Film, FileType, HardDrive, FolderCog, Folder, X, Trash2 } from 'lucide-react'
 import type { MountPoint, AppConfig } from '@/api/client'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -25,6 +25,7 @@ interface SidebarProps {
   onContentTypeChange?: (type: string | null) => void
   mounts?: MountPoint[]
   contentTypes?: AppConfig['content_types']
+  trashCount?: number
 }
 
 const mountIconMap: Record<string, React.ReactNode> = {
@@ -82,6 +83,7 @@ export function Sidebar({
   onContentTypeChange,
   mounts = [],
   contentTypes: serverContentTypes,
+  trashCount = 0,
 }: SidebarProps) {
   const resolvedContentTypes = serverContentTypes
     ? buildContentTypes(serverContentTypes)
@@ -168,6 +170,27 @@ export function Sidebar({
                   <span>{item.name}</span>
                 </button>
               ))}
+              <button
+                onClick={() => {
+                  onContentTypeChange?.(null)
+                  onNavigate('/.deleted_items')
+                }}
+                className={cn(
+                  'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
+                  'hover:bg-accent hover:text-accent-foreground',
+                  currentPath === '/.deleted_items' && !activeContentType
+                    ? 'bg-accent text-accent-foreground font-medium'
+                    : 'text-muted-foreground'
+                )}
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Trash</span>
+                {trashCount > 0 && (
+                  <span className="ml-auto text-xs bg-muted-foreground/20 text-muted-foreground rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+                    {trashCount}
+                  </span>
+                )}
+              </button>
             </nav>
           </div>
 

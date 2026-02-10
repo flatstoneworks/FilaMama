@@ -1,6 +1,6 @@
 import { ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu'
 import { isPreviewable } from './FileIcon'
-import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen, Star, StarOff } from 'lucide-react'
+import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen, Star, StarOff, ArchiveRestore } from 'lucide-react'
 import type { FileInfo } from '@/api/client'
 import { getSelectedOrSingle } from '@/lib/utils'
 
@@ -9,6 +9,7 @@ interface FileContextMenuProps {
   files: FileInfo[]
   selectedFiles: Set<string>
   isFileFavorite?: boolean
+  trashMode?: boolean
   onOpen: (file: FileInfo) => void
   onRename: (file: FileInfo) => void
   onDelete: (files: FileInfo[]) => void
@@ -16,6 +17,7 @@ interface FileContextMenuProps {
   onCut: (files: FileInfo[]) => void
   onPreview: (file: FileInfo) => void
   onDownload: (file: FileInfo) => void
+  onRestore?: (files: FileInfo[]) => void
   onAddFavorite?: (path: string) => void
   onRemoveFavorite?: (path: string) => void
   extraItems?: React.ReactNode
@@ -26,6 +28,7 @@ export function FileContextMenu({
   files,
   selectedFiles,
   isFileFavorite,
+  trashMode,
   onOpen,
   onRename,
   onDelete,
@@ -33,10 +36,42 @@ export function FileContextMenu({
   onCut,
   onPreview,
   onDownload,
+  onRestore,
   onAddFavorite,
   onRemoveFavorite,
   extraItems,
 }: FileContextMenuProps) {
+  if (trashMode) {
+    return (
+      <ContextMenuContent>
+        <ContextMenuItem onClick={() => onRestore?.(getSelectedOrSingle(file, files, selectedFiles))}>
+          <ArchiveRestore className="mr-2 h-4 w-4" />
+          Restore
+        </ContextMenuItem>
+        {!file.is_directory && isPreviewable(file.name) && (
+          <ContextMenuItem onClick={() => onPreview(file)}>
+            <Eye className="mr-2 h-4 w-4" />
+            Preview
+          </ContextMenuItem>
+        )}
+        {!file.is_directory && (
+          <ContextMenuItem onClick={() => onDownload(file)}>
+            <Download className="mr-2 h-4 w-4" />
+            Download
+          </ContextMenuItem>
+        )}
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          className="text-destructive"
+          onClick={() => onDelete(getSelectedOrSingle(file, files, selectedFiles))}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete Permanently
+        </ContextMenuItem>
+      </ContextMenuContent>
+    )
+  }
+
   return (
     <ContextMenuContent>
       {file.is_directory ? (

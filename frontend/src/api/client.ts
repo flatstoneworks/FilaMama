@@ -367,6 +367,72 @@ function getTranscodeStreamUrl(path: string, modified?: string): string {
   return modified ? `${url}&t=${encodeURIComponent(modified)}` : url
 }
 
+// Trash types and functions
+export interface TrashItem {
+  name: string
+  original_name: string
+  original_path: string
+  path: string
+  type: FileType
+  size: number
+  modified: string
+  deleted_at: string
+  extension?: string
+  is_hidden: boolean
+  has_thumbnail: boolean
+}
+
+export interface TrashInfo {
+  count: number
+  size: number
+}
+
+async function moveToTrash(paths: string[]): Promise<{ moved: number }> {
+  return handleResponse(
+    await fetch(`${API_BASE}/trash/move-to-trash`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paths }),
+    })
+  )
+}
+
+async function listTrash(): Promise<{ items: TrashItem[] }> {
+  return handleResponse(await fetch(`${API_BASE}/trash/list`))
+}
+
+async function restoreFromTrash(trashNames: string[]): Promise<{ restored: number }> {
+  return handleResponse(
+    await fetch(`${API_BASE}/trash/restore`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paths: trashNames }),
+    })
+  )
+}
+
+async function deletePermanent(trashNames: string[]): Promise<{ deleted: number }> {
+  return handleResponse(
+    await fetch(`${API_BASE}/trash/delete-permanent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paths: trashNames }),
+    })
+  )
+}
+
+async function emptyTrash(): Promise<{ deleted: number }> {
+  return handleResponse(
+    await fetch(`${API_BASE}/trash/empty`, {
+      method: 'POST',
+    })
+  )
+}
+
+async function getTrashInfo(): Promise<TrashInfo> {
+  return handleResponse(await fetch(`${API_BASE}/trash/info`))
+}
+
 async function getAudioLyrics(path: string): Promise<string | null> {
   try {
     const response = await handleResponse<{ lyrics: string }>(
@@ -400,4 +466,10 @@ export const api = {
   getAudioLyrics,
   getVideoInfo,
   getTranscodeStreamUrl,
+  moveToTrash,
+  listTrash,
+  restoreFromTrash,
+  deletePermanent,
+  emptyTrash,
+  getTrashInfo,
 }

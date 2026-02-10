@@ -16,6 +16,7 @@ interface FileGridProps {
   selectedFiles: Set<string>
   gridSize: number
   focusedIndex?: number
+  trashMode?: boolean
   onSelect: (file: FileInfo, e: React.MouseEvent) => void
   onOpen: (file: FileInfo) => void
   onRename: (file: FileInfo) => void
@@ -25,6 +26,7 @@ interface FileGridProps {
   onPreview: (file: FileInfo) => void
   onDownload: (file: FileInfo) => void
   onMove?: (files: FileInfo[], targetFolder: FileInfo) => void
+  onRestore?: (files: FileInfo[]) => void
   onAddFavorite?: (path: string) => void
   onRemoveFavorite?: (path: string) => void
   isFavorite?: (path: string) => boolean
@@ -35,6 +37,7 @@ export function FileGrid({
   selectedFiles,
   gridSize,
   focusedIndex = -1,
+  trashMode,
   onSelect,
   onOpen,
   onRename,
@@ -44,6 +47,7 @@ export function FileGrid({
   onPreview,
   onDownload,
   onMove,
+  onRestore,
   onAddFavorite,
   onRemoveFavorite,
   isFavorite,
@@ -172,6 +176,7 @@ export function FileGrid({
             files={files}
             selectedFiles={selectedFiles}
             isFileFavorite={isFileFavorite}
+            trashMode={trashMode}
             onOpen={onOpen}
             onRename={onRename}
             onDelete={onDelete}
@@ -179,6 +184,7 @@ export function FileGrid({
             onCut={onCut}
             onPreview={onPreview}
             onDownload={onDownload}
+            onRestore={onRestore}
             onAddFavorite={onAddFavorite}
             onRemoveFavorite={onRemoveFavorite}
           />
