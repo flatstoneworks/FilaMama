@@ -4,57 +4,68 @@ import { useLocation } from 'react-router-dom'
 /**
  * Hook to save and restore scroll position when navigating between pages.
  * Uses sessionStorage to persist scroll positions.
+ *
+ * @param scrollRef - ref to the scrollable element
+ * @param isReady - whether content has loaded and scroll can be restored
  */
-export function useScrollRestoration(scrollRef: React.RefObject<HTMLElement | null>) {
+export function useScrollRestoration(
+  scrollRef: React.RefObject<HTMLElement | null>,
+  isReady = true,
+) {
   const location = useLocation()
   const lastLocationKey = useRef<string>('')
+  const pendingRestore = useRef<string | null>(null)
 
   // Save scroll position when navigating away
   useEffect(() => {
-    const saveScrollPosition = () => {
+    return () => {
       if (scrollRef.current && lastLocationKey.current) {
         const scrollTop = scrollRef.current.scrollTop
         sessionStorage.setItem(`scroll-${lastLocationKey.current}`, scrollTop.toString())
       }
     }
-
-    // Save on unmount or location change
-    return () => {
-      saveScrollPosition()
-    }
   }, [scrollRef])
 
-  // Update last location key and restore scroll position
+  // Track location changes and queue scroll restoration
   useEffect(() => {
     const key = `${location.pathname}${location.search}`
 
-    // Only restore if we're navigating to a new location (not initial mount with same key)
     if (key !== lastLocationKey.current) {
       lastLocationKey.current = key
 
-      // Restore scroll position after a brief delay to allow content to render
       const savedPosition = sessionStorage.getItem(`scroll-${key}`)
-      if (savedPosition && scrollRef.current) {
-        // Use requestAnimationFrame to ensure DOM is ready
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (scrollRef.current) {
-              scrollRef.current.scrollTop = parseInt(savedPosition, 10)
-            }
-          })
-        })
+      if (savedPosition) {
+        pendingRestore.current = savedPosition
+      } else {
+        pendingRestore.current = null
       }
     }
-  }, [location, scrollRef])
+  }, [location])
 
-  // Save scroll position on scroll
+  // Restore scroll position once content is ready
+  useEffect(() => {
+    if (!isReady || !pendingRestore.current || !scrollRef.current) return
+
+    const position = parseInt(pendingRestore.current, 10)
+    pendingRestore.current = null
+
+    // Use double RAF to ensure layout is complete after React render
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = position
+        }
+      })
+    })
+  }, [isReady, scrollRef])
+
+  // Save scroll position on scroll (debounced)
   useEffect(() => {
     const element = scrollRef.current
     if (!element) return
 
     let timeoutId: number
     const handleScroll = () => {
-      // Debounce scroll save
       clearTimeout(timeoutId)
       timeoutId = window.setTimeout(() => {
         if (lastLocationKey.current) {

@@ -80,9 +80,8 @@ export function PreviewPage() {
   }
 
   const handleBack = () => {
-    // Use browser history to go back, preserving search params and scroll position
-    // This is equivalent to the browser's back button
-    navigate(-1)
+    // Navigate to the parent folder so scroll restoration kicks in
+    navigate(`/browse${encodePathForUrl(dirPath)}`)
   }
 
   // Keyboard navigation

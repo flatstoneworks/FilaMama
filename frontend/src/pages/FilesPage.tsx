@@ -92,9 +92,6 @@ export function FilesPage() {
   // Global audio player
   const { isOpen: isPlayerOpen } = useAudioPlayer()
 
-  // Scroll restoration
-  useScrollRestoration(scrollViewportRef)
-
   // Fetch config
   const { data: config } = useQuery({
     queryKey: ['config'],
@@ -224,6 +221,10 @@ export function FilesPage() {
 
   const hasMoreFiles = viewMode === 'grid' && filteredFiles.length > MAX_DISPLAY_FILES && !showAllFiles
   const hiddenFilesCount = filteredFiles.length - MAX_DISPLAY_FILES
+
+  // Scroll restoration - wait until files are loaded before restoring position
+  const scrollReady = !isLoadingDir && displayedFiles.length > 0
+  useScrollRestoration(scrollViewportRef, scrollReady)
 
   // Selection
   const { selectedFiles, selectFile, clearSelection } = useFileSelection(displayedFiles)
