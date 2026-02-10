@@ -24,6 +24,7 @@ import { NewFolderDialog } from '@/components/NewFolderDialog'
 import { DeleteDialog } from '@/components/DeleteDialog'
 import { ConflictDialog } from '@/components/ConflictDialog'
 import { KeyboardShortcutsDialog } from '@/components/KeyboardShortcutsDialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/use-toast'
 import { Loader2, X, FolderSearch, FileText, AlertTriangle } from 'lucide-react'
@@ -109,6 +110,7 @@ export function FilesPage() {
   const [renameFile, setRenameFile] = useState<FileInfo | null>(null)
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [deleteFiles, setDeleteFiles] = useState<FileInfo[]>([])
+  const [showEmptyTrash, setShowEmptyTrash] = useState(false)
 
   // Global audio player
   const { isOpen: isPlayerOpen } = useAudioPlayer()
@@ -511,7 +513,7 @@ export function FilesPage() {
               }
             }}
             onRestore={() => handleRestore(selectedFilesList)}
-            onEmptyTrash={() => emptyTrashMutation.mutate()}
+            onEmptyTrash={() => setShowEmptyTrash(true)}
           />
 
           {/* Search indicator */}
@@ -772,6 +774,30 @@ export function FilesPage() {
         open={showHelp}
         onOpenChange={setShowHelp}
       />
+
+      <AlertDialog open={showEmptyTrash} onOpenChange={setShowEmptyTrash}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Empty Trash?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all {trashInfo?.count ?? 0} item{(trashInfo?.count ?? 0) !== 1 ? 's' : ''} in the Trash. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                emptyTrashMutation.mutate()
+                setShowEmptyTrash(false)
+              }}
+              disabled={emptyTrashMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {emptyTrashMutation.isPending ? 'Emptying...' : 'Empty Trash'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

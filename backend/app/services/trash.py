@@ -21,6 +21,7 @@ class TrashService:
         self.root_path = Path(root_path).resolve()
         self.trash_dir = self.root_path / TRASH_DIR_NAME
         self.manifest_path = self.trash_dir / MANIFEST_NAME
+        self._lock = asyncio.Lock()
 
     def _ensure_trash_dir(self):
         self.trash_dir.mkdir(exist_ok=True)
@@ -95,7 +96,8 @@ class TrashService:
             self._write_manifest(manifest)
             return moved
 
-        return await asyncio.to_thread(_move_sync)
+        async with self._lock:
+            return await asyncio.to_thread(_move_sync)
 
     async def list_trash(self) -> list[dict]:
         def _list_sync():
@@ -171,7 +173,8 @@ class TrashService:
             self._write_manifest(manifest)
             return restored
 
-        return await asyncio.to_thread(_restore_sync)
+        async with self._lock:
+            return await asyncio.to_thread(_restore_sync)
 
     async def delete_permanent(self, trash_names: list[str]) -> int:
         def _delete_sync():
@@ -192,7 +195,8 @@ class TrashService:
             self._write_manifest(manifest)
             return deleted
 
-        return await asyncio.to_thread(_delete_sync)
+        async with self._lock:
+            return await asyncio.to_thread(_delete_sync)
 
     async def empty_trash(self) -> int:
         def _empty_sync():
@@ -211,7 +215,8 @@ class TrashService:
             self._write_manifest([])
             return deleted
 
-        return await asyncio.to_thread(_empty_sync)
+        async with self._lock:
+            return await asyncio.to_thread(_empty_sync)
 
     async def get_info(self) -> dict:
         def _info_sync():
