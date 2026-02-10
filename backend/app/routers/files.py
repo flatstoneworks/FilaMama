@@ -15,6 +15,7 @@ from ..models.schemas import (
 from ..services.filesystem import FilesystemService
 from ..services.thumbnails import ThumbnailService
 from ..services.audio import AudioMetadataService
+from ..services.transcoding import TranscodingService, BROWSER_VIDEO_CODECS, BROWSER_AUDIO_CODECS
 from ..utils.error_handlers import handle_fs_errors
 
 router = APIRouter(prefix="/api/files", tags=["files"])
@@ -22,13 +23,20 @@ router = APIRouter(prefix="/api/files", tags=["files"])
 fs_service: FilesystemService = None
 thumb_service: ThumbnailService = None
 audio_service: AudioMetadataService = None
+transcode_service: TranscodingService = None
 
 
-def init_services(filesystem: FilesystemService, thumbnails: ThumbnailService, audio: AudioMetadataService = None):
-    global fs_service, thumb_service, audio_service
+def init_services(
+    filesystem: FilesystemService,
+    thumbnails: ThumbnailService,
+    audio: AudioMetadataService = None,
+    transcoding: TranscodingService = None,
+):
+    global fs_service, thumb_service, audio_service, transcode_service
     fs_service = filesystem
     thumb_service = thumbnails
     audio_service = audio
+    transcode_service = transcoding
 
 
 @router.get("/list", response_model=DirectoryListing)
@@ -342,6 +350,120 @@ async def stream_file(path: str, request: Request):
                 'Content-Length': str(file_size),
             }
         )
+
+
+async def _serve_file_with_ranges(file_path, content_type: str, request: Request):
+    """Shared helper: serve a file with HTTP Range request support."""
+    file_size = file_path.stat().st_size
+    range_header = request.headers.get('range')
+
+    if range_header:
+        try:
+            range_spec = range_header.replace('bytes=', '')
+            parts = range_spec.split('-')
+            start = int(parts[0]) if parts[0] else 0
+            end = int(parts[1]) if parts[1] else file_size - 1
+        except (ValueError, IndexError):
+            raise HTTPException(status_code=416, detail="Invalid range header")
+
+        if start >= file_size or end >= file_size or start > end:
+            raise HTTPException(
+                status_code=416,
+                detail="Range not satisfiable",
+                headers={'Content-Range': f'bytes */{file_size}'}
+            )
+
+        chunk_size = end - start + 1
+
+        async def range_generator():
+            async with aiofiles.open(file_path, 'rb') as f:
+                await f.seek(start)
+                remaining = chunk_size
+                while remaining > 0:
+                    read_size = min(8192, remaining)
+                    data = await f.read(read_size)
+                    if not data:
+                        break
+                    remaining -= len(data)
+                    yield data
+
+        return StreamingResponse(
+            range_generator(),
+            status_code=206,
+            media_type=content_type,
+            headers={
+                'Content-Range': f'bytes {start}-{end}/{file_size}',
+                'Accept-Ranges': 'bytes',
+                'Content-Length': str(chunk_size),
+            }
+        )
+    else:
+        async def file_generator():
+            async with aiofiles.open(file_path, 'rb') as f:
+                while True:
+                    data = await f.read(8192)
+                    if not data:
+                        break
+                    yield data
+
+        return StreamingResponse(
+            file_generator(),
+            media_type=content_type,
+            headers={
+                'Accept-Ranges': 'bytes',
+                'Content-Length': str(file_size),
+            }
+        )
+
+
+@router.get("/video-info")
+@handle_fs_errors
+async def get_video_info(path: str):
+    """Probe video file codecs to determine if transcoding is needed."""
+    if not transcode_service:
+        raise HTTPException(status_code=501, detail="Transcoding service not available")
+
+    file_path = fs_service.get_absolute_path(path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    probe = await transcode_service.probe_codecs(file_path)
+    if not probe:
+        raise HTTPException(status_code=400, detail="Could not probe video file")
+
+    needs_processing = transcode_service.needs_processing(file_path)
+    is_cached = transcode_service.get_cached_path(file_path) is not None
+
+    video_ok = probe['video_codec'] in BROWSER_VIDEO_CODECS
+    audio_ok = probe['audio_codec'] in BROWSER_AUDIO_CODECS or probe['audio_codec'] is None
+
+    return {
+        "video_codec": probe['video_codec'],
+        "audio_codec": probe['audio_codec'],
+        "container": probe['container'],
+        "duration": probe['duration'],
+        "needs_processing": needs_processing,
+        "processing_type": "none" if not needs_processing else ("remux" if (video_ok and audio_ok) else "transcode"),
+        "is_cached": is_cached,
+    }
+
+
+@router.get("/transcode-stream")
+@handle_fs_errors
+async def transcode_stream(path: str, request: Request):
+    """Stream a transcoded/remuxed version of a video file."""
+    if not transcode_service:
+        raise HTTPException(status_code=501, detail="Transcoding service not available")
+
+    file_path = fs_service.get_absolute_path(path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    mp4_path = await transcode_service.get_or_create_mp4(file_path)
+    if not mp4_path:
+        raise HTTPException(status_code=500, detail="Failed to transcode video")
+
+    return await _serve_file_with_ranges(mp4_path, 'video/mp4', request)
 
 
 @router.get("/audio-metadata")

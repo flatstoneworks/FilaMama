@@ -10,6 +10,7 @@ from .routers import files, upload
 from .services.filesystem import FilesystemService, CONTENT_TYPES
 from .services.thumbnails import ThumbnailService
 from .services.audio import AudioMetadataService
+from .services.transcoding import TranscodingService
 
 import logging
 import os
@@ -36,6 +37,12 @@ thumb_service = ThumbnailService(
 audio_service = AudioMetadataService(
     root_path=Path(config["root_path"]),
 )
+transcode_service = TranscodingService(
+    cache_dir=config["transcoding"]["cache_dir"],
+    max_cache_size_mb=config["transcoding"].get("max_cache_size_mb", 2000),
+    max_concurrent=config["transcoding"].get("max_concurrent", 2),
+    transcode_timeout=config["transcoding"].get("transcode_timeout", 3600),
+)
 
 
 @asynccontextmanager
@@ -43,7 +50,7 @@ async def lifespan(app: FastAPI):
     logger.info("FilaMama starting...")
     logger.info("Root path: %s", config['root_path'])
     logger.info("Server: http://%s:%s", config['server']['host'], config['server']['port'])
-    files.init_services(fs_service, thumb_service, audio_service)
+    files.init_services(fs_service, thumb_service, audio_service, transcode_service)
     upload.init_services(fs_service)
     yield
     logger.info("FilaMama shutting down...")

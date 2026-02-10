@@ -7,7 +7,7 @@ import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Download, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { getFileType, isPreviewable, isTextFile, getLanguageFromExtension } from '@/components/FileIcon'
-import { joinPath, getParentPath, getFileName } from '@/lib/utils'
+import { joinPath, getParentPath, getFileName, videoNeedsTranscoding } from '@/lib/utils'
 import { PdfViewer } from '@/components/PdfViewer'
 import { VideoPlayer } from '@/components/VideoPlayer'
 import { useAudioPlayer } from '@/contexts/AudioPlayerContext'
@@ -129,9 +129,14 @@ export function PreviewPage() {
   const fileUrl = currentFile
     ? api.getPreviewUrl(filePath, currentFile.modified)
     : ''
-  const streamUrl = currentFile
-    ? api.getStreamUrl(filePath, currentFile.modified)
-    : ''
+  const streamUrl = useMemo(() => {
+    if (!currentFile) return ''
+    // Use transcode endpoint for non-browser-native containers (MOV, MKV, AVI, etc.)
+    if (fileType === 'video' && videoNeedsTranscoding(currentFile.name)) {
+      return api.getTranscodeStreamUrl(filePath, currentFile.modified)
+    }
+    return api.getStreamUrl(filePath, currentFile.modified)
+  }, [currentFile, filePath, fileType])
   const downloadUrl = api.getDownloadUrl(filePath)
 
   return (

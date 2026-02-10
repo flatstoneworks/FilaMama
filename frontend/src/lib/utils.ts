@@ -118,10 +118,16 @@ export function formatVideoTime(seconds: number): string {
 }
 
 const VIDEO_EXTENSIONS = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'ogg', 'ogv', 'flv', 'wmv']
+const BROWSER_NATIVE_VIDEO = ['mp4', 'webm', 'm4v', 'ogg', 'ogv']
 
 export function isVideoFile(filename: string): boolean {
   const ext = filename.split('.').pop()?.toLowerCase()
   return VIDEO_EXTENSIONS.includes(ext || '')
+}
+
+export function videoNeedsTranscoding(filename: string): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase() || ''
+  return isVideoFile(filename) && !BROWSER_NATIVE_VIDEO.includes(ext)
 }
 
 export function formatUploadSpeed(bytesPerSecond: number): string {

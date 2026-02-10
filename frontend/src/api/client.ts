@@ -337,6 +337,31 @@ function getAudioCoverUrl(path: string): string {
   return `${API_BASE}/files/audio-cover?path=${encodeURIComponent(path)}`
 }
 
+export interface VideoInfo {
+  video_codec: string | null
+  audio_codec: string | null
+  container: string
+  duration: number | null
+  needs_processing: boolean
+  processing_type: 'none' | 'remux' | 'transcode'
+  is_cached: boolean
+}
+
+async function getVideoInfo(path: string): Promise<VideoInfo | null> {
+  try {
+    return await handleResponse<VideoInfo>(
+      await fetch(`${API_BASE}/files/video-info?path=${encodeURIComponent(path)}`)
+    )
+  } catch {
+    return null
+  }
+}
+
+function getTranscodeStreamUrl(path: string, modified?: string): string {
+  const url = `${API_BASE}/files/transcode-stream?path=${encodeURIComponent(path)}`
+  return modified ? `${url}&t=${encodeURIComponent(modified)}` : url
+}
+
 async function getAudioLyrics(path: string): Promise<string | null> {
   try {
     const response = await handleResponse<{ lyrics: string }>(
@@ -368,4 +393,6 @@ export const api = {
   getAudioMetadata,
   getAudioCoverUrl,
   getAudioLyrics,
+  getVideoInfo,
+  getTranscodeStreamUrl,
 }

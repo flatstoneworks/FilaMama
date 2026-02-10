@@ -23,6 +23,13 @@ thumbnails:
   quality: 85
   max_cache_size_mb: 500
 
+# Transcoding settings
+transcoding:
+  cache_dir: "data/transcoded"
+  max_cache_size_mb: 2000
+  max_concurrent: 2
+  transcode_timeout: 3600
+
 # Upload settings
 upload:
   max_size_mb: 10240  # 10GB

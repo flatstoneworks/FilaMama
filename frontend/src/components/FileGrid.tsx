@@ -8,7 +8,7 @@ import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Checkbox } from '@/components/ui/checkbox'
 import type { FileInfo } from '@/api/client'
 import { api } from '@/api/client'
-import { cn, isFileSelected, createCheckboxClickHandler, isVideoFile } from '@/lib/utils'
+import { cn, isFileSelected, createCheckboxClickHandler, isVideoFile, videoNeedsTranscoding } from '@/lib/utils'
 import { useDragAndDrop } from '@/hooks/useDragAndDrop'
 
 interface FileGridProps {
@@ -106,7 +106,10 @@ export function FileGrid({
                   style={{ width: gridSize - 16, height: gridSize - 16 }}
                 >
                   <VideoPreview
-                    src={api.getStreamUrl(file.path)}
+                    src={videoNeedsTranscoding(file.name)
+                      ? api.getTranscodeStreamUrl(file.path)
+                      : api.getStreamUrl(file.path)
+                    }
                     posterUrl={file.thumbnail_url}
                     width={gridSize - 16}
                     height={gridSize - 16}
