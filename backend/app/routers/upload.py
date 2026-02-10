@@ -1,7 +1,11 @@
+import logging
+
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from typing import List, Optional
 import aiofiles
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from ..services.filesystem import FilesystemService
 from ..utils.error_handlers import handle_fs_errors
@@ -24,7 +28,7 @@ async def upload_files(
     overwrite: bool = Form(False),
     relative_paths: Optional[str] = Form(None),
 ):
-    print(f"[UPLOAD] path={path}, relative_paths={relative_paths}, files={[f.filename for f in files]}")
+    logger.debug("Upload: path=%s, relative_paths=%s, files=%s", path, relative_paths, [f.filename for f in files])
     target_dir = fs_service.get_absolute_path(path)
 
     if not target_dir.exists():
@@ -40,7 +44,7 @@ async def upload_files(
             # Check if we have a relative path for this file (folder upload)
             # Since we upload one file at a time, relative_paths is a single string
             rel_path = relative_paths if relative_paths and i == 0 else None
-            print(f"[UPLOAD] Processing file {i}: {file.filename}, rel_path={rel_path}")
+            logger.debug("Processing file %d: %s, rel_path=%s", i, file.filename, rel_path)
 
             if rel_path:
                 # Folder upload: use the relative path to preserve structure

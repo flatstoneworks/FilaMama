@@ -96,6 +96,7 @@ async def get_folder_size(path: str):
 
 
 @router.get("/search")
+@handle_fs_errors
 async def search_files(
     query: str = "",
     path: str = "/",
@@ -114,6 +115,7 @@ async def search_files(
 
 
 @router.get("/search-content")
+@handle_fs_errors
 async def search_content(
     query: str,
     path: str = "/",

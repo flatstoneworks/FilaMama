@@ -11,7 +11,10 @@ from .services.filesystem import FilesystemService
 from .services.thumbnails import ThumbnailService
 from .services.audio import AudioMetadataService
 
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 # Use dev config if FILAMAMA_DEV environment variable is set
 dev_mode = os.environ.get("FILAMAMA_DEV", "").lower() in ("1", "true", "yes")
@@ -36,13 +39,13 @@ audio_service = AudioMetadataService(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print(f"FilaMama starting...")
-    print(f"Root path: {config['root_path']}")
-    print(f"Server: http://{config['server']['host']}:{config['server']['port']}")
+    logger.info("FilaMama starting...")
+    logger.info("Root path: %s", config['root_path'])
+    logger.info("Server: http://%s:%s", config['server']['host'], config['server']['port'])
     files.init_services(fs_service, thumb_service, audio_service)
     upload.init_services(fs_service)
     yield
-    print("FilaMama shutting down...")
+    logger.info("FilaMama shutting down...")
 
 
 app = FastAPI(

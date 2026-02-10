@@ -1,8 +1,11 @@
 """Audio metadata extraction service using mutagen."""
 
+import logging
 from pathlib import Path
 from typing import Optional, Dict, Any
 import io
+
+logger = logging.getLogger(__name__)
 
 try:
     from mutagen import File as MutagenFile
@@ -90,7 +93,7 @@ class AudioMetadataService:
             return metadata
 
         except Exception as e:
-            print(f"Error extracting audio metadata: {e}")
+            logger.warning("Error extracting audio metadata for %s: %s", file_path.name, e)
             return None
 
     def _extract_id3_tags(self, audio, metadata: Dict) -> Dict:
@@ -293,7 +296,7 @@ class AudioMetadataService:
             return None
 
         except Exception as e:
-            print(f"Error extracting lyrics: {e}")
+            logger.warning("Error extracting lyrics for %s: %s", file_path.name, e)
             return None
 
     def get_cover_art(self, file_path: Path) -> Optional[tuple[bytes, str]]:
@@ -351,5 +354,5 @@ class AudioMetadataService:
             return None
 
         except Exception as e:
-            print(f"Error extracting cover art: {e}")
+            logger.warning("Error extracting cover art for %s: %s", file_path.name, e)
             return None

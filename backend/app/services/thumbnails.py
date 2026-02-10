@@ -1,11 +1,14 @@
+import asyncio
 import hashlib
-import subprocess
+import logging
 import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Optional, Tuple
 from PIL import Image
 import io
+
+logger = logging.getLogger(__name__)
 
 try:
     import cairosvg
@@ -94,7 +97,7 @@ class ThumbnailService:
                 img.save(buffer, format='JPEG', quality=self.quality, optimize=True)
                 return buffer.getvalue()
         except Exception as e:
-            print(f"Error generating image thumbnail: {e}")
+            logger.warning("Error generating image thumbnail for %s: %s", file_path.name, e)
             return None
 
     async def _generate_svg_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
@@ -124,7 +127,7 @@ class ThumbnailService:
                 img.save(buffer, format='JPEG', quality=self.quality, optimize=True)
                 return buffer.getvalue()
         except Exception as e:
-            print(f"Error generating SVG thumbnail: {e}")
+            logger.warning("Error generating SVG thumbnail for %s: %s", file_path.name, e)
             return None
 
     async def _generate_gif_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
@@ -137,7 +140,7 @@ class ThumbnailService:
                 frame.save(buffer, format='JPEG', quality=self.quality, optimize=True)
                 return buffer.getvalue()
         except Exception as e:
-            print(f"Error generating GIF thumbnail: {e}")
+            logger.warning("Error generating GIF thumbnail for %s: %s", file_path.name, e)
             return None
 
     async def _generate_epub_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
@@ -220,29 +223,28 @@ class ThumbnailService:
 
                 return None
         except Exception as e:
-            print(f"Error generating EPUB thumbnail: {e}")
+            logger.warning("Error generating EPUB thumbnail for %s: %s", file_path.name, e)
             return None
 
     async def _generate_video_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
         try:
-            result = subprocess.run(
-                [
-                    'ffmpeg', '-i', str(file_path), '-ss', '00:00:01', '-vframes', '1',
-                    '-vf', f'scale={target_size}:{target_size}:force_original_aspect_ratio=decrease',
-                    '-f', 'image2pipe', '-vcodec', 'mjpeg', '-q:v', '5', '-'
-                ],
-                capture_output=True,
-                timeout=30,
+            proc = await asyncio.create_subprocess_exec(
+                'ffmpeg', '-i', str(file_path), '-ss', '00:00:01', '-vframes', '1',
+                '-vf', f'scale={target_size}:{target_size}:force_original_aspect_ratio=decrease',
+                '-f', 'image2pipe', '-vcodec', 'mjpeg', '-q:v', '5', '-',
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
-            if result.returncode == 0 and result.stdout:
-                return result.stdout
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+            if proc.returncode == 0 and stdout:
+                return stdout
             return None
-        except subprocess.TimeoutExpired:
+        except asyncio.TimeoutError:
             return None
         except FileNotFoundError:
             return None
         except Exception as e:
-            print(f"Error generating video thumbnail: {e}")
+            logger.warning("Error generating video thumbnail for %s: %s", file_path.name, e)
             return None
 
     def clear_cache(self, file_path: Optional[Path] = None) -> int:

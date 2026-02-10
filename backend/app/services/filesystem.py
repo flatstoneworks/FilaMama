@@ -3,11 +3,14 @@ import shutil
 import asyncio
 import subprocess
 import json
+import logging
 from pathlib import Path
 from datetime import datetime
 from typing import List, Optional, AsyncGenerator
 import mimetypes
 import magic
+
+logger = logging.getLogger(__name__)
 
 from ..models.schemas import (
     FileType,
@@ -88,11 +91,14 @@ class FilesystemService:
     def _get_mime_type(self, path: Path) -> Optional[str]:
         if path.is_dir():
             return "inode/directory"
+        # Use extension-based detection first (fast), fall back to python-magic (reads file header)
+        mime, _ = mimetypes.guess_type(str(path))
+        if mime:
+            return mime
         try:
             return self._magic.from_file(str(path))
         except Exception:
-            mime, _ = mimetypes.guess_type(str(path))
-            return mime
+            return None
 
     def _get_file_info(self, path: Path) -> FileInfo:
         try:
@@ -144,16 +150,19 @@ class FilesystemService:
         if not dir_path.is_dir():
             raise NotADirectoryError(f"Not a directory: {path}")
 
-        items: List[FileInfo] = []
-        total_size = 0
-
-        try:
+        def _list_sync():
+            items: List[FileInfo] = []
+            total_size = 0
             for entry in dir_path.iterdir():
                 if not show_hidden and entry.name.startswith('.'):
                     continue
                 file_info = self._get_file_info(entry)
                 items.append(file_info)
                 total_size += file_info.size
+            return items, total_size
+
+        try:
+            items, total_size = await asyncio.to_thread(_list_sync)
         except PermissionError:
             raise PermissionError(f"Permission denied: {path}")
 
@@ -208,17 +217,19 @@ class FilesystemService:
         return self._get_file_info(new_dir)
 
     async def delete(self, paths: List[str]) -> int:
-        deleted = 0
-        for path in paths:
-            file_path = self._resolve_path(path)
-            if not file_path.exists():
-                continue
-            if file_path.is_dir():
-                shutil.rmtree(file_path)
-            else:
-                file_path.unlink()
-            deleted += 1
-        return deleted
+        def _delete_sync():
+            deleted = 0
+            for path in paths:
+                file_path = self._resolve_path(path)
+                if not file_path.exists():
+                    continue
+                if file_path.is_dir():
+                    shutil.rmtree(file_path)
+                else:
+                    file_path.unlink()
+                deleted += 1
+            return deleted
+        return await asyncio.to_thread(_delete_sync)
 
     async def rename(self, path: str, new_name: str) -> FileInfo:
         file_path = self._resolve_path(path)
@@ -235,53 +246,59 @@ class FilesystemService:
         dst_path = self._resolve_path(destination)
         if not src_path.exists():
             raise FileNotFoundError(f"Source not found: {source}")
-        if dst_path.exists() and dst_path.is_dir():
-            dst_path = dst_path / src_path.name
-        if dst_path.exists():
-            if overwrite:
-                # Remove existing file/directory before copying
-                if dst_path.is_dir():
-                    shutil.rmtree(dst_path)
+
+        def _copy_sync():
+            nonlocal dst_path
+            if dst_path.exists() and dst_path.is_dir():
+                dst_path = dst_path / src_path.name
+            if dst_path.exists():
+                if overwrite:
+                    if dst_path.is_dir():
+                        shutil.rmtree(dst_path)
+                    else:
+                        dst_path.unlink()
                 else:
-                    dst_path.unlink()
+                    base = dst_path.stem
+                    ext = dst_path.suffix
+                    counter = 1
+                    while dst_path.exists():
+                        dst_path = dst_path.parent / f"{base}({counter}){ext}"
+                        counter += 1
+            if src_path.is_dir():
+                shutil.copytree(src_path, dst_path)
             else:
-                # Auto-rename with counter
-                base = dst_path.stem
-                ext = dst_path.suffix
-                counter = 1
-                while dst_path.exists():
-                    dst_path = dst_path.parent / f"{base}({counter}){ext}"
-                    counter += 1
-        if src_path.is_dir():
-            shutil.copytree(src_path, dst_path)
-        else:
-            shutil.copy2(src_path, dst_path)
-        return self._get_file_info(dst_path)
+                shutil.copy2(src_path, dst_path)
+            return self._get_file_info(dst_path)
+
+        return await asyncio.to_thread(_copy_sync)
 
     async def move(self, source: str, destination: str, overwrite: bool = False) -> FileInfo:
         src_path = self._resolve_path(source)
         dst_path = self._resolve_path(destination)
         if not src_path.exists():
             raise FileNotFoundError(f"Source not found: {source}")
-        if dst_path.exists() and dst_path.is_dir():
-            dst_path = dst_path / src_path.name
-        if dst_path.exists():
-            if overwrite:
-                # Remove existing file/directory before moving
-                if dst_path.is_dir():
-                    shutil.rmtree(dst_path)
+
+        def _move_sync():
+            nonlocal dst_path
+            if dst_path.exists() and dst_path.is_dir():
+                dst_path = dst_path / src_path.name
+            if dst_path.exists():
+                if overwrite:
+                    if dst_path.is_dir():
+                        shutil.rmtree(dst_path)
+                    else:
+                        dst_path.unlink()
                 else:
-                    dst_path.unlink()
-            else:
-                # Auto-rename with counter
-                base = dst_path.stem
-                ext = dst_path.suffix
-                counter = 1
-                while dst_path.exists():
-                    dst_path = dst_path.parent / f"{base}({counter}){ext}"
-                    counter += 1
-        shutil.move(str(src_path), str(dst_path))
-        return self._get_file_info(dst_path)
+                    base = dst_path.stem
+                    ext = dst_path.suffix
+                    counter = 1
+                    while dst_path.exists():
+                        dst_path = dst_path.parent / f"{base}({counter}){ext}"
+                        counter += 1
+            shutil.move(str(src_path), str(dst_path))
+            return self._get_file_info(dst_path)
+
+        return await asyncio.to_thread(_move_sync)
 
     async def check_conflicts(self, sources: list[str], destination: str) -> list[str]:
         """Check which source files would conflict with existing files in destination."""
@@ -305,19 +322,21 @@ class FilesystemService:
         if not folder_path.is_dir():
             raise ValueError(f"Not a directory: {path}")
 
-        total_size = 0
-        for root, dirs, files in os.walk(folder_path):
-            # Skip hidden directories
-            dirs[:] = [d for d in dirs if not d.startswith('.')]
-            for file in files:
-                if file.startswith('.'):
-                    continue
-                try:
-                    file_path = Path(root) / file
-                    total_size += file_path.stat().st_size
-                except (OSError, PermissionError):
-                    continue
-        return total_size
+        def _get_size_sync():
+            total_size = 0
+            for root, dirs, files in os.walk(folder_path):
+                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                for file in files:
+                    if file.startswith('.'):
+                        continue
+                    try:
+                        file_path = Path(root) / file
+                        total_size += file_path.stat().st_size
+                    except (OSError, PermissionError):
+                        continue
+            return total_size
+
+        return await asyncio.to_thread(_get_size_sync)
 
     async def search(
         self,
@@ -337,75 +356,73 @@ class FilesystemService:
         """
         search_path = self._resolve_path(path)
         query_lower = query.lower() if query else ""
-        results: list[SearchResult] = []
-        total_scanned = 0
-        has_more = False
 
         # Get extensions for content type filtering
         type_extensions = None
         if content_type and content_type in CONTENT_TYPES:
             type_extensions = CONTENT_TYPES[content_type]
 
-        for root, dirs, files in os.walk(search_path):
-            dirs[:] = [d for d in dirs if not d.startswith('.')]
-            root_path = Path(root)
+        def _search_sync():
+            results: list[SearchResult] = []
+            total_scanned = 0
+            has_more = False
 
-            # Only search directories if not filtering by content type
-            if not content_type:
-                for d in dirs:
-                    if not query_lower or query_lower in d.lower():
-                        total_scanned += 1
-                        if len(results) >= max_results:
-                            has_more = True
-                            continue  # Keep scanning to count total
-                        dir_path = root_path / d
-                        info = self._get_file_info(dir_path)
-                        results.append(SearchResult(
-                            path=info.path,
-                            name=info.name,
-                            type=info.type,
-                            size=info.size,
-                            modified=info.modified,
-                        ))
+            for root, dirs, files in os.walk(search_path):
+                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                root_path = Path(root)
 
-            for f in files:
-                if f.startswith('.'):
-                    continue
+                # Only search directories if not filtering by content type
+                if not content_type:
+                    for d in dirs:
+                        if not query_lower or query_lower in d.lower():
+                            total_scanned += 1
+                            if len(results) >= max_results:
+                                has_more = True
+                                continue
+                            dir_path = root_path / d
+                            info = self._get_file_info(dir_path)
+                            results.append(SearchResult(
+                                path=info.path,
+                                name=info.name,
+                                type=info.type,
+                                size=info.size,
+                                modified=info.modified,
+                            ))
 
-                # Check content type filter
-                if type_extensions:
-                    ext = Path(f).suffix.lower()
-                    if ext not in type_extensions:
+                for f in files:
+                    if f.startswith('.'):
                         continue
 
-                # Check query filter
-                if query_lower and query_lower not in f.lower():
-                    continue
+                    if type_extensions:
+                        ext = Path(f).suffix.lower()
+                        if ext not in type_extensions:
+                            continue
 
-                total_scanned += 1
-                if len(results) >= max_results:
-                    has_more = True
-                    # Stop early once we know there are more results
-                    # (counting all would be too slow for large directories)
-                    return results, has_more, total_scanned
+                    if query_lower and query_lower not in f.lower():
+                        continue
 
-                file_path = root_path / f
-                info = self._get_file_info(file_path)
-                results.append(SearchResult(
-                    path=info.path,
-                    name=info.name,
-                    type=info.type,
-                    size=info.size,
-                    modified=info.modified,
-                ))
+                    total_scanned += 1
+                    if len(results) >= max_results:
+                        has_more = True
+                        return results, has_more, total_scanned
 
-            await asyncio.sleep(0)
+                    file_path = root_path / f
+                    info = self._get_file_info(file_path)
+                    results.append(SearchResult(
+                        path=info.path,
+                        name=info.name,
+                        type=info.type,
+                        size=info.size,
+                        modified=info.modified,
+                    ))
 
-        return results, has_more, total_scanned
+            return results, has_more, total_scanned
+
+        return await asyncio.to_thread(_search_sync)
 
     async def get_disk_usage(self, path: str = "/") -> DiskUsage:
         dir_path = self._resolve_path(path)
-        usage = shutil.disk_usage(dir_path)
+        usage = await asyncio.to_thread(shutil.disk_usage, dir_path)
         return DiskUsage(
             total=usage.total,
             used=usage.used,
