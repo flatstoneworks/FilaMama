@@ -20,9 +20,9 @@ const extensionToType: Record<string, string> = {
   jpg: 'image', jpeg: 'image', jfif: 'image', png: 'image', gif: 'image', webp: 'image', svg: 'image', bmp: 'image', ico: 'image',
   tiff: 'image', tif: 'image', avif: 'image', heic: 'image', heif: 'image',
   // Videos
-  mp4: 'video', webm: 'video', mov: 'video', avi: 'video', mkv: 'video', wmv: 'video', flv: 'video',
+  mp4: 'video', webm: 'video', mov: 'video', avi: 'video', mkv: 'video', wmv: 'video', flv: 'video', m4v: 'video',
   // Audio
-  mp3: 'audio', wav: 'audio', ogg: 'audio', flac: 'audio', aac: 'audio', m4a: 'audio', wma: 'audio',
+  mp3: 'audio', wav: 'audio', ogg: 'audio', flac: 'audio', aac: 'audio', m4a: 'audio', wma: 'audio', opus: 'audio',
   // Documents (binary - not previewable as text)
   doc: 'document', docx: 'document', rtf: 'document', odt: 'document',
   // Spreadsheets

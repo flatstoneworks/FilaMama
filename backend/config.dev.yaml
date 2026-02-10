@@ -21,6 +21,7 @@ thumbnails:
     thumb: 256
     large: 1080
   quality: 85
+  max_cache_size_mb: 500
 
 # Upload settings
 upload:

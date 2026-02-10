@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 
 from .routers import files, upload
-from .services.filesystem import FilesystemService
+from .services.filesystem import FilesystemService, CONTENT_TYPES
 from .services.thumbnails import ThumbnailService
 from .services.audio import AudioMetadataService
 
@@ -31,6 +31,7 @@ thumb_service = ThumbnailService(
     cache_dir=config["thumbnails"]["cache_dir"],
     sizes=config["thumbnails"]["sizes"],
     quality=config["thumbnails"]["quality"],
+    max_cache_size_mb=config["thumbnails"].get("max_cache_size_mb", 0),
 )
 audio_service = AudioMetadataService(
     root_path=Path(config["root_path"]),
@@ -84,6 +85,7 @@ async def get_config():
         "max_upload_size_mb": config["upload"]["max_size_mb"],
         "file_types": config["file_types"],
         "mounts": config.get("mounts", []),
+        "content_types": CONTENT_TYPES,
     }
 
 

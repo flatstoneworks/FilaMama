@@ -35,21 +35,6 @@ export function formatDate(date: string | Date): string {
   })
 }
 
-export function getFileIcon(type: string, extension?: string): string {
-  if (type === 'directory') return 'folder'
-  const ext = extension?.toLowerCase()
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(ext || '')) return 'image'
-  if (['mp4', 'mkv', 'avi', 'mov', 'webm', 'flv', 'wmv'].includes(ext || '')) return 'video'
-  if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a'].includes(ext || '')) return 'audio'
-  if (['pdf'].includes(ext || '')) return 'pdf'
-  if (['doc', 'docx', 'odt'].includes(ext || '')) return 'doc'
-  if (['xls', 'xlsx', 'ods', 'csv'].includes(ext || '')) return 'spreadsheet'
-  if (['js', 'ts', 'jsx', 'tsx', 'py', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'html', 'css', 'json', 'yaml', 'yml', 'md', 'sh'].includes(ext || '')) return 'code'
-  if (['zip', 'tar', 'gz', 'bz2', 'xz', '7z', 'rar'].includes(ext || '')) return 'archive'
-  if (['txt', 'log', 'ini', 'cfg', 'conf'].includes(ext || '')) return 'text'
-  return 'file'
-}
-
 // File selection utilities
 export function isFileSelected<T extends { path: string }>(file: T, selectedFiles: Set<string>): boolean {
   return selectedFiles.has(file.path)

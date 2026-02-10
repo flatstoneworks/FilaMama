@@ -1,5 +1,5 @@
 import { FileText, Image, Video, Star, Home, FolderOpen, Music, FileImage, Film, FileType, HardDrive, FolderCog, Folder, X } from 'lucide-react'
-import type { MountPoint } from '@/api/client'
+import type { MountPoint, AppConfig } from '@/api/client'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
@@ -24,6 +24,7 @@ interface SidebarProps {
   activeContentType?: string | null
   onContentTypeChange?: (type: string | null) => void
   mounts?: MountPoint[]
+  contentTypes?: AppConfig['content_types']
 }
 
 const mountIconMap: Record<string, React.ReactNode> = {
@@ -45,13 +46,32 @@ const mainFolders: SidebarItem[] = [
   { name: 'Music', path: '/Music', icon: <Music className="h-4 w-4" /> },
 ]
 
-const contentTypes: ContentTypeItem[] = [
-  { name: 'Photos', type: 'photos', icon: <FileImage className="h-4 w-4" />, extensions: ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.raw', '.cr2', '.nef'] },
-  { name: 'Videos', type: 'videos', icon: <Film className="h-4 w-4" />, extensions: ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v'] },
-  { name: 'GIFs', type: 'gifs', icon: <Image className="h-4 w-4" />, extensions: ['.gif'] },
-  { name: 'PDFs', type: 'pdfs', icon: <FileType className="h-4 w-4" />, extensions: ['.pdf'] },
-  { name: 'Audio', type: 'audio', icon: <Music className="h-4 w-4" />, extensions: ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'] },
+// Default extension lists (used when server config is not yet loaded)
+const defaultExtensions: Record<string, string[]> = {
+  photos: ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.raw', '.cr2', '.nef'],
+  videos: ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v', '.flv', '.wmv'],
+  gifs: ['.gif'],
+  pdfs: ['.pdf'],
+  audio: ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.wma', '.opus'],
+}
+
+// Display metadata for content types (icons and labels)
+const contentTypeDisplay: { name: string; type: string; icon: React.ReactNode }[] = [
+  { name: 'Photos', type: 'photos', icon: <FileImage className="h-4 w-4" /> },
+  { name: 'Videos', type: 'videos', icon: <Film className="h-4 w-4" /> },
+  { name: 'GIFs', type: 'gifs', icon: <Image className="h-4 w-4" /> },
+  { name: 'PDFs', type: 'pdfs', icon: <FileType className="h-4 w-4" /> },
+  { name: 'Audio', type: 'audio', icon: <Music className="h-4 w-4" /> },
 ]
+
+function buildContentTypes(serverTypes?: Record<string, string[]>): ContentTypeItem[] {
+  return contentTypeDisplay.map(item => ({
+    ...item,
+    extensions: serverTypes?.[item.type] || defaultExtensions[item.type] || [],
+  }))
+}
+
+const contentTypes: ContentTypeItem[] = buildContentTypes()
 
 export function Sidebar({
   currentPath,
@@ -61,7 +81,11 @@ export function Sidebar({
   activeContentType,
   onContentTypeChange,
   mounts = [],
+  contentTypes: serverContentTypes,
 }: SidebarProps) {
+  const resolvedContentTypes = serverContentTypes
+    ? buildContentTypes(serverContentTypes)
+    : contentTypes
   return (
     <div className="w-52 border-r bg-muted/30 flex flex-col">
       <ScrollArea className="flex-1">
@@ -183,7 +207,7 @@ export function Sidebar({
               Content Type
             </h3>
             <nav className="space-y-0.5">
-              {contentTypes.map((item) => (
+              {resolvedContentTypes.map((item) => (
                 <button
                   key={item.type}
                   onClick={() => onContentTypeChange?.(activeContentType === item.type ? null : item.type)}

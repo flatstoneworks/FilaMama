@@ -27,10 +27,10 @@ from ..models.schemas import (
 # Content type definitions for filtering
 CONTENT_TYPES = {
     'photos': ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.raw', '.cr2', '.nef'],
-    'videos': ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v'],
+    'videos': ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v', '.flv', '.wmv'],
     'gifs': ['.gif'],
     'pdfs': ['.pdf'],
-    'audio': ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'],
+    'audio': ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.wma', '.opus'],
 }
 
 

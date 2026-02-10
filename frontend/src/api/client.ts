@@ -34,6 +34,7 @@ export interface AppConfig {
   max_upload_size_mb: number
   file_types: Record<string, string[]>
   mounts: MountPoint[]
+  content_types?: Record<string, string[]>
 }
 
 const API_BASE = '/api'

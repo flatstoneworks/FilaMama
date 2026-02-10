@@ -26,11 +26,13 @@ except ImportError:
 
 
 class ThumbnailService:
-    def __init__(self, cache_dir: str, sizes: dict, quality: int = 85):
+    def __init__(self, cache_dir: str, sizes: dict, quality: int = 85, max_cache_size_mb: int = 0):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.sizes = sizes
         self.quality = quality
+        self.max_cache_size_bytes = max_cache_size_mb * 1024 * 1024 if max_cache_size_mb > 0 else 0
+        self._write_count = 0
 
     def _get_cache_key(self, file_path: Path, size: str) -> str:
         stat = file_path.stat()
@@ -77,8 +79,40 @@ class ThumbnailService:
 
         if thumb_bytes:
             cache_path.write_bytes(thumb_bytes)
+            self._write_count += 1
+            if self.max_cache_size_bytes and self._write_count % 50 == 0:
+                self._evict_if_needed()
 
         return thumb_bytes
+
+    def _evict_if_needed(self):
+        """Evict oldest-accessed cache files if total size exceeds limit (LRU)."""
+        if not self.max_cache_size_bytes:
+            return
+
+        cache_files = list(self.cache_dir.glob("*.jpg"))
+        if not cache_files:
+            return
+
+        total_size = sum(f.stat().st_size for f in cache_files)
+        if total_size <= self.max_cache_size_bytes:
+            return
+
+        # Sort by access time (oldest first) for LRU eviction
+        cache_files.sort(key=lambda f: f.stat().st_atime)
+
+        evicted = 0
+        for f in cache_files:
+            if total_size <= self.max_cache_size_bytes:
+                break
+            fsize = f.stat().st_size
+            f.unlink()
+            total_size -= fsize
+            evicted += 1
+
+        if evicted:
+            logger.info("Cache eviction: removed %d files, cache now %.1f MB",
+                        evicted, total_size / (1024 * 1024))
 
     async def _generate_image_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
         try:

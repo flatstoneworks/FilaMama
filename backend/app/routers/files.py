@@ -267,12 +267,15 @@ async def stream_file(path: str, request: Request):
         '.mov': 'video/quicktime',
         '.flv': 'video/x-flv',
         '.wmv': 'video/x-ms-wmv',
+        '.m4v': 'video/mp4',
         '.mp3': 'audio/mpeg',
         '.wav': 'audio/wav',
         '.flac': 'audio/flac',
         '.aac': 'audio/aac',
         '.ogg': 'audio/ogg',
         '.m4a': 'audio/mp4',
+        '.wma': 'audio/x-ms-wma',
+        '.opus': 'audio/opus',
     }
     content_type = mime_types.get(ext, 'application/octet-stream')
 
