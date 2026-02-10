@@ -110,6 +110,10 @@ export function FilesPage() {
   // Debounce search
   const debouncedSearchQuery = useDebounce(searchQuery, 300)
 
+  // Search result limit (increases when user clicks "Load more")
+  const [searchLimit, setSearchLimit] = useState(500)
+  useEffect(() => { setSearchLimit(500) }, [debouncedSearchQuery, activeContentType, currentPath])
+
   // UI mode flags
   const isFilenameSearchMode = (!!searchQuery || !!activeContentType) && !contentSearchMode
   const isContentSearchMode = !!searchQuery && contentSearchMode && searchQuery.length >= 2
@@ -119,15 +123,16 @@ export function FilesPage() {
   const isContentSearchReady = !!debouncedSearchQuery && contentSearchMode && debouncedSearchQuery.length >= 2
 
   // Recursive filename search
-  const { data: searchResponse, isLoading: isSearching } = useQuery({
-    queryKey: ['recursive-search', debouncedSearchQuery, activeContentType, currentPath],
+  const { data: searchResponse, isLoading: isSearching, isFetching: isSearchFetching } = useQuery({
+    queryKey: ['recursive-search', debouncedSearchQuery, activeContentType, currentPath, searchLimit],
     queryFn: () => api.searchFiles({
       query: debouncedSearchQuery || undefined,
       contentType: activeContentType || undefined,
       path: currentPath,
-      maxResults: 500,
+      maxResults: searchLimit,
     }),
     enabled: isFilenameSearchReady,
+    placeholderData: (prev) => prev,
   })
 
   // Content search
@@ -430,7 +435,7 @@ export function FilesPage() {
                 <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
                   <AlertTriangle className="h-3.5 w-3.5" />
                   <span className="text-xs font-medium">
-                    Showing first 500 of {searchTotalScanned}+ results
+                    Showing {searchResults?.length ?? 0} of {searchTotalScanned}+ results
                   </span>
                 </div>
               )}
@@ -559,6 +564,24 @@ export function FilesPage() {
                             Show all {hiddenFilesCount.toLocaleString()} more files (may be slow)
                           </button>
                         </div>
+                      </div>
+                    )}
+                    {searchHasMore && isFilenameSearchActive && !isContentSearchActive && (
+                      <div className="flex items-center justify-center py-4 border-t">
+                        <button
+                          onClick={() => setSearchLimit(prev => prev + 500)}
+                          disabled={isSearchFetching}
+                          className="text-sm text-primary hover:underline disabled:opacity-50"
+                        >
+                          {isSearchFetching ? (
+                            <span className="flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Loading more...
+                            </span>
+                          ) : (
+                            `Load more results (showing ${searchResults?.length ?? 0} of ${searchTotalScanned}+)`
+                          )}
+                        </button>
                       </div>
                     )}
                   </div>

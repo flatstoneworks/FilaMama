@@ -108,7 +108,7 @@ async def get_folder_size(path: str):
 async def search_files(
     query: str = "",
     path: str = "/",
-    max_results: int = Query(100, le=500),
+    max_results: int = Query(100, le=5000),
     content_type: Optional[str] = None,
 ):
     """Search files recursively. Returns results with truncation info."""
