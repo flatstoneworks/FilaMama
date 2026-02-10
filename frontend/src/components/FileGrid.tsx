@@ -55,6 +55,8 @@ export function FileGrid({
   return (
     <div
       ref={containerRef}
+      role="grid"
+      aria-label="File browser"
       className="grid gap-2 p-4"
       style={{
         gridTemplateColumns: `repeat(auto-fill, minmax(${gridSize}px, 1fr))`,
@@ -70,6 +72,9 @@ export function FileGrid({
           <ContextMenu key={file.path}>
             <ContextMenuTrigger>
               <div
+                role="gridcell"
+                aria-label={file.name}
+                aria-selected={isFileSelected(file, selectedFiles)}
                 className={cn(
                   'group relative flex flex-col items-center p-2 rounded-lg cursor-pointer transition-colors',
                   'hover:bg-accent/50',
@@ -86,17 +91,17 @@ export function FileGrid({
                 onDragLeave={(e) => handleDragLeave(e, file)}
                 onDrop={(e) => handleDrop(e, file)}
               >
-              {/* Checkbox - visible on hover or when selected */}
+              {/* Checkbox - always visible */}
               <div
-                className={cn(
-                  'absolute top-1 left-1 z-10 transition-opacity',
-                  isFileSelected(file, selectedFiles) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                )}
+                className="absolute top-1 left-1 z-10"
                 onClick={createCheckboxClickHandler(file, onSelect)}
               >
                 <Checkbox
                   checked={isFileSelected(file, selectedFiles)}
-                  className="h-5 w-5 bg-background/80 backdrop-blur"
+                  className={cn(
+                    'h-5 w-5 bg-background/80 backdrop-blur transition-opacity',
+                    isFileSelected(file, selectedFiles) ? 'opacity-100' : 'opacity-50 group-hover:opacity-100'
+                  )}
                 />
               </div>
 

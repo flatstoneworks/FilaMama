@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, type FileInfo, type SearchResult, type ContentSearchResult } from '@/api/client'
+import { api, type FileInfo, type SearchResult, type ContentSearchResult, type SortField, type SortOrder } from '@/api/client'
 import { useFileSelection } from '@/hooks/useFileSelection'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useScrollRestoration } from '@/hooks/useScrollRestoration'
@@ -23,6 +23,7 @@ import { RenameDialog } from '@/components/RenameDialog'
 import { NewFolderDialog } from '@/components/NewFolderDialog'
 import { DeleteDialog } from '@/components/DeleteDialog'
 import { ConflictDialog } from '@/components/ConflictDialog'
+import { KeyboardShortcutsDialog } from '@/components/KeyboardShortcutsDialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/use-toast'
 import { Loader2, X, FolderSearch, FileText, AlertTriangle } from 'lucide-react'
@@ -51,6 +52,11 @@ export function FilesPage() {
   const searchQuery = searchParams.get('search') || ''
   const activeContentType = searchParams.get('filter') || null
   const contentSearchMode = searchParams.get('content') === 'true'
+  const sortBy = (searchParams.get('sort') as SortField) || 'name'
+  const sortOrder = (searchParams.get('order') as SortOrder) || 'asc'
+
+  // Help dialog
+  const [showHelp, setShowHelp] = useState(false)
 
   const updateUrlParam = useCallback((key: string, value: string | null) => {
     setSearchParams(prev => {
@@ -84,6 +90,18 @@ export function FilesPage() {
     updateUrlParam('content', enabled ? 'true' : null)
   }, [updateUrlParam])
 
+  const handleSortChange = useCallback((field: SortField, order: SortOrder) => {
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev)
+      // Omit defaults from URL
+      if (field === 'name') newParams.delete('sort')
+      else newParams.set('sort', field)
+      if (order === 'asc') newParams.delete('order')
+      else newParams.set('order', order)
+      return newParams
+    }, { replace: true })
+  }, [setSearchParams])
+
   // Dialogs
   const [renameFile, setRenameFile] = useState<FileInfo | null>(null)
   const [showNewFolder, setShowNewFolder] = useState(false)
@@ -101,8 +119,8 @@ export function FilesPage() {
 
   // Fetch files
   const { data: listing, isLoading: isLoadingDir, error } = useQuery({
-    queryKey: ['files', currentPath],
-    queryFn: () => api.listDirectory(currentPath),
+    queryKey: ['files', currentPath, sortBy, sortOrder],
+    queryFn: () => api.listDirectory(currentPath, sortBy, sortOrder),
   })
 
   const files = listing?.files || []
@@ -258,6 +276,7 @@ export function FilesPage() {
     currentPath,
     viewMode,
     gridSize,
+    isAudioPlayerOpen: isPlayerOpen,
     selectFile,
     clearSelection,
     onCopy: handleCopy,
@@ -268,6 +287,7 @@ export function FilesPage() {
     onNavigate: handleNavigate,
     onRename: setRenameFile,
     onClearSearch: handleClearSearch,
+    onShowHelp: () => setShowHelp(true),
   })
 
   // Move handler
@@ -282,8 +302,8 @@ export function FilesPage() {
       queryClient.invalidateQueries({ queryKey: ['files'] })
       clearSelection()
       toast({ title: `Moved ${filesToMove.length} item(s)` })
-    } catch (error) {
-      toast({ title: 'Failed to move files', variant: 'destructive' })
+    } catch (err) {
+      toast({ title: 'Failed to move files', description: err instanceof Error ? err.message : 'Unknown error', variant: 'destructive' })
     }
   }
 
@@ -296,8 +316,8 @@ export function FilesPage() {
       setRenameFile(null)
       toast({ title: 'Renamed successfully' })
     },
-    onError: () => {
-      toast({ title: 'Failed to rename', variant: 'destructive' })
+    onError: (error: Error) => {
+      toast({ title: 'Failed to rename', description: error.message, variant: 'destructive' })
     },
   })
 
@@ -308,8 +328,8 @@ export function FilesPage() {
       setShowNewFolder(false)
       toast({ title: 'Folder created' })
     },
-    onError: () => {
-      toast({ title: 'Failed to create folder', variant: 'destructive' })
+    onError: (error: Error) => {
+      toast({ title: 'Failed to create folder', description: error.message, variant: 'destructive' })
     },
   })
 
@@ -325,13 +345,19 @@ export function FilesPage() {
       clearSelection()
       toast({ title: 'Deleted successfully' })
     },
-    onError: () => {
-      toast({ title: 'Failed to delete', variant: 'destructive' })
+    onError: (error: Error) => {
+      toast({ title: 'Failed to delete', description: error.message, variant: 'destructive' })
     },
   })
 
   return (
     <div className="h-screen flex flex-col bg-background">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md"
+      >
+        Skip to main content
+      </a>
       <Header
         path={currentPath}
         onNavigate={handleNavigate}
@@ -354,7 +380,7 @@ export function FilesPage() {
           contentTypes={config?.content_types}
         />
 
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main id="main-content" className="flex-1 flex flex-col overflow-hidden">
           <input
             ref={fileInputRef}
             type="file"
@@ -380,6 +406,9 @@ export function FilesPage() {
             itemCount={filteredFiles.length}
             selectedCount={selectedFiles.size}
             hasClipboard={!!clipboard}
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            onSortChange={handleSortChange}
             onNewFolder={() => setShowNewFolder(true)}
             onUpload={() => fileInputRef.current?.click()}
             onUploadFolder={() => folderInputRef.current?.click()}
@@ -632,6 +661,11 @@ export function FilesPage() {
         conflictFiles={conflictFiles}
         operation={clipboard?.operation || 'copy'}
         onResolve={handleConflictResolution}
+      />
+
+      <KeyboardShortcutsDialog
+        open={showHelp}
+        onOpenChange={setShowHelp}
       />
     </div>
   )

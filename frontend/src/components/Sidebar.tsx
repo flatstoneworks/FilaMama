@@ -87,7 +87,7 @@ export function Sidebar({
     ? buildContentTypes(serverContentTypes)
     : contentTypes
   return (
-    <div className="w-52 border-r bg-muted/30 flex flex-col">
+    <nav aria-label="File browser navigation" className="w-52 border-r bg-muted/30 flex flex-col">
       <ScrollArea className="flex-1">
         <div className="p-3">
           {/* Favorites - on top */}
@@ -235,7 +235,7 @@ export function Sidebar({
           <span className="font-semibold">FilaMama</span>
         </div>
       </div>
-    </div>
+    </nav>
   )
 }
 

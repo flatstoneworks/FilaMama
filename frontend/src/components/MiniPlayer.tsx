@@ -309,19 +309,15 @@ export function MiniPlayer({
           if (e.shiftKey) {
             e.preventDefault()
             playPrev()
-          } else {
-            e.preventDefault()
-            seekBy(-5)
           }
+          // Don't handle bare ArrowLeft - let file browser use it
           break
         case 'ArrowRight':
           if (e.shiftKey) {
             e.preventDefault()
             playNext()
-          } else {
-            e.preventDefault()
-            seekBy(5)
           }
+          // Don't handle bare ArrowRight - let file browser use it
           break
         case 'm':
           toggleMute()

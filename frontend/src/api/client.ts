@@ -47,8 +47,13 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.json()
 }
 
-async function listDirectory(path = '/'): Promise<DirectoryListing> {
+export type SortField = 'name' | 'size' | 'modified' | 'type'
+export type SortOrder = 'asc' | 'desc'
+
+async function listDirectory(path = '/', sortBy?: SortField, sortOrder?: SortOrder): Promise<DirectoryListing> {
   const params = new URLSearchParams({ path })
+  if (sortBy) params.set('sort_by', sortBy)
+  if (sortOrder) params.set('sort_order', sortOrder)
   const data = await handleResponse<{ path: string; items: any[] }>(
     await fetch(`${API_BASE}/files/list?${params}`)
   )

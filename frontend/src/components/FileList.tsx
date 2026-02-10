@@ -94,9 +94,9 @@ export function FileList({
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" role="rowgroup" aria-label="File list">
       {/* Header */}
-      <div className="grid grid-cols-[auto_1fr_100px_150px] gap-4 px-4 py-2 text-sm font-medium text-muted-foreground border-b bg-muted/30">
+      <div className="grid grid-cols-[auto_1fr_100px_150px] gap-4 px-4 py-2 text-sm font-medium text-muted-foreground border-b bg-muted/30" role="row" aria-hidden="true">
         <div className="w-5" />
         <div>Name</div>
         <div className="text-right">Size</div>
@@ -134,6 +134,9 @@ export function FileList({
               <ContextMenu>
                 <ContextMenuTrigger>
                   <div
+                    role="row"
+                    aria-selected={isFileSelected(file, selectedFiles)}
+                    aria-label={file.name}
                     className={cn(
                       'group grid grid-cols-[auto_1fr_100px_150px] gap-4 px-4 py-2 text-sm cursor-pointer transition-colors h-full',
                       'hover:bg-accent/50',
@@ -150,17 +153,17 @@ export function FileList({
                     onDragLeave={(e) => handleDragLeave(e, file)}
                     onDrop={(e) => handleDrop(e, file)}
                   >
-                    {/* Checkbox */}
+                    {/* Checkbox - always visible */}
                     <div
-                      className={cn(
-                        'flex items-center transition-opacity',
-                        isFileSelected(file, selectedFiles) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      )}
+                      className="flex items-center"
                       onClick={createCheckboxClickHandler(file, onSelect)}
                     >
                       <Checkbox
                         checked={isFileSelected(file, selectedFiles)}
-                        className="h-4 w-4"
+                        className={cn(
+                          'h-4 w-4 transition-opacity',
+                          isFileSelected(file, selectedFiles) ? 'opacity-100' : 'opacity-50 group-hover:opacity-100'
+                        )}
                       />
                     </div>
 

@@ -47,7 +47,7 @@ export function Header({ path, onNavigate, searchQuery, onSearchChange, searchCo
   return (
     <header className="h-12 border-b bg-background flex items-center px-4 gap-4">
       {/* Breadcrumbs */}
-      <nav className="flex items-center gap-0.5 text-sm flex-1 min-w-0 overflow-x-auto">
+      <nav aria-label="Breadcrumb" className="flex items-center gap-0.5 text-sm flex-1 min-w-0 overflow-x-auto">
         <Button
           variant="ghost"
           size="sm"
@@ -67,6 +67,7 @@ export function Header({ path, onNavigate, searchQuery, onSearchChange, searchCo
                 index === breadcrumbParts.length - 1 ? 'font-semibold' : ''
               }`}
               onClick={() => onNavigate(part.path)}
+              {...(index === breadcrumbParts.length - 1 ? { 'aria-current': 'page' as const } : {})}
             >
               {part.isMount && <HardDrive className="h-3.5 w-3.5 mr-1.5" />}
               {part.label}

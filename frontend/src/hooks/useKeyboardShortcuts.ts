@@ -9,6 +9,7 @@ interface UseKeyboardShortcutsOptions {
   currentPath: string
   viewMode: ViewMode
   gridSize: number
+  isAudioPlayerOpen?: boolean
   selectFile: (file: FileInfo, e: React.MouseEvent) => void
   clearSelection: () => void
   onCopy: (files: FileInfo[]) => void
@@ -19,6 +20,7 @@ interface UseKeyboardShortcutsOptions {
   onNavigate: (path: string) => void
   onRename: (file: FileInfo) => void
   onClearSearch: () => void
+  onShowHelp?: () => void
 }
 
 export function useKeyboardShortcuts({
@@ -28,6 +30,7 @@ export function useKeyboardShortcuts({
   currentPath,
   viewMode,
   gridSize,
+  isAudioPlayerOpen = false,
   selectFile,
   clearSelection,
   onCopy,
@@ -38,6 +41,7 @@ export function useKeyboardShortcuts({
   onNavigate,
   onRename,
   onClearSearch,
+  onShowHelp,
 }: UseKeyboardShortcutsOptions) {
   const [focusedIndex, setFocusedIndex] = useState<number>(-1)
 
@@ -113,6 +117,12 @@ export function useKeyboardShortcuts({
         onNavigate(parentPath)
       }
 
+      // ?: Show keyboard shortcuts help
+      if (e.key === '?' && onShowHelp) {
+        e.preventDefault()
+        onShowHelp()
+      }
+
       // Arrow key navigation
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && displayedFiles.length > 0) {
         e.preventDefault()
@@ -153,8 +163,8 @@ export function useKeyboardShortcuts({
         }
       }
 
-      // Space: toggle selection of focused item
-      if (e.key === ' ' && focusedIndex >= 0 && focusedIndex < displayedFiles.length) {
+      // Space: toggle selection of focused item (skip when audio player handles it)
+      if (e.key === ' ' && !isAudioPlayerOpen && focusedIndex >= 0 && focusedIndex < displayedFiles.length) {
         e.preventDefault()
         selectFile(displayedFiles[focusedIndex], { ctrlKey: true } as React.MouseEvent)
       }
@@ -173,6 +183,7 @@ export function useKeyboardShortcuts({
     selectedFilesList,
     hasClipboard,
     currentPath,
+    isAudioPlayerOpen,
     selectFile,
     clearSelection,
     onCopy,
@@ -183,6 +194,7 @@ export function useKeyboardShortcuts({
     onNavigate,
     onRename,
     onClearSearch,
+    onShowHelp,
     focusedIndex,
     viewMode,
     gridSize,
