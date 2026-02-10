@@ -54,7 +54,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://spark.local:1030",   # Production frontend
+        "http://spark.local:8010",   # Dev frontend
+        "http://localhost:8010",     # Dev fallback
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

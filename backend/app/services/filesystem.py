@@ -461,6 +461,7 @@ class FilesystemService:
             '--json',                           # JSON output for parsing
             '-i',                               # Case insensitive
             '-n',                               # Line numbers
+            '--fixed-strings',                  # Treat query as literal string, not regex (prevents ReDoS)
             '--max-depth', str(max_depth),      # Limit search depth
             '--max-filesize', f'{max_file_size_kb}K',  # Limit file size
             '--max-count', str(max_matches_per_file),  # Max matches per file

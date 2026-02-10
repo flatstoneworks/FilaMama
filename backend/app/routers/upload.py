@@ -44,12 +44,22 @@ async def upload_files(
 
             if rel_path:
                 # Folder upload: use the relative path to preserve structure
-                file_path = target_dir / rel_path
+                # Sanitize: reject path traversal attempts
+                if '..' in rel_path.split('/') or '..' in rel_path.split('\\'):
+                    raise HTTPException(status_code=400, detail=f"Invalid relative path: {rel_path}")
+                file_path = (target_dir / rel_path).resolve()
+                if not str(file_path).startswith(str(target_dir.resolve())):
+                    raise HTTPException(status_code=400, detail=f"Path traversal detected: {rel_path}")
                 # Create parent directories if they don't exist
                 file_path.parent.mkdir(parents=True, exist_ok=True)
             else:
-                # Regular file upload
-                file_path = target_dir / file.filename
+                # Regular file upload - sanitize filename
+                safe_name = Path(file.filename).name  # Strip any directory components
+                if not safe_name or safe_name in ('.', '..'):
+                    raise HTTPException(status_code=400, detail=f"Invalid filename: {file.filename}")
+                file_path = (target_dir / safe_name).resolve()
+                if not str(file_path).startswith(str(target_dir.resolve())):
+                    raise HTTPException(status_code=400, detail=f"Invalid filename: {file.filename}")
 
             if file_path.exists() and not overwrite:
                 base = file_path.stem
