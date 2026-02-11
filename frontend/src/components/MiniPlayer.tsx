@@ -143,14 +143,6 @@ export function MiniPlayer({
     }
   }, [isPlaying])
 
-  // Seek by offset (in seconds)
-  const seekBy = useCallback((offset: number) => {
-    if (!audioRef.current) return
-    const newTime = Math.max(0, Math.min(duration, audioRef.current.currentTime + offset))
-    audioRef.current.currentTime = newTime
-    setCurrentTime(newTime)
-  }, [duration])
-
   // Next track
   const playNext = useCallback(() => {
     if (playlist.length === 0) return
@@ -294,9 +286,11 @@ export function MiniPlayer({
   }, [])
 
   // Keyboard shortcuts
+  // Space: play/pause (file browser defers via isAudioPlayerOpen check)
+  // Shift+Arrow: prev/next track (file browser defers via isAudioPlayerOpen check)
+  // M: mute/unmute
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle if not typing in input
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
 
@@ -310,24 +304,24 @@ export function MiniPlayer({
             e.preventDefault()
             playPrev()
           }
-          // Don't handle bare ArrowLeft - let file browser use it
           break
         case 'ArrowRight':
           if (e.shiftKey) {
             e.preventDefault()
             playNext()
           }
-          // Don't handle bare ArrowRight - let file browser use it
           break
         case 'm':
-          toggleMute()
+          if (!e.ctrlKey && !e.metaKey) {
+            toggleMute()
+          }
           break
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [togglePlay, playPrev, playNext, seekBy])
+  }, [togglePlay, playPrev, playNext])
 
   if (!currentTrack) return null
 
@@ -406,6 +400,7 @@ export function MiniPlayer({
               className={cn('h-8 w-8', shuffle && 'text-primary')}
               onClick={() => setShuffle(!shuffle)}
               title="Shuffle"
+              aria-label={shuffle ? 'Shuffle on' : 'Shuffle off'}
             >
               <Shuffle className="h-4 w-4" />
             </Button>
@@ -416,6 +411,7 @@ export function MiniPlayer({
               className="h-8 w-8"
               onClick={playPrev}
               title="Previous (Shift+Left)"
+              aria-label="Previous track"
             >
               <SkipBack className="h-4 w-4" />
             </Button>
@@ -426,6 +422,7 @@ export function MiniPlayer({
               className="h-10 w-10 rounded-full"
               onClick={togglePlay}
               title="Play/Pause (Space)"
+              aria-label={isPlaying ? 'Pause' : 'Play'}
             >
               {isPlaying ? (
                 <Pause className="h-5 w-5" />
@@ -440,6 +437,7 @@ export function MiniPlayer({
               className="h-8 w-8"
               onClick={playNext}
               title="Next (Shift+Right)"
+              aria-label="Next track"
             >
               <SkipForward className="h-4 w-4" />
             </Button>
@@ -450,6 +448,7 @@ export function MiniPlayer({
               className={cn('h-8 w-8', repeat !== 'off' && 'text-primary')}
               onClick={toggleRepeat}
               title={`Repeat: ${repeat}`}
+              aria-label={`Repeat ${repeat}`}
             >
               {repeat === 'one' ? (
                 <Repeat1 className="h-4 w-4" />
@@ -472,6 +471,7 @@ export function MiniPlayer({
                 className="h-8 w-8"
                 onClick={toggleMute}
                 title="Mute (M)"
+                aria-label={isMuted ? 'Unmute' : 'Mute'}
               >
                 {isMuted || volume === 0 ? (
                   <VolumeX className="h-4 w-4" />
@@ -495,6 +495,7 @@ export function MiniPlayer({
               className="h-8 w-8"
               onClick={() => setShowExpanded(true)}
               title="Expand"
+              aria-label="Expand player"
             >
               <Maximize2 className="h-4 w-4" />
             </Button>
@@ -505,6 +506,7 @@ export function MiniPlayer({
               className="h-8 w-8"
               onClick={onClose}
               title="Close player"
+              aria-label="Close player"
             >
               <X className="h-4 w-4" />
             </Button>

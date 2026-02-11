@@ -124,7 +124,12 @@ export function useKeyboardShortcuts({
       }
 
       // Arrow key navigation
+      // Skip Shift+Left/Right when audio player is open (used for prev/next track)
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && displayedFiles.length > 0) {
+        if (isAudioPlayerOpen && e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+          return // Let MiniPlayer handle Shift+Left/Right for prev/next track
+        }
+
         e.preventDefault()
 
         const columns = viewMode === 'list' ? 1 : Math.max(1, Math.floor((window.innerWidth - 208) / (gridSize + 8)))

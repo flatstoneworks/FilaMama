@@ -141,6 +141,7 @@ export function FileList({
                     role="row"
                     aria-selected={isFileSelected(file, selectedFiles)}
                     aria-label={file.name}
+                    tabIndex={isFocused ? 0 : -1}
                     className={cn(
                       'group grid grid-cols-[auto_1fr_100px_150px] gap-4 px-4 py-2 text-sm cursor-pointer transition-colors h-full',
                       'hover:bg-accent/50',
@@ -157,16 +158,16 @@ export function FileList({
                     onDragLeave={(e) => handleDragLeave(e, file)}
                     onDrop={(e) => handleDrop(e, file)}
                   >
-                    {/* Checkbox - always visible */}
+                    {/* Checkbox - always visible with enlarged click area */}
                     <div
-                      className="flex items-center"
+                      className="flex items-center justify-center w-8 -ml-2 cursor-pointer"
                       onClick={createCheckboxClickHandler(file, onSelect)}
                     >
                       <Checkbox
                         checked={isFileSelected(file, selectedFiles)}
                         className={cn(
                           'h-4 w-4 transition-opacity',
-                          isFileSelected(file, selectedFiles) ? 'opacity-100' : 'opacity-50 group-hover:opacity-100'
+                          isFileSelected(file, selectedFiles) ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'
                         )}
                       />
                     </div>

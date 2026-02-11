@@ -79,6 +79,7 @@ export function FileGrid({
                 role="gridcell"
                 aria-label={file.name}
                 aria-selected={isFileSelected(file, selectedFiles)}
+                tabIndex={isFocused ? 0 : -1}
                 className={cn(
                   'group relative flex flex-col items-center p-2 rounded-lg cursor-pointer transition-colors',
                   'hover:bg-accent/50',
@@ -95,16 +96,16 @@ export function FileGrid({
                 onDragLeave={(e) => handleDragLeave(e, file)}
                 onDrop={(e) => handleDrop(e, file)}
               >
-              {/* Checkbox - always visible */}
+              {/* Checkbox - always visible with enlarged click area */}
               <div
-                className="absolute top-1 left-1 z-10"
+                className="absolute top-0 left-0 z-10 p-1.5 cursor-pointer"
                 onClick={createCheckboxClickHandler(file, onSelect)}
               >
                 <Checkbox
                   checked={isFileSelected(file, selectedFiles)}
                   className={cn(
                     'h-5 w-5 bg-background/80 backdrop-blur transition-opacity',
-                    isFileSelected(file, selectedFiles) ? 'opacity-100' : 'opacity-50 group-hover:opacity-100'
+                    isFileSelected(file, selectedFiles) ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'
                   )}
                 />
               </div>
