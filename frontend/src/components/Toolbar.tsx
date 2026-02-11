@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Grid, List, Upload, FolderPlus, FolderUp, Trash2, Copy, Scissors, Clipboard, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, ArchiveRestore } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
@@ -69,6 +70,12 @@ export function Toolbar({
   onRestore,
   onEmptyTrash,
 }: ToolbarProps) {
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const handleRefreshClick = () => {
+    setIsRefreshing(true)
+    onRefresh()
+    setTimeout(() => setIsRefreshing(false), 750)
+  }
   const handleSortClick = (field: SortField) => {
     if (!onSortChange) return
     if (field === sortBy) {
@@ -90,8 +97,8 @@ export function Toolbar({
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onRefresh} aria-label="Refresh">
-                <RefreshCw className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleRefreshClick} aria-label="Refresh">
+                <RefreshCw className={`h-4 w-4 transition-transform ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Refresh</TooltipContent>

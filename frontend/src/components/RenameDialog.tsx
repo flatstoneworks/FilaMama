@@ -22,6 +22,12 @@ function validateName(name: string): string | null {
   return null
 }
 
+function getExtension(name: string): string {
+  const lastDot = name.lastIndexOf('.')
+  if (lastDot <= 0) return ''
+  return name.slice(lastDot).toLowerCase()
+}
+
 export function RenameDialog({
   open,
   onOpenChange,
@@ -36,6 +42,9 @@ export function RenameDialog({
   }, [currentName, open])
 
   const validationError = validateName(newName)
+  const extensionChanged = currentName && newName.trim() &&
+    getExtension(currentName) !== '' &&
+    getExtension(currentName) !== getExtension(newName.trim())
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -70,6 +79,9 @@ export function RenameDialog({
               />
               {validationError && (
                 <p className="text-xs text-destructive">{validationError}</p>
+              )}
+              {extensionChanged && !validationError && (
+                <p className="text-xs text-amber-500">Changing the file extension may make it unreadable</p>
               )}
             </div>
           </div>

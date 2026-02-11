@@ -1,6 +1,6 @@
 import { ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu'
 import { isPreviewable } from './FileIcon'
-import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen, Star, StarOff, ArchiveRestore } from 'lucide-react'
+import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen, Star, StarOff, ArchiveRestore, ExternalLink } from 'lucide-react'
 import type { FileInfo } from '@/api/client'
 import { getSelectedOrSingle } from '@/lib/utils'
 
@@ -79,6 +79,10 @@ export function FileContextMenu({
           <ContextMenuItem onClick={() => onOpen(file)}>
             <FolderOpen className="mr-2 h-4 w-4" />
             Open
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => window.open(`/browse${file.path}`, '_blank')}>
+            <ExternalLink className="mr-2 h-4 w-4" />
+            Open in New Tab
           </ContextMenuItem>
           {isFileFavorite ? (
             <ContextMenuItem onClick={() => onRemoveFavorite?.(file.path)}>

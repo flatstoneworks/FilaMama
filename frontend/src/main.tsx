@@ -8,6 +8,7 @@ import { FilesPage } from '@/pages/FilesPage'
 import { PreviewPage } from '@/pages/PreviewPage'
 import { AudioPlayerProvider, useAudioPlayer } from '@/contexts/AudioPlayerContext'
 import { MiniPlayer } from '@/components/MiniPlayer'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import './index.css'
 
 const queryClient = new QueryClient({
@@ -32,6 +33,7 @@ function GlobalAudioPlayer() {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <AudioPlayerProvider>
         <BrowserRouter>
@@ -47,5 +49,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         </BrowserRouter>
       </AudioPlayerProvider>
     </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 )

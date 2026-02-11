@@ -100,7 +100,7 @@ export function Sidebar({
             <nav className="space-y-0.5">
               {favorites.length === 0 ? (
                 <p className="text-xs text-muted-foreground px-2 py-1">
-                  No favorites yet
+                  Right-click a folder to add
                 </p>
               ) : (
                 favorites.map((path) => {

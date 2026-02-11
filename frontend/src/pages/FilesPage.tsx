@@ -651,6 +651,8 @@ export function FilesPage() {
                         gridSize={gridSize}
                         focusedIndex={focusedIndex}
                         trashMode={isTrashView}
+                        showPath={isFilenameSearchActive}
+                        basePath={currentPath}
                         onSelect={selectFile}
                         onOpen={handleOpenFile}
                         onRename={setRenameFile}
@@ -671,6 +673,8 @@ export function FilesPage() {
                         selectedFiles={selectedFiles}
                         focusedIndex={focusedIndex}
                         trashMode={isTrashView}
+                        showPath={isFilenameSearchActive}
+                        basePath={currentPath}
                         onSelect={selectFile}
                         onOpen={handleOpenFile}
                         onRename={setRenameFile}

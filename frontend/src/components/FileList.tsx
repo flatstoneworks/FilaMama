@@ -12,11 +12,20 @@ import { useDragAndDrop } from '@/hooks/useDragAndDrop'
 
 const ROW_HEIGHT = 40
 
+function getRelativeDir(filePath: string, basePath: string): string {
+  const dir = filePath.substring(0, filePath.lastIndexOf('/'))
+  const prefix = basePath === '/' ? '' : basePath
+  if (dir === prefix) return ''
+  return dir.substring(prefix.length).replace(/^\//, '') + '/'
+}
+
 interface FileListProps {
   files: FileInfo[]
   selectedFiles: Set<string>
   focusedIndex?: number
   trashMode?: boolean
+  showPath?: boolean
+  basePath?: string
   onSelect: (file: FileInfo, e: React.MouseEvent) => void
   onOpen: (file: FileInfo) => void
   onRename: (file: FileInfo) => void
@@ -38,6 +47,8 @@ export function FileList({
   selectedFiles,
   focusedIndex = -1,
   trashMode,
+  showPath,
+  basePath,
   onSelect,
   onOpen,
   onRename,
@@ -184,9 +195,19 @@ export function FileList({
                       ) : (
                         <FileIcon name={file.name} isDirectory={file.is_directory ?? false} size={20} />
                       )}
-                      <span className="truncate" title={file.name}>
-                        {file.name}
-                      </span>
+                      <div className="flex flex-col min-w-0">
+                        <span className="truncate" title={file.name}>
+                          {file.name}
+                        </span>
+                        {showPath && basePath && (() => {
+                          const rel = getRelativeDir(file.path, basePath)
+                          return rel ? (
+                            <span className="text-[10px] text-muted-foreground/60 truncate" title={rel}>
+                              {rel}
+                            </span>
+                          ) : null
+                        })()}
+                      </div>
                     </div>
                     <div className="text-right text-muted-foreground">
                       {getFolderSizeDisplay(file)}

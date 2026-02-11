@@ -60,15 +60,11 @@ async function getFilesFromDataTransfer(items: DataTransferItemList): Promise<Fi
   const files: File[] = []
   const entries: FileSystemEntry[] = []
 
-  console.log('[getFilesFromDataTransfer] Processing', items.length, 'items')
-
   // Get all entries first
   for (let i = 0; i < items.length; i++) {
     const item = items[i]
-    console.log('[getFilesFromDataTransfer] Item', i, ':', item.kind, item.type)
     if (item.kind === 'file') {
       const entry = item.webkitGetAsEntry()
-      console.log('[getFilesFromDataTransfer] Entry:', entry?.name, 'isDir:', entry?.isDirectory)
       if (entry) {
         entries.push(entry)
       }
@@ -84,9 +80,7 @@ async function getFilesFromDataTransfer(items: DataTransferItemList): Promise<Fi
       })
       files.push(file)
     } else if (entry.isDirectory) {
-      console.log('[getFilesFromDataTransfer] Reading directory:', entry.name)
       const dirFiles = await readDirectoryEntries(entry as FileSystemDirectoryEntry, entry.name)
-      console.log('[getFilesFromDataTransfer] Got', dirFiles.length, 'files from directory')
       files.push(...dirFiles)
     }
   }
@@ -131,8 +125,6 @@ export function UploadDropzone({ onUpload, onPreparing, children }: UploadDropzo
       setIsDragging(false)
       setDragCounter(0)
 
-      console.log('[UploadDropzone] Drop event, items:', e.dataTransfer.items?.length)
-
       if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
         // Notify that we're preparing/scanning folders
         onPreparing?.(true)
@@ -140,7 +132,6 @@ export function UploadDropzone({ onUpload, onPreparing, children }: UploadDropzo
         try {
           // Use webkitGetAsEntry to handle both files and folders
           const files = await getFilesFromDataTransfer(e.dataTransfer.items)
-          console.log('[UploadDropzone] Got files:', files.length, files.map(f => ({ name: f.name, path: (f as any).customRelativePath || (f as any).webkitRelativePath })))
           if (files.length > 0) {
             // Pass files array directly to preserve customRelativePath property
             onUpload(files)

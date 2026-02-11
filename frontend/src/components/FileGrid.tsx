@@ -11,12 +11,21 @@ import { api } from '@/api/client'
 import { cn, isFileSelected, createCheckboxClickHandler, isVideoFile, videoNeedsTranscoding } from '@/lib/utils'
 import { useDragAndDrop } from '@/hooks/useDragAndDrop'
 
+function getRelativeDir(filePath: string, basePath: string): string {
+  const dir = filePath.substring(0, filePath.lastIndexOf('/'))
+  const prefix = basePath === '/' ? '' : basePath
+  if (dir === prefix) return ''
+  return dir.substring(prefix.length).replace(/^\//, '') + '/'
+}
+
 interface FileGridProps {
   files: FileInfo[]
   selectedFiles: Set<string>
   gridSize: number
   focusedIndex?: number
   trashMode?: boolean
+  showPath?: boolean
+  basePath?: string
   onSelect: (file: FileInfo, e: React.MouseEvent) => void
   onOpen: (file: FileInfo) => void
   onRename: (file: FileInfo) => void
@@ -38,6 +47,8 @@ export function FileGrid({
   gridSize,
   focusedIndex = -1,
   trashMode,
+  showPath,
+  basePath,
   onSelect,
   onOpen,
   onRename,
@@ -170,6 +181,14 @@ export function FileGrid({
               >
                 {file.name}
               </span>
+              {showPath && basePath && (() => {
+                const rel = getRelativeDir(file.path, basePath)
+                return rel ? (
+                  <span className="text-[10px] text-muted-foreground/60 truncate w-full text-center px-1" title={rel}>
+                    {rel}
+                  </span>
+                ) : null
+              })()}
             </div>
           </ContextMenuTrigger>
           <FileContextMenu
