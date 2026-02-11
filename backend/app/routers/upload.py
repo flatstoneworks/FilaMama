@@ -13,11 +13,13 @@ from ..utils.error_handlers import handle_fs_errors
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 
 fs_service: FilesystemService = None
+max_upload_bytes: int = 0
 
 
-def init_services(filesystem: FilesystemService):
-    global fs_service
+def init_services(filesystem: FilesystemService, max_size_mb: int = 10240):
+    global fs_service, max_upload_bytes
     fs_service = filesystem
+    max_upload_bytes = max_size_mb * 1024 * 1024
 
 
 @router.post("")
@@ -28,6 +30,8 @@ async def upload_files(
     overwrite: bool = Form(False),
     relative_paths: Optional[str] = Form(None),
 ):
+    if fs_service is None:
+        raise HTTPException(status_code=503, detail="Upload service not initialized")
     logger.debug("Upload: path=%s, relative_paths=%s, files=%s", path, relative_paths, [f.filename for f in files])
     target_dir = fs_service.get_absolute_path(path)
 
@@ -75,7 +79,16 @@ async def upload_files(
                     counter += 1
 
             async with aiofiles.open(file_path, 'wb') as f:
+                bytes_written = 0
                 while chunk := await file.read(1024 * 1024):
+                    bytes_written += len(chunk)
+                    if max_upload_bytes and bytes_written > max_upload_bytes:
+                        await f.close()
+                        file_path.unlink(missing_ok=True)
+                        raise HTTPException(
+                            status_code=413,
+                            detail=f"File exceeds maximum upload size ({max_upload_bytes // (1024*1024)}MB)",
+                        )
                     await f.write(chunk)
 
             uploaded.append({

@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from ..models.schemas import DeleteRequest
 from ..services.trash import TrashService
@@ -9,6 +9,12 @@ router = APIRouter(prefix="/api/trash", tags=["trash"])
 trash_service: TrashService = None
 
 
+def _require_trash():
+    if trash_service is None:
+        raise HTTPException(status_code=503, detail="Trash service not initialized")
+    return trash_service
+
+
 def init_services(trash: TrashService):
     global trash_service
     trash_service = trash
@@ -17,7 +23,8 @@ def init_services(trash: TrashService):
 @router.post("/move-to-trash")
 @handle_fs_errors
 async def move_to_trash(request: DeleteRequest):
-    count = await trash_service.move_to_trash(request.paths)
+    svc = _require_trash()
+    count = await svc.move_to_trash(request.paths)
     return {"moved": count}
 
 

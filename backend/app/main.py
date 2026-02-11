@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
     logger.info("Root path: %s", config['root_path'])
     logger.info("Server: http://%s:%s", config['server']['host'], config['server']['port'])
     files.init_services(fs_service, thumb_service, audio_service, transcode_service)
-    upload.init_services(fs_service)
+    upload.init_services(fs_service, max_size_mb=config["upload"]["max_size_mb"])
     trash.init_services(trash_service)
     yield
     logger.info("FilaMama shutting down...")

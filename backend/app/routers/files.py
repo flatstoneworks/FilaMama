@@ -26,6 +26,12 @@ audio_service: AudioMetadataService = None
 transcode_service: TranscodingService = None
 
 
+def _require_fs():
+    if fs_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+    return fs_service
+
+
 def init_services(
     filesystem: FilesystemService,
     thumbnails: ThumbnailService,
@@ -47,7 +53,8 @@ async def list_directory(
     sort_order: SortOrder = SortOrder.ASC,
     show_hidden: bool = False,
 ):
-    return await fs_service.list_directory(path, sort_by, sort_order, show_hidden)
+    svc = _require_fs()
+    return await svc.list_directory(path, sort_by, sort_order, show_hidden)
 
 
 @router.get("/info", response_model=FileInfo)
@@ -172,9 +179,13 @@ async def download_file(path: str):
 
 
 @router.post("/download-zip")
+@handle_fs_errors
 async def download_zip(paths: List[str]):
+    MAX_ZIP_SIZE = 4 * 1024 * 1024 * 1024  # 4GB limit
+
     def generate_zip():
         buffer = io.BytesIO()
+        total_size = 0
         with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
             for path in paths:
                 try:
@@ -182,30 +193,35 @@ async def download_zip(paths: List[str]):
                     if not file_path.exists():
                         continue
                     if file_path.is_file():
+                        total_size += file_path.stat().st_size
+                        if total_size > MAX_ZIP_SIZE:
+                            raise HTTPException(status_code=413, detail="Zip would exceed 4GB size limit")
                         zf.write(file_path, file_path.name)
                     else:
-                        for root, dirs, files in file_path.walk():
+                        for root, dirs, files_in_dir in file_path.walk():
                             dirs[:] = [d for d in dirs if not d.startswith('.')]
-                            for file in files:
+                            for file in files_in_dir:
                                 if file.startswith('.'):
                                     continue
                                 full_path = root / file
+                                total_size += full_path.stat().st_size
+                                if total_size > MAX_ZIP_SIZE:
+                                    raise HTTPException(status_code=413, detail="Zip would exceed 4GB size limit")
                                 arcname = str(full_path.relative_to(file_path.parent))
                                 zf.write(full_path, arcname)
+                except HTTPException:
+                    raise
                 except (ValueError, PermissionError):
                     continue
         buffer.seek(0)
         return buffer.getvalue()
 
-    try:
-        zip_content = generate_zip()
-        return StreamingResponse(
-            io.BytesIO(zip_content),
-            media_type="application/zip",
-            headers={"Content-Disposition": "attachment; filename=download.zip"},
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    zip_content = generate_zip()
+    return StreamingResponse(
+        io.BytesIO(zip_content),
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=download.zip"},
+    )
 
 
 @router.get("/thumbnail")
@@ -253,6 +269,26 @@ async def save_text_content(path: str, content: str):
     return OperationSuccess(success=True, message="File saved successfully")
 
 
+STREAM_MIME_TYPES = {
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm',
+    '.mkv': 'video/x-matroska',
+    '.avi': 'video/x-msvideo',
+    '.mov': 'video/quicktime',
+    '.flv': 'video/x-flv',
+    '.wmv': 'video/x-ms-wmv',
+    '.m4v': 'video/mp4',
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.flac': 'audio/flac',
+    '.aac': 'audio/aac',
+    '.ogg': 'audio/ogg',
+    '.m4a': 'audio/mp4',
+    '.wma': 'audio/x-ms-wma',
+    '.opus': 'audio/opus',
+}
+
+
 @router.get("/stream")
 @handle_fs_errors
 async def stream_file(path: str, request: Request):
@@ -263,93 +299,8 @@ async def stream_file(path: str, request: Request):
     if file_path.is_dir():
         raise HTTPException(status_code=400, detail="Cannot stream directory")
 
-    file_size = file_path.stat().st_size
-
-    # Determine MIME type based on extension
-    ext = file_path.suffix.lower()
-    mime_types = {
-        '.mp4': 'video/mp4',
-        '.webm': 'video/webm',
-        '.mkv': 'video/x-matroska',
-        '.avi': 'video/x-msvideo',
-        '.mov': 'video/quicktime',
-        '.flv': 'video/x-flv',
-        '.wmv': 'video/x-ms-wmv',
-        '.m4v': 'video/mp4',
-        '.mp3': 'audio/mpeg',
-        '.wav': 'audio/wav',
-        '.flac': 'audio/flac',
-        '.aac': 'audio/aac',
-        '.ogg': 'audio/ogg',
-        '.m4a': 'audio/mp4',
-        '.wma': 'audio/x-ms-wma',
-        '.opus': 'audio/opus',
-    }
-    content_type = mime_types.get(ext, 'application/octet-stream')
-
-    # Parse Range header
-    range_header = request.headers.get('range')
-
-    if range_header:
-        # Parse "bytes=start-end" format
-        try:
-            range_spec = range_header.replace('bytes=', '')
-            parts = range_spec.split('-')
-            start = int(parts[0]) if parts[0] else 0
-            end = int(parts[1]) if parts[1] else file_size - 1
-        except (ValueError, IndexError):
-            raise HTTPException(status_code=416, detail="Invalid range header")
-
-        # Validate range
-        if start >= file_size or end >= file_size or start > end:
-            raise HTTPException(
-                status_code=416,
-                detail="Range not satisfiable",
-                headers={'Content-Range': f'bytes */{file_size}'}
-            )
-
-        chunk_size = end - start + 1
-
-        async def range_generator():
-            async with aiofiles.open(file_path, 'rb') as f:
-                await f.seek(start)
-                remaining = chunk_size
-                while remaining > 0:
-                    read_size = min(8192, remaining)
-                    data = await f.read(read_size)
-                    if not data:
-                        break
-                    remaining -= len(data)
-                    yield data
-
-        return StreamingResponse(
-            range_generator(),
-            status_code=206,
-            media_type=content_type,
-            headers={
-                'Content-Range': f'bytes {start}-{end}/{file_size}',
-                'Accept-Ranges': 'bytes',
-                'Content-Length': str(chunk_size),
-            }
-        )
-    else:
-        # No Range header - return full file
-        async def file_generator():
-            async with aiofiles.open(file_path, 'rb') as f:
-                while True:
-                    data = await f.read(8192)
-                    if not data:
-                        break
-                    yield data
-
-        return StreamingResponse(
-            file_generator(),
-            media_type=content_type,
-            headers={
-                'Accept-Ranges': 'bytes',
-                'Content-Length': str(file_size),
-            }
-        )
+    content_type = STREAM_MIME_TYPES.get(file_path.suffix.lower(), 'application/octet-stream')
+    return await _serve_file_with_ranges(file_path, content_type, request)
 
 
 async def _serve_file_with_ranges(file_path, content_type: str, request: Request):

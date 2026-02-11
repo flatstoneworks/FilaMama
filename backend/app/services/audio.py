@@ -25,13 +25,16 @@ class AudioMetadataService:
     SUPPORTED_EXTENSIONS = {'.mp3', '.flac', '.ogg', '.m4a', '.mp4', '.wav', '.wma', '.aac', '.opus'}
 
     def __init__(self, root_path: Path):
-        self.root_path = root_path
+        self.root_path = Path(root_path).resolve()
 
     def get_absolute_path(self, relative_path: str) -> Path:
-        """Convert relative path to absolute path."""
+        """Convert relative path to absolute path with bounds checking."""
         if relative_path.startswith('/'):
             relative_path = relative_path[1:]
-        return self.root_path / relative_path
+        full_path = (self.root_path / relative_path).resolve()
+        if not str(full_path).startswith(str(self.root_path.resolve())):
+            raise ValueError("Path traversal attempt detected")
+        return full_path
 
     def is_supported(self, file_path: Path) -> bool:
         """Check if file type is supported for metadata extraction."""
