@@ -28,6 +28,7 @@ interface ToolbarProps {
   itemCount: number
   selectedCount: number
   hasClipboard: boolean
+  clipboardInfo?: { count: number; operation: 'copy' | 'cut' } | null
   isTrashView?: boolean
   sortBy?: SortField
   sortOrder?: SortOrder
@@ -52,6 +53,7 @@ export function Toolbar({
   itemCount,
   selectedCount,
   hasClipboard,
+  clipboardInfo,
   isTrashView,
   sortBy = 'name',
   sortOrder = 'asc',
@@ -156,16 +158,23 @@ export function Toolbar({
             </>
           )}
 
-          {/* Paste action */}
+          {/* Paste action with clipboard indicator */}
           {hasClipboard && !isTrashView && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onPaste} aria-label="Paste">
-                  <Clipboard className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Paste</TooltipContent>
-            </Tooltip>
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onPaste} aria-label="Paste">
+                    <Clipboard className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Paste</TooltipContent>
+              </Tooltip>
+              {clipboardInfo && (
+                <span className="text-xs text-muted-foreground">
+                  {clipboardInfo.count} {clipboardInfo.operation === 'cut' ? 'cut' : 'copied'}
+                </span>
+              )}
+            </>
           )}
 
           {/* Empty Trash button */}

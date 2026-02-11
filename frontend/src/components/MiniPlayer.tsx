@@ -327,7 +327,7 @@ export function MiniPlayer({
 
   return (
     <>
-      <div className="fixed bottom-0 left-52 right-0 bg-background border-t shadow-lg z-50">
+      <div className="fixed bottom-0 right-0 bg-background border-t shadow-lg z-50" style={{ left: 'var(--sidebar-width)' }}>
         <audio
           ref={audioRef}
           src={currentTrack.url}

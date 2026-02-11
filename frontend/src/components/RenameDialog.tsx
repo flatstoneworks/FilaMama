@@ -12,6 +12,16 @@ interface RenameDialogProps {
   isLoading?: boolean
 }
 
+const INVALID_CHARS = /[/\\:*?"<>|]/
+const INVALID_CHARS_DISPLAY = '/ \\ : * ? " < > |'
+
+function validateName(name: string): string | null {
+  if (!name.trim()) return null
+  if (INVALID_CHARS.test(name)) return `Name cannot contain: ${INVALID_CHARS_DISPLAY}`
+  if (name.trim() === '.' || name.trim() === '..') return 'Invalid name'
+  return null
+}
+
 export function RenameDialog({
   open,
   onOpenChange,
@@ -25,9 +35,11 @@ export function RenameDialog({
     setNewName(currentName)
   }, [currentName, open])
 
+  const validationError = validateName(newName)
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (newName.trim() && newName !== currentName) {
+    if (newName.trim() && newName !== currentName && !validationError) {
       onRename(newName.trim())
     }
   }
@@ -56,13 +68,16 @@ export function RenameDialog({
                   }
                 }}
               />
+              {validationError && (
+                <p className="text-xs text-destructive">{validationError}</p>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!newName.trim() || newName === currentName || isLoading}>
+            <Button type="submit" disabled={!newName.trim() || newName === currentName || !!validationError || isLoading}>
               {isLoading ? 'Renaming...' : 'Rename'}
             </Button>
           </DialogFooter>

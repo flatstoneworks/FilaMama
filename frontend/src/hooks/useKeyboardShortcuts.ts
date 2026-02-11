@@ -132,7 +132,8 @@ export function useKeyboardShortcuts({
 
         e.preventDefault()
 
-        const columns = viewMode === 'list' ? 1 : Math.max(1, Math.floor((window.innerWidth - 208) / (gridSize + 8)))
+        const sidebarWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width')) * 16 || 208
+        const columns = viewMode === 'list' ? 1 : Math.max(1, Math.floor((window.innerWidth - sidebarWidth) / (gridSize + 8)))
 
         let newIndex = focusedIndex
         if (focusedIndex === -1) {

@@ -493,6 +493,7 @@ export function FilesPage() {
             itemCount={filteredFiles.length}
             selectedCount={selectedFiles.size}
             hasClipboard={!!clipboard}
+            clipboardInfo={clipboard ? { count: clipboard.files.length, operation: clipboard.operation } : null}
             isTrashView={isTrashView}
             sortBy={sortBy}
             sortOrder={sortOrder}
@@ -728,6 +729,7 @@ export function FilesPage() {
           <UploadProgress
             uploads={uploads}
             isPreparing={isPreparingUpload}
+            isPlayerOpen={isPlayerOpen}
             onDismiss={dismissUpload}
             onDismissAll={dismissAllUploads}
             onRetry={handleRetry}

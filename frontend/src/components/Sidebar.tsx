@@ -89,7 +89,7 @@ export function Sidebar({
     ? buildContentTypes(serverContentTypes)
     : contentTypes
   return (
-    <nav aria-label="File browser navigation" className="w-52 border-r bg-muted/30 flex flex-col">
+    <nav aria-label="File browser navigation" className="border-r bg-muted/30 flex flex-col" style={{ width: 'var(--sidebar-width)' }}>
       <ScrollArea className="flex-1">
         <div className="p-3">
           {/* Favorites - on top */}
@@ -227,7 +227,7 @@ export function Sidebar({
           {/* Content Type */}
           <div>
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 px-2">
-              Content Type
+              File Types
             </h3>
             <nav className="space-y-0.5">
               {resolvedContentTypes.map((item) => (

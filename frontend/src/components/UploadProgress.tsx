@@ -22,12 +22,13 @@ export interface UploadItem {
 interface UploadProgressProps {
   uploads: UploadItem[]
   isPreparing?: boolean
+  isPlayerOpen?: boolean
   onDismiss: (id: string) => void
   onDismissAll: () => void
   onRetry?: (item: UploadItem) => void
 }
 
-export function UploadProgress({ uploads, isPreparing, onDismiss, onDismissAll, onRetry }: UploadProgressProps) {
+export function UploadProgress({ uploads, isPreparing, isPlayerOpen, onDismiss, onDismissAll, onRetry }: UploadProgressProps) {
   // Show panel if preparing or if there are uploads
   if (!isPreparing && uploads.length === 0) return null
 
@@ -45,7 +46,7 @@ export function UploadProgress({ uploads, isPreparing, onDismiss, onDismissAll, 
   const overallETA = totalSpeed > 0 ? totalRemaining / totalSpeed : 0
 
   return (
-    <div className="fixed bottom-4 right-4 w-96 bg-background border rounded-lg shadow-lg z-50">
+    <div className={`fixed right-4 w-96 bg-background border rounded-lg shadow-lg z-50 ${isPlayerOpen ? 'bottom-20' : 'bottom-4'}`}>
       {/* Header */}
       <div className="flex items-center justify-between p-3 border-b">
         <div className="flex flex-col gap-0.5">

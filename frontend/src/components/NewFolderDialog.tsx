@@ -11,6 +11,16 @@ interface NewFolderDialogProps {
   isLoading?: boolean
 }
 
+const INVALID_CHARS = /[/\\:*?"<>|]/
+const INVALID_CHARS_DISPLAY = '/ \\ : * ? " < > |'
+
+function validateName(name: string): string | null {
+  if (!name.trim()) return null
+  if (INVALID_CHARS.test(name)) return `Name cannot contain: ${INVALID_CHARS_DISPLAY}`
+  if (name.trim() === '.' || name.trim() === '..') return 'Invalid name'
+  return null
+}
+
 export function NewFolderDialog({
   open,
   onOpenChange,
@@ -19,9 +29,11 @@ export function NewFolderDialog({
 }: NewFolderDialogProps) {
   const [name, setName] = useState('')
 
+  const validationError = validateName(name)
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (name.trim()) {
+    if (name.trim() && !validationError) {
       onCreate(name.trim())
       setName('')
     }
@@ -49,13 +61,16 @@ export function NewFolderDialog({
                 placeholder="Untitled Folder"
                 autoFocus
               />
+              {validationError && (
+                <p className="text-xs text-destructive">{validationError}</p>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!name.trim() || isLoading}>
+            <Button type="submit" disabled={!name.trim() || !!validationError || isLoading}>
               {isLoading ? 'Creating...' : 'Create'}
             </Button>
           </DialogFooter>

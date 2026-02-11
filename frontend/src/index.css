@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    --sidebar-width: 13rem; /* 208px — used by Sidebar, MiniPlayer, keyboard nav */
     --background: 0 0% 4%;
     --foreground: 0 0% 95%;
     --card: 0 0% 6%;
