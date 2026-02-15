@@ -51,6 +51,22 @@ logs/
 # Thumbnails cache
 data/thumbnails/
 
+# Runtime data
+backend/data/
+data/
+
+# Test output
+frontend/playwright-report/
+frontend/test-results/
+
+# TypeScript build cache
+frontend/tsconfig.tsbuildinfo
+frontend/tsconfig.node.tsbuildinfo
+
+# Vite build artifacts
+frontend/vite.config.d.ts
+frontend/vite.config.js
+
 # Environment
 .env
 .env.local
