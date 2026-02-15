@@ -107,10 +107,12 @@ app = FastAPI(
 if cors_origins_override:
     cors_origins = [o.strip() for o in cors_origins_override.split(",") if o.strip()]
 else:
+    port = config["server"]["port"]
     cors_origins = [
-        "http://spark.local:1030",   # Production frontend
-        "http://spark.local:8010",   # Dev frontend
-        "http://localhost:8010",     # Dev fallback
+        f"http://spark.local:{port}",  # Self-origin (unified service)
+        "http://spark.local:1030",     # Legacy production frontend
+        "http://spark.local:8010",     # Dev frontend
+        "http://localhost:8010",       # Dev fallback
     ]
 
 app.add_middleware(
