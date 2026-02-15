@@ -1,148 +1,181 @@
 # FilaMama
 
-A fast, beautiful file manager web application built with React and FastAPI. Features a Spotify-style audio player with metadata and cover art, video timeline scrubbing, syntax-highlighted code previews, recursive search, and parallel uploads.
+A fast, beautiful file manager web application. Browse, preview, and manage your files from any browser.
 
-![FilaMama Screenshot](https://img.shields.io/badge/Status-Active-brightgreen)
-
-## Tech Stack
-
-**Frontend:**
-- React 18 + TypeScript
-- Vite (dev server & build)
-- TanStack Query (data fetching)
-- Tailwind CSS + shadcn/ui (styling)
-- Radix UI (accessible components)
-- Lucide React (icons)
-- react-syntax-highlighter (code highlighting)
-- react-pdf (PDF viewing)
-
-**Backend:**
-- FastAPI (Python)
-- Pydantic (validation)
-- python-magic (MIME detection)
-- Pillow (image thumbnails)
-- aiofiles (async file I/O)
-- ffmpeg (video thumbnails)
-- mutagen (audio metadata & cover art extraction)
+Built with React + FastAPI. Single-process deployment — the backend serves both the API and the frontend.
 
 ## Features
 
-### File Management
-- **Grid & List Views** - Toggle between views with adjustable thumbnail size slider
-- **Breadcrumb Navigation** - Click any path segment to navigate
-- **File Operations** - Copy, cut, paste, rename, delete, move, create folder
-- **Drag & Drop Upload** - Upload files/folders by dragging onto the browser
-- **Drag & Drop Moving** - Drag files/folders onto folders to move them
-- **Multi-Selection** - Click checkboxes or Ctrl/Cmd+Click to select multiple files
-- **Context Menu** - Right-click for quick actions
-- **Favorites** - Bookmark folders for quick access (right-click → Add to Favorites)
-- **Arrow Key Navigation** - Navigate files with arrow keys, Shift+Arrow to extend selection
+- **Grid & List views** with adjustable thumbnail sizes
+- **File operations** — copy, cut, paste, rename, delete, move, create folder
+- **Drag & drop** — upload files/folders, move files between folders
+- **Trash** — soft-delete with restore, permanent delete, empty trash
+- **Audio mini-player** — Spotify-style player with playlist, shuffle, repeat, cover art, and metadata (MP3, FLAC, OGG, M4A, WAV, WMA, OPUS)
+- **Video player** — custom controls, keyboard shortcuts, timeline scrub preview on hover
+- **Video transcoding** — FFmpeg streaming for non-native formats (.avi, .wmv, .flv, etc.)
+- **Code preview** — syntax highlighting for 50+ languages, hover preview in grid
+- **PDF viewer** — page navigation, zoom (50%-300%)
+- **Search** — recursive filename search with debounce, file content search (ripgrep)
+- **Content filters** — quick sidebar filters for Photos, Videos, GIFs, PDFs, Audio
+- **Favorites** — right-click folders to bookmark them
+- **Keyboard navigation** — full arrow key nav, selection, shortcuts (press `?` for help)
+- **Mount points** — access directories outside the root path
+- **Parallel uploads** — 3 concurrent with speed, ETA, retry
 
-### Upload Experience
-- **Parallel Uploads** - 3 concurrent uploads for faster batch transfers
-- **Speed & ETA Display** - Real-time upload speed (MB/s) and time remaining
-- **Progress Tracking** - Individual and overall progress indicators
-- **Retry Failed Uploads** - One-click retry for failed uploads
-- **Client-Side Validation** - Size limit warnings before upload begins
-- **Better Error Messages** - Detailed error feedback from server
+## Quick Start
 
-### Preview & Viewing
+### Option 1: Docker (easiest)
 
-#### Video Preview
-- **Custom Video Player** - Full-featured player with keyboard controls
-- **Timeline Scrubbing on Hover** - Move mouse over video thumbnails to preview different frames
-- **Playback Speed Control** - 0.5x to 2x speed options
-- **Fullscreen Support** - Press F for fullscreen mode
+```bash
+git clone https://github.com/flatstoneworks/FilaMama.git
+cd FilaMama
+docker compose up
+```
 
-#### Code & Text Preview
-- **50+ File Types Supported** - JavaScript, Python, Shell, JSON, YAML, Markdown, and many more
-- **Syntax Highlighting** - Beautiful code coloring with oneDark theme
-- **Line Numbers** - Easy code navigation in full preview
-- **Hover Preview** - See first 12 lines of code by hovering in grid view
+Browse your home directory at `http://localhost:1031`
 
-**Supported Languages:**
-| Category | Extensions |
-|----------|------------|
-| JavaScript/TypeScript | `.js`, `.ts`, `.jsx`, `.tsx`, `.mjs`, `.cjs` |
-| Python | `.py`, `.pyw`, `.pyx` |
-| Shell | `.sh`, `.bash`, `.zsh`, `.ps1`, `.bat`, `.cmd` |
-| Web | `.html`, `.css`, `.scss`, `.sass`, `.less` |
-| Data | `.json`, `.xml`, `.yaml`, `.yml`, `.toml` |
-| C/C++/Java | `.c`, `.cpp`, `.h`, `.java`, `.cs`, `.go`, `.rs` |
-| Config | `.ini`, `.cfg`, `.conf`, `.env`, `.properties` |
-| Text | `.txt`, `.md`, `.log`, `.rst` |
+To browse a different directory:
 
-#### Audio Mini-Player (Spotify-style)
-- **Global Player** - Persists across all pages (file browser, preview, etc.)
-- **Playlist Mode** - Click any audio file to play all audio files in the current folder
-- **Playback Controls** - Play/pause, previous/next track, progress bar with seek
-- **Shuffle & Repeat** - Shuffle mode, repeat modes (off, repeat all, repeat one)
-- **Volume Control** - Volume slider with mute toggle
-- **Metadata Display** - Shows title, artist, album extracted from ID3/Vorbis tags
-- **Cover Art** - Displays embedded album artwork from audio files
-- **Keyboard Shortcuts** - Space (play/pause), Shift+Arrow (prev/next), M (mute)
+```bash
+BROWSE_PATH=/path/to/files docker compose up
+```
 
-**Supported Audio Formats:**
-| Format | Metadata Support |
-|--------|------------------|
-| MP3 | ID3v1, ID3v2 tags |
-| FLAC | Vorbis comments |
-| OGG | Vorbis comments |
-| M4A/AAC | iTunes-style tags |
-| WAV | Basic metadata |
-| WMA | ASF metadata |
-| OPUS | Vorbis comments |
+### Option 2: Install Script (Linux & macOS)
 
-#### Other Previews
-- **Image Preview** - Full-size image viewing with navigation
-- **PDF Viewer** - Page navigation, zoom controls (50%-300%), text selection
-- **Thumbnails** - Auto-generated for images (including SVG), videos, and GIFs
+```bash
+git clone https://github.com/flatstoneworks/FilaMama.git
+cd FilaMama
+./install-filamama.sh
+```
 
-### Search & Navigation
-- **Recursive Filename Search** - Search files in current folder and all subfolders
-- **File Content Search** - Search inside text/code files (click document icon to enable)
-- **300ms Debounce** - Smooth typing experience without lag
-- **Truncation Warning** - Shows when results exceed limit
-- **Content Type Filters** - Quick filters for Photos, Videos, GIFs, PDFs, Audio
-- **URL-Based State** - Bookmarkable views, browser back/forward support
-- **Scroll Restoration** - Returns to previous scroll position when navigating back
+The script will:
+1. Install system dependencies (ffmpeg, ripgrep, libmagic, cairo, python3, node)
+2. Create Python venv and install pip dependencies
+3. Build the frontend
+4. Run an interactive config wizard (root path, port, upload limit)
+5. Set up a systemd (Linux) or launchd (macOS) service
 
-### Keyboard Shortcuts
+After install:
 
-#### File Browser
+```bash
+./install-filamama.sh --status     # Check service status
+./install-filamama.sh --update     # Pull latest + rebuild + restart
+./install-filamama.sh --configure  # Re-run config wizard
+./install-filamama.sh --uninstall  # Remove service
+```
+
+### Option 3: Development Mode
+
+```bash
+./start.sh
+```
+
+Starts backend (port 8011) and frontend dev server (port 8010) with hot reloading.
+
+## Configuration
+
+### Config file
+
+Edit `backend/config.yaml`:
+
+```yaml
+server:
+  host: "0.0.0.0"
+  port: 1031
+
+root_path: "/home/user"
+
+mounts:
+  - name: "External"
+    path: "/media/external"
+    icon: "hard-drive"
+
+thumbnails:
+  enabled: true
+  cache_dir: "data/thumbnails"
+  sizes: { thumb: 256, large: 1080 }
+  quality: 85
+  max_cache_size_mb: 500
+
+transcoding:
+  cache_dir: "data/transcoded"
+  max_cache_size_mb: 2000
+
+upload:
+  max_size_mb: 10240
+```
+
+### Environment variables
+
+All optional — override `config.yaml` without editing it:
+
+| Variable | Description |
+|----------|-------------|
+| `FILAMAMA_CONFIG` | Config file path |
+| `FILAMAMA_ROOT_PATH` | Root browse directory |
+| `FILAMAMA_HOST` | Server bind host |
+| `FILAMAMA_PORT` | Server bind port |
+| `FILAMAMA_DATA_DIR` | Thumbnail + transcoding cache directory |
+| `FILAMAMA_MAX_UPLOAD_MB` | Max upload size in MB |
+| `FILAMAMA_CORS_ORIGINS` | Comma-separated CORS origins |
+| `FILAMAMA_FRONTEND_DIST` | Frontend dist directory path |
+
+## Keyboard Shortcuts
+
+Press `?` in the file browser to see all shortcuts.
+
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl/Cmd + A` | Select all files |
-| `Ctrl/Cmd + C` | Copy selected files |
-| `Ctrl/Cmd + X` | Cut selected files |
-| `Ctrl/Cmd + V` | Paste files |
-| `Delete` | Delete selected files |
-| `Enter` | Open selected file/folder |
-| `Escape` | Clear selection and search |
-| `F2` | Rename selected file |
-| `Backspace` | Navigate to parent directory |
-| `Arrow Keys` | Navigate between files in grid/list |
-| `Shift + Arrow` | Extend selection while navigating |
-| `Space` | Toggle selection of focused file |
-
-#### Video Player
-| Shortcut | Action |
-|----------|--------|
-| `Space` / `K` | Play/Pause |
-| `←` / `J` | Seek back 10 seconds |
-| `→` / `L` | Seek forward 10 seconds |
-| `↑` / `↓` | Volume up/down 10% |
+| `Ctrl/Cmd + A` | Select all |
+| `Ctrl/Cmd + C/X/V` | Copy / Cut / Paste |
+| `Delete` | Move to trash |
+| `Enter` | Open file/folder |
+| `F2` | Rename |
+| `Backspace` | Go to parent |
+| `Arrow keys` | Navigate files |
+| `Shift + Arrow` | Extend selection |
+| `Space` | Toggle selection / Play-pause audio |
+| `Shift + ←/→` | Previous/next track |
 | `M` | Mute/unmute |
-| `F` | Toggle fullscreen |
-| `0-9` | Jump to 0%-90% of video |
 
-#### Audio Mini-Player
-| Shortcut | Action |
-|----------|--------|
-| `Space` | Play/Pause (when not in input field) |
-| `Shift + ←` | Previous track |
-| `Shift + →` | Next track |
-| `M` | Mute/unmute |
+## API
+
+Interactive API docs available at `/docs` (Swagger UI).
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/files/list` | List directory contents |
+| GET | `/api/files/download` | Download file |
+| GET | `/api/files/stream` | Stream file (Range support) |
+| GET | `/api/files/thumbnail` | Get thumbnail |
+| GET | `/api/files/search` | Recursive filename search |
+| GET | `/api/files/search-content` | Search inside files (ripgrep) |
+| GET | `/api/files/audio-metadata` | Audio metadata (ID3, Vorbis) |
+| GET | `/api/files/audio-cover` | Embedded cover art |
+| GET | `/api/files/transcode-stream` | FFmpeg transcode stream |
+| POST | `/api/files/mkdir` | Create directory |
+| POST | `/api/files/rename` | Rename file |
+| POST | `/api/files/copy` | Copy files |
+| POST | `/api/files/move` | Move files |
+| POST | `/api/files/download-zip` | Download as ZIP (4GB limit) |
+| POST | `/api/files/check-conflicts` | Check paste conflicts |
+| POST | `/api/upload` | Upload files |
+| POST | `/api/trash/move-to-trash` | Soft delete |
+| GET | `/api/trash/list` | List trash contents |
+| POST | `/api/trash/restore` | Restore from trash |
+| POST | `/api/trash/delete-permanent` | Permanent delete |
+| POST | `/api/trash/empty` | Empty trash |
+| GET | `/api/health` | Health check |
+| GET | `/api/config` | App configuration |
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18, TypeScript, Vite, TanStack Query, Tailwind CSS, shadcn/ui |
+| Backend | FastAPI, Python 3.12, Pydantic, Pillow, mutagen, CairoSVG |
+| System | FFmpeg (transcoding), ripgrep (content search), libmagic (MIME detection) |
+| Packaging | Docker, systemd, launchd |
 
 ## Project Structure
 
@@ -150,225 +183,51 @@ A fast, beautiful file manager web application built with React and FastAPI. Fea
 FilaMama/
 ├── backend/
 │   ├── app/
-│   │   ├── models/
-│   │   │   └── schemas.py          # Pydantic models
-│   │   ├── services/
-│   │   │   ├── filesystem.py       # File operations service
-│   │   │   ├── thumbnails.py       # Thumbnail generation
-│   │   │   └── audio.py            # Audio metadata & cover art extraction
+│   │   ├── main.py                 # FastAPI app, config, env var overrides
 │   │   ├── routers/
-│   │   │   ├── files.py            # File API endpoints
-│   │   │   └── upload.py           # Upload endpoint
-│   │   └── main.py                 # FastAPI application
+│   │   │   ├── files.py            # File operations API
+│   │   │   ├── upload.py           # Upload API
+│   │   │   └── trash.py            # Trash API
+│   │   ├── services/
+│   │   │   ├── filesystem.py       # File operations, search
+│   │   │   ├── thumbnails.py       # Thumbnail generation
+│   │   │   ├── audio.py            # Audio metadata & cover art
+│   │   │   ├── transcoding.py      # FFmpeg video transcoding
+│   │   │   └── trash.py            # Trash with manifest tracking
+│   │   └── models/
+│   │       └── schemas.py          # Pydantic models
 │   ├── config.yaml                 # Server configuration
-│   └── requirements.txt            # Python dependencies
+│   ├── config.docker.yaml          # Docker defaults
+│   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── api/
-│   │   │   └── client.ts           # API client functions
-│   │   ├── components/
-│   │   │   ├── Header.tsx          # Breadcrumbs + search
-│   │   │   ├── Sidebar.tsx         # Navigation sidebar
-│   │   │   ├── Toolbar.tsx         # Actions toolbar
-│   │   │   ├── FileIcon.tsx        # File type icons + helpers
-│   │   │   ├── FileGrid.tsx        # Grid view with hover previews
-│   │   │   ├── FileList.tsx        # List view
-│   │   │   ├── VideoPlayer.tsx     # Custom video player
-│   │   │   ├── VideoPreview.tsx    # Video hover timeline scrubbing
-│   │   │   ├── TextPreview.tsx     # Code hover preview
-│   │   │   ├── PdfViewer.tsx       # PDF viewer with zoom
-│   │   │   ├── UploadDropzone.tsx  # Drag-drop upload area
-│   │   │   ├── UploadProgress.tsx  # Upload status with speed/ETA
-│   │   │   ├── MiniPlayer.tsx      # Audio mini-player with cover art
-│   │   │   ├── ContentSearchResults.tsx # File content search results
-│   │   │   ├── RenameDialog.tsx    # Rename modal
-│   │   │   ├── NewFolderDialog.tsx # Create folder modal
-│   │   │   ├── DeleteDialog.tsx    # Delete confirmation
-│   │   │   └── ui/                 # shadcn/ui components
-│   │   ├── contexts/
-│   │   │   └── AudioPlayerContext.tsx  # Global audio player state
-│   │   ├── hooks/
-│   │   │   ├── useFileSelection.ts # Multi-select hook
-│   │   │   ├── useDebounce.ts      # Search debounce hook
-│   │   │   └── useScrollRestoration.ts # Scroll position persistence
-│   │   ├── lib/
-│   │   │   └── utils.ts            # Utility functions
-│   │   ├── pages/
-│   │   │   ├── FilesPage.tsx       # Main files page
-│   │   │   └── PreviewPage.tsx     # File preview page
-│   │   ├── main.tsx                # App entry point
-│   │   └── index.css               # Global styles
+│   │   ├── pages/                  # FilesPage, PreviewPage
+│   │   ├── components/             # UI components
+│   │   ├── hooks/                  # Custom hooks (selection, clipboard, upload, etc.)
+│   │   ├── contexts/               # AudioPlayerContext
+│   │   └── api/client.ts           # API client
 │   ├── package.json
-│   ├── vite.config.js
-│   ├── tailwind.config.js
-│   └── tsconfig.json
-├── data/
-│   └── thumbnails/                 # Generated thumbnails
-├── start.sh                        # Start both services
-├── install.sh                      # Install as system service
-├── uninstall.sh                    # Remove system service
-└── README.md
+│   └── vite.config.ts
+├── templates/                      # Service templates (systemd, launchd, config)
+├── Dockerfile                      # Multi-stage Docker build
+├── docker-compose.yml
+├── install-filamama.sh             # Smart install script
+└── start.sh                        # Development start script
 ```
-
-## Quick Start
-
-### Option 1: Install as System Service (Recommended)
-
-Run the installation script to set up FilaMama as a systemd service that starts automatically on boot:
-
-```bash
-cd FilaMama
-./install.sh
-```
-
-This will:
-1. Create Python virtual environment if needed
-2. Install backend dependencies
-3. Install frontend dependencies
-4. Build frontend for production
-5. Create and enable systemd services
-6. Start both services
-
-The services will automatically start on system boot.
-
-**Useful commands:**
-```bash
-sudo systemctl status filamama-backend   # Check backend status
-sudo systemctl status filamama-frontend  # Check frontend status
-sudo systemctl restart filamama-backend  # Restart backend
-sudo systemctl restart filamama-frontend # Restart frontend
-sudo journalctl -u filamama-backend -f   # View backend logs
-sudo journalctl -u filamama-frontend -f  # View frontend logs
-```
-
-**To uninstall:**
-```bash
-./uninstall.sh
-```
-
-### Option 2: Development Mode
-
-Use the start script for development with hot reloading:
-
-```bash
-./start.sh
-```
-
-This will:
-1. Create Python virtual environment if needed
-2. Install backend dependencies
-3. Install frontend dependencies
-4. Start both servers in development mode
-
-Press Ctrl+C to stop.
-
-### Option 3: Manual Setup
-
-**Backend:**
-```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8011
-```
-
-**Frontend:**
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-## Access
-
-### Production (systemd service)
-- **Frontend:** http://spark.local:1030
-- **Backend API:** http://spark.local:1031
-- **API Docs:** http://spark.local:1031/docs
-
-### Development (./start.sh)
-- **Frontend:** http://spark.local:8010
-- **Backend API:** http://spark.local:8011
-- **API Docs:** http://spark.local:8011/docs
-
-## Configuration
-
-Edit `backend/config.yaml`:
-
-```yaml
-server:
-  host: 0.0.0.0
-  port: 8011
-
-app:
-  root_path: /home/flatstone    # Root directory for file browsing
-  thumbnail_dir: ../data/thumbnails
-  thumbnail_sizes:
-    thumb: 150
-    large: 400
-  max_upload_size_mb: 1024      # Maximum upload file size
-```
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/files/list` | List directory contents |
-| GET | `/api/files/info` | Get file info |
-| GET | `/api/files/download` | Download file |
-| GET | `/api/files/stream` | Stream file (supports Range requests) |
-| GET | `/api/files/thumbnail` | Get file thumbnail |
-| GET | `/api/files/preview` | Preview file |
-| GET | `/api/files/text` | Get text file content |
-| GET | `/api/files/search` | Search files by name (recursive, with truncation info) |
-| GET | `/api/files/search-content` | Search inside file contents (uses ripgrep) |
-| GET | `/api/files/audio-metadata` | Get audio file metadata (title, artist, album, etc.) |
-| GET | `/api/files/audio-cover` | Get embedded cover art from audio file |
-| GET | `/api/files/disk-usage` | Get disk usage stats |
-| POST | `/api/files/mkdir` | Create directory |
-| POST | `/api/files/delete` | Delete files |
-| POST | `/api/files/rename` | Rename file |
-| POST | `/api/files/copy` | Copy file |
-| POST | `/api/files/move` | Move file |
-| POST | `/api/files/check-conflicts` | Check for name conflicts |
-| POST | `/api/files/download-zip` | Download as ZIP |
-| POST | `/api/upload` | Upload files |
-| GET | `/api/config` | Get app configuration |
-
-## Ports
-
-| Environment | Service | Port |
-|-------------|---------|------|
-| **Production** | Frontend (Vite Preview) | 1030 |
-| **Production** | Backend (FastAPI) | 1031 |
-| **Development** | Frontend (Vite Dev) | 8010 |
-| **Development** | Backend (FastAPI) | 8011 |
-
-This allows you to run both production and development instances simultaneously without port conflicts.
 
 ## Development
 
-**Type checking:**
 ```bash
-cd frontend
-npx tsc --noEmit
+# Type checking
+cd frontend && npx tsc --noEmit
+
+# Production build
+cd frontend && npm run build
+
+# Run backend directly
+cd backend && source venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8011 --reload
 ```
-
-**Build for production:**
-```bash
-cd frontend
-npm run build
-```
-
-## Documentation
-
-- **[USAGE.md](USAGE.md)** - Comprehensive user guide with instructions for all features
-- **[DEVELOPER.md](DEVELOPER.md)** - Technical documentation for developers
-- **[URL_STRUCTURE.md](URL_STRUCTURE.md)** - Complete URL structure and state management guide
-- **[CHANGELOG.md](CHANGELOG.md)** - Version history and release notes
-- **[CLAUDE.md](CLAUDE.md)** - Project memory and session notes for Claude Code
-- **[INSTALLATION.md](INSTALLATION.md)** - Detailed installation and deployment guide
 
 ## License
 
