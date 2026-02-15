@@ -397,6 +397,14 @@ cmd_install() {
         exit 1
     fi
 
+    # Pull latest code if in a git repo
+    if [ -d "$PROJECT_DIR/.git" ]; then
+        info "Pulling latest code..."
+        cd "$PROJECT_DIR"
+        git pull
+        echo ""
+    fi
+
     install_system_deps
     echo ""
     setup_python
@@ -451,9 +459,9 @@ cmd_update() {
     build_frontend
     echo ""
 
-    # Restart service
+    # Restart service if it exists
     if [ "$OS" = "linux" ]; then
-        if systemctl is-active --quiet filamama.service 2>/dev/null; then
+        if [ -f /etc/systemd/system/filamama.service ]; then
             info "Restarting service..."
             sudo systemctl restart filamama.service
             sleep 2
@@ -461,15 +469,20 @@ cmd_update() {
                 success "Service restarted"
             else
                 err "Service failed to restart"
+                echo "  Check logs: sudo journalctl -u filamama -n 50"
             fi
+        else
+            warn "No service installed. Run with --install to set up the service."
         fi
     elif [ "$OS" = "macos" ]; then
-        if launchctl list com.filamama >/dev/null 2>&1; then
+        if [ -f "$HOME/Library/LaunchAgents/com.filamama.plist" ]; then
             info "Restarting service..."
             launchctl stop com.filamama
             sleep 1
             launchctl start com.filamama
             success "Service restarted"
+        else
+            warn "No service installed. Run with --install to set up the service."
         fi
     fi
 
