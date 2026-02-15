@@ -18,12 +18,47 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# Use dev config if FILAMAMA_DEV environment variable is set
-dev_mode = os.environ.get("FILAMAMA_DEV", "").lower() in ("1", "true", "yes")
-config_filename = "config.dev.yaml" if dev_mode else "config.yaml"
-config_path = Path(__file__).parent.parent / config_filename
+# --- Config loading with env var overrides ---
+
+# Config file path: FILAMAMA_CONFIG or auto-detect dev/prod
+config_path_override = os.environ.get("FILAMAMA_CONFIG")
+if config_path_override:
+    config_path = Path(config_path_override)
+else:
+    dev_mode = os.environ.get("FILAMAMA_DEV", "").lower() in ("1", "true", "yes")
+    config_filename = "config.dev.yaml" if dev_mode else "config.yaml"
+    config_path = Path(__file__).parent.parent / config_filename
+
 with open(config_path) as f:
     config = yaml.safe_load(f)
+
+# Root path override
+if os.environ.get("FILAMAMA_ROOT_PATH"):
+    config["root_path"] = os.environ["FILAMAMA_ROOT_PATH"]
+
+# Server host/port overrides
+if os.environ.get("FILAMAMA_HOST"):
+    config["server"]["host"] = os.environ["FILAMAMA_HOST"]
+if os.environ.get("FILAMAMA_PORT"):
+    config["server"]["port"] = int(os.environ["FILAMAMA_PORT"])
+
+# Data directory override — redirects thumbnail + transcoding cache paths
+if os.environ.get("FILAMAMA_DATA_DIR"):
+    data_dir = os.environ["FILAMAMA_DATA_DIR"]
+    config["thumbnails"]["cache_dir"] = os.path.join(data_dir, "thumbnails")
+    config["transcoding"]["cache_dir"] = os.path.join(data_dir, "transcoded")
+
+# Upload limit override
+if os.environ.get("FILAMAMA_MAX_UPLOAD_MB"):
+    config["upload"]["max_size_mb"] = int(os.environ["FILAMAMA_MAX_UPLOAD_MB"])
+
+# CORS origins override (comma-separated)
+cors_origins_override = os.environ.get("FILAMAMA_CORS_ORIGINS")
+
+# Frontend dist override
+frontend_dist_override = os.environ.get("FILAMAMA_FRONTEND_DIST")
+
+# --- Service initialization ---
 
 fs_service = FilesystemService(
     root_path=config["root_path"],
@@ -68,13 +103,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+# CORS: use env var override or hardcoded defaults
+if cors_origins_override:
+    cors_origins = [o.strip() for o in cors_origins_override.split(",") if o.strip()]
+else:
+    cors_origins = [
         "http://spark.local:1030",   # Production frontend
         "http://spark.local:8010",   # Dev frontend
         "http://localhost:8010",     # Dev fallback
-    ],
+    ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -103,7 +144,11 @@ async def get_config():
 
 
 # Serve static frontend files in production
-frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
+if frontend_dist_override:
+    frontend_dist = Path(frontend_dist_override)
+else:
+    frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
+
 if frontend_dist.exists():
     # Serve static assets
     app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="assets")

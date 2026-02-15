@@ -1,0 +1,23 @@
+[Unit]
+Description=FilaMama - File Manager
+After=network.target
+
+[Service]
+Type=simple
+User=__USER__
+Group=__GROUP__
+WorkingDirectory=__INSTALL_DIR__/backend
+Environment="PATH=__INSTALL_DIR__/backend/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="FILAMAMA_ROOT_PATH=__ROOT_PATH__"
+Environment="FILAMAMA_PORT=__PORT__"
+Environment="FILAMAMA_MAX_UPLOAD_MB=__MAX_UPLOAD_MB__"
+ExecStart=__INSTALL_DIR__/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port __PORT__
+Restart=always
+RestartSec=10
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

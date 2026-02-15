@@ -1,0 +1,14 @@
+services:
+  filamama:
+    build: .
+    ports:
+      - "1031:1031"
+    volumes:
+      - ${BROWSE_PATH:-~/}:/browse
+      - filamama-data:/data
+    environment:
+      - FILAMAMA_ROOT_PATH=/browse
+    restart: unless-stopped
+
+volumes:
+  filamama-data:
