@@ -22,8 +22,54 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 ## Backend Configuration
 - Root path: `/home/flatstone` (all frontend paths are relative to this)
 - Config file: `backend/config.yaml`
+- All config values can be overridden via environment variables (see Deployment section)
 
-## Current Features (as of 2026-02-10)
+## Deployment
+
+### Environment Variable Overrides
+All optional — existing `config.yaml` behavior unchanged when absent:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `FILAMAMA_CONFIG` | Config file path | `/app/config.yaml` |
+| `FILAMAMA_ROOT_PATH` | Root browse directory | `/browse` |
+| `FILAMAMA_HOST` | Server bind host | `0.0.0.0` |
+| `FILAMAMA_PORT` | Server bind port | `1031` |
+| `FILAMAMA_DATA_DIR` | Thumbnail + transcoding cache dir | `/data` |
+| `FILAMAMA_MAX_UPLOAD_MB` | Max upload size in MB | `10240` |
+| `FILAMAMA_CORS_ORIGINS` | Comma-separated CORS origins | `http://host:1031,http://other` |
+| `FILAMAMA_FRONTEND_DIST` | Frontend dist directory path | `/app/frontend/dist` |
+
+### Docker
+```bash
+# Build and run
+docker compose up
+
+# Or manually
+docker build -t filamama .
+docker run -p 1031:1031 -v ~/:/browse filamama
+```
+- Multi-stage Dockerfile: node:20-slim (build) → python:3.12-slim (runtime)
+- `docker-compose.yml` mounts `$BROWSE_PATH` (default `~/`) to `/browse`
+- Persistent data volume for thumbnails/transcoding cache
+- Config: `backend/config.docker.yaml`
+
+### Install Script
+```bash
+./install-filamama.sh              # Interactive install
+./install-filamama.sh --update     # Pull + rebuild + restart
+./install-filamama.sh --uninstall  # Remove service
+./install-filamama.sh --configure  # Re-run config wizard
+./install-filamama.sh --status     # Show service status
+./install-filamama.sh --no-service --no-wizard  # Build only (CI/testing)
+```
+- OS detection: Linux (apt/dnf/pacman), macOS (brew)
+- Installs system deps, Python venv, frontend build
+- Interactive config wizard (root path, port, upload limit)
+- Sets up systemd (Linux) or launchd (macOS) — single unified service
+- Migrates old two-service setup (filamama-backend + filamama-frontend)
+
+## Current Features (as of 2026-02-15)
 
 ### Navigation
 - **URL-based routing**: Browser history support with `/browse/path` URLs
@@ -187,7 +233,7 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 - `frontend/src/index.css` - Theme tokens, CSS variables (`--sidebar-width`)
 
 ### Backend
-- `backend/app/main.py` - FastAPI app, lifespan, service initialization, CORS config
+- `backend/app/main.py` - FastAPI app, lifespan, service initialization, CORS config, env var overrides
 - `backend/app/routers/files.py` - File operations API (list, download, stream, thumbnail, audio, search)
 - `backend/app/routers/upload.py` - Upload API with size enforcement
 - `backend/app/routers/trash.py` - Trash API (move-to-trash, list, restore, delete-permanent, empty, info)
@@ -198,6 +244,16 @@ FilaMama is a fast, beautiful file manager web application built with React (fro
 - `backend/app/services/transcoding.py` - FFmpeg video transcoding/remuxing service
 - `backend/app/models/schemas.py` - Pydantic models for API request/response
 - `backend/config.yaml` - Server configuration (root path, mounts, content types, upload limits)
+- `backend/config.docker.yaml` - Docker-specific config defaults
+
+### Packaging & Deployment
+- `Dockerfile` - Multi-stage Docker build (node:20-slim + python:3.12-slim)
+- `docker-compose.yml` - Single service with volume mounts
+- `.dockerignore` - Docker build exclusions
+- `install-filamama.sh` - Smart install script (Linux + macOS)
+- `templates/filamama.service.template` - systemd unit template
+- `templates/com.filamama.plist.template` - launchd plist template (macOS)
+- `templates/config.yaml.template` - Config wizard template
 
 ## Session Notes
 
@@ -326,6 +382,19 @@ Ran comprehensive visual design audit (mark-angelo) and UX audit (ux-ui-speciali
 - Added refresh button spin animation (750ms)
 - Added relative path display for search/filter results in grid/list views
 - Added "Open in New Tab" context menu for folders
+
+---
+
+### Session 2026-02-15: Docker + Install Script Packaging
+
+**Commit**: `feaeae4`
+
+Made FilaMama installable by anyone with a single command:
+- **Env var overrides**: 7 environment variables (FILAMAMA_ROOT_PATH, FILAMAMA_PORT, etc.) override config.yaml without editing it
+- **Docker**: Multi-stage Dockerfile, docker-compose.yml, config.docker.yaml — single process serves both frontend and API
+- **Install script**: `install-filamama.sh` with OS detection (Linux apt/dnf/pacman, macOS brew), interactive config wizard, systemd/launchd service setup, subcommands (--install/--update/--uninstall/--configure/--status)
+- **Migration**: Auto-detects and migrates old two-service setup (filamama-backend + filamama-frontend) to unified filamama.service
+- **Templates**: Service templates in `templates/` directory
 
 ---
 
