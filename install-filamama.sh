@@ -106,36 +106,28 @@ install_system_deps() {
         success "ripgrep already installed"
     fi
 
-    # libmagic
+    # libmagic — check for library file (package name varies across distros)
     if [ "$OS" = "linux" ]; then
-        if ! dpkg -s libmagic1 >/dev/null 2>&1 && [ "$PKG" = "apt" ]; then
-            to_install+=(libmagic1)
-        elif [ "$PKG" = "dnf" ] && ! rpm -q file-libs >/dev/null 2>&1; then
-            to_install+=(file-libs)
-        elif [ "$PKG" = "pacman" ] && ! pacman -Qi file >/dev/null 2>&1; then
-            to_install+=(file)
+        if ! ldconfig -p 2>/dev/null | grep -q libmagic; then
+            case "$PKG" in
+                apt)    to_install+=(libmagic1) ;;
+                dnf)    to_install+=(file-libs) ;;
+                pacman) to_install+=(file) ;;
+            esac
         fi
     elif [ "$OS" = "macos" ]; then
-        if ! brew list libmagic >/dev/null 2>&1; then
-            to_install+=(libmagic)
-        fi
+        brew list libmagic >/dev/null 2>&1 || to_install+=(libmagic)
     fi
 
-    # cairo + pango (for cairosvg)
+    # cairo + pango (for cairosvg) — check for library files
     if [ "$OS" = "linux" ]; then
-        case "$PKG" in
-            apt)
-                dpkg -s libcairo2 >/dev/null 2>&1 || to_install+=(libcairo2)
-                dpkg -s libpango-1.0-0 >/dev/null 2>&1 || to_install+=(libpango-1.0-0 libpangocairo-1.0-0)
-                dpkg -s libgdk-pixbuf2.0-0 >/dev/null 2>&1 || to_install+=(libgdk-pixbuf2.0-0)
-                ;;
-            dnf)
-                rpm -q cairo >/dev/null 2>&1 || to_install+=(cairo pango gdk-pixbuf2)
-                ;;
-            pacman)
-                pacman -Qi cairo >/dev/null 2>&1 || to_install+=(cairo pango gdk-pixbuf2)
-                ;;
-        esac
+        if ! ldconfig -p 2>/dev/null | grep -q libcairo.so; then
+            case "$PKG" in
+                apt)    to_install+=(libcairo2 libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0) ;;
+                dnf)    to_install+=(cairo pango gdk-pixbuf2) ;;
+                pacman) to_install+=(cairo pango gdk-pixbuf2) ;;
+            esac
+        fi
     elif [ "$OS" = "macos" ]; then
         brew list cairo >/dev/null 2>&1 || to_install+=(cairo pango gdk-pixbuf)
     fi
@@ -216,12 +208,7 @@ build_frontend() {
 
     cd "$PROJECT_DIR/frontend"
 
-    if [ ! -d "node_modules" ]; then
-        npm ci
-    else
-        success "node_modules already exists"
-    fi
-
+    npm ci
     npm run build
     cd "$PROJECT_DIR"
 
