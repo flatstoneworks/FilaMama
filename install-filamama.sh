@@ -208,6 +208,10 @@ build_frontend() {
 
     cd "$PROJECT_DIR/frontend"
 
+    # Clean stale build artifacts that interfere with vite config
+    rm -f vite.config.js vite.config.d.ts tsconfig.node.tsbuildinfo tsconfig.tsbuildinfo
+    rm -rf dist
+
     npm ci
     npm run build
     cd "$PROJECT_DIR"
