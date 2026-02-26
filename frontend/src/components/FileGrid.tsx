@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { FileIcon, isTextFile, isAudioFile } from './FileIcon'
-import { VideoPreview } from './VideoPreview'
+import { VideoPreview, isVideoFile, videoNeedsTranscoding } from '@flatstone/media-components'
 import { TextPreview } from './TextPreview'
 import { AudioCover } from './AudioCover'
 import { FileContextMenu } from './FileContextMenu'
@@ -8,7 +8,7 @@ import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Checkbox } from '@/components/ui/checkbox'
 import type { FileInfo } from '@/api/client'
 import { api } from '@/api/client'
-import { cn, isFileSelected, createCheckboxClickHandler, isVideoFile, videoNeedsTranscoding } from '@/lib/utils'
+import { cn, isFileSelected, createCheckboxClickHandler } from '@/lib/utils'
 import { useDragAndDrop } from '@/hooks/useDragAndDrop'
 
 function getRelativeDir(filePath: string, basePath: string): string {

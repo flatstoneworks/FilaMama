@@ -106,29 +106,7 @@ export function getFileName(path: string): string {
   return path.substring(lastSlash + 1)
 }
 
-export function formatVideoTime(seconds: number): string {
-  if (!isFinite(seconds) || seconds < 0) return '0:00'
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = Math.floor(seconds % 60)
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  }
-  return `${minutes}:${secs.toString().padStart(2, '0')}`
-}
-
-const VIDEO_EXTENSIONS = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'ogg', 'ogv', 'flv', 'wmv']
-const BROWSER_NATIVE_VIDEO = ['mp4', 'webm', 'm4v', 'ogg', 'ogv']
-
-export function isVideoFile(filename: string): boolean {
-  const ext = filename.split('.').pop()?.toLowerCase()
-  return VIDEO_EXTENSIONS.includes(ext || '')
-}
-
-export function videoNeedsTranscoding(filename: string): boolean {
-  const ext = filename.split('.').pop()?.toLowerCase() || ''
-  return isVideoFile(filename) && !BROWSER_NATIVE_VIDEO.includes(ext)
-}
+export { isVideoFile, isImageFile, videoNeedsTranscoding, formatVideoTime } from '@flatstone/media-components'
 
 export function formatUploadSpeed(bytesPerSecond: number): string {
   if (bytesPerSecond === 0) return '0 B/s'

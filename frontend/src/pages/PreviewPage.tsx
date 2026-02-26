@@ -7,9 +7,9 @@ import { api } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Download, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { getFileType, isPreviewable, isTextFile, getLanguageFromExtension } from '@/components/FileIcon'
-import { joinPath, getParentPath, getFileName, videoNeedsTranscoding } from '@/lib/utils'
+import { joinPath, getParentPath, getFileName } from '@/lib/utils'
+import { VideoPlayer, videoNeedsTranscoding } from '@flatstone/media-components'
 import { PdfViewer } from '@/components/PdfViewer'
-import { VideoPlayer } from '@/components/VideoPlayer'
 import { useAudioPlayer } from '@/contexts/AudioPlayerContext'
 
 export function PreviewPage() {
@@ -245,8 +245,8 @@ export function PreviewPage() {
 
               {fileType === 'video' && (
                 <VideoPlayer
-                  fileUrl={streamUrl}
-                  fileName={currentFile.name}
+                  src={streamUrl}
+                  title={currentFile.name}
                   onLoad={() => setIsLoading(false)}
                 />
               )}
