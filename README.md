@@ -4,6 +4,10 @@ A fast, beautiful file manager web application. Browse, preview, and manage your
 
 Built with React + FastAPI. Single-process deployment — the backend serves both the API and the frontend.
 
+- **Repo:** [github.com/flatstoneworks/FilaMama](https://github.com/flatstoneworks/FilaMama)
+
+For detailed file maps, API endpoints, and configuration reference, see [REFERENCE.md](REFERENCE.md).
+
 ## Features
 
 - **Grid & List views** with adjustable thumbnail sizes
@@ -48,14 +52,7 @@ cd FilaMama
 ./install-filamama.sh
 ```
 
-The script will:
-1. Install system dependencies (ffmpeg, ripgrep, libmagic, cairo, python3, node)
-2. Create Python venv and install pip dependencies
-3. Build the frontend
-4. Run an interactive config wizard (root path, port, upload limit)
-5. Set up a systemd (Linux) or launchd (macOS) service
-
-After install:
+The script installs system dependencies, creates a Python venv, builds the frontend, runs an interactive config wizard, and sets up a systemd (Linux) or launchd (macOS) service.
 
 ```bash
 ./install-filamama.sh --status     # Check service status
@@ -73,8 +70,6 @@ After install:
 Starts backend (port 8011) and frontend dev server (port 8010) with hot reloading.
 
 ## Configuration
-
-### Config file
 
 Edit `backend/config.yaml`:
 
@@ -105,20 +100,7 @@ upload:
   max_size_mb: 10240
 ```
 
-### Environment variables
-
-All optional — override `config.yaml` without editing it:
-
-| Variable | Description |
-|----------|-------------|
-| `FILAMAMA_CONFIG` | Config file path |
-| `FILAMAMA_ROOT_PATH` | Root browse directory |
-| `FILAMAMA_HOST` | Server bind host |
-| `FILAMAMA_PORT` | Server bind port |
-| `FILAMAMA_DATA_DIR` | Thumbnail + transcoding cache directory |
-| `FILAMAMA_MAX_UPLOAD_MB` | Max upload size in MB |
-| `FILAMAMA_CORS_ORIGINS` | Comma-separated CORS origins |
-| `FILAMAMA_FRONTEND_DIST` | Frontend dist directory path |
+All config values can be overridden via environment variables (`FILAMAMA_ROOT_PATH`, `FILAMAMA_PORT`, etc.). See [REFERENCE.md](REFERENCE.md) for the full list.
 
 ## Keyboard Shortcuts
 
@@ -133,98 +115,29 @@ Press `?` in the file browser to see all shortcuts.
 | `F2` | Rename |
 | `Backspace` | Go to parent |
 | `Arrow keys` | Navigate files |
-| `Shift + Arrow` | Extend selection |
 | `Space` | Toggle selection / Play-pause audio |
-| `Shift + ←/→` | Previous/next track |
-| `M` | Mute/unmute |
+| `?` | Show shortcuts help |
+
+See [REFERENCE.md](REFERENCE.md) for video player and audio mini-player shortcuts.
 
 ## API
 
-Interactive API docs available at `/docs` (Swagger UI).
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/files/list` | List directory contents |
-| GET | `/api/files/download` | Download file |
-| GET | `/api/files/stream` | Stream file (Range support) |
-| GET | `/api/files/thumbnail` | Get thumbnail |
-| GET | `/api/files/search` | Recursive filename search |
-| GET | `/api/files/search-content` | Search inside files (ripgrep) |
-| GET | `/api/files/audio-metadata` | Audio metadata (ID3, Vorbis) |
-| GET | `/api/files/audio-cover` | Embedded cover art |
-| GET | `/api/files/transcode-stream` | FFmpeg transcode stream |
-| POST | `/api/files/mkdir` | Create directory |
-| POST | `/api/files/rename` | Rename file |
-| POST | `/api/files/copy` | Copy files |
-| POST | `/api/files/move` | Move files |
-| POST | `/api/files/download-zip` | Download as ZIP (4GB limit) |
-| POST | `/api/files/check-conflicts` | Check paste conflicts |
-| POST | `/api/upload` | Upload files |
-| POST | `/api/trash/move-to-trash` | Soft delete |
-| GET | `/api/trash/list` | List trash contents |
-| POST | `/api/trash/restore` | Restore from trash |
-| POST | `/api/trash/delete-permanent` | Permanent delete |
-| POST | `/api/trash/empty` | Empty trash |
-| GET | `/api/health` | Health check |
-| GET | `/api/config` | App configuration |
+Interactive API docs available at `/docs` (Swagger UI). See [REFERENCE.md](REFERENCE.md) for the full endpoint list.
 
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
+|-------|-----------:|
 | Frontend | React 18, TypeScript, Vite, TanStack Query, Tailwind CSS, shadcn/ui |
 | Backend | FastAPI, Python 3.12, Pydantic, Pillow, mutagen, CairoSVG |
 | System | FFmpeg (transcoding), ripgrep (content search), libmagic (MIME detection) |
 | Packaging | Docker, systemd, launchd |
 
-## Project Structure
-
-```
-FilaMama/
-├── backend/
-│   ├── app/
-│   │   ├── main.py                 # FastAPI app, config, env var overrides
-│   │   ├── routers/
-│   │   │   ├── files.py            # File operations API
-│   │   │   ├── upload.py           # Upload API
-│   │   │   └── trash.py            # Trash API
-│   │   ├── services/
-│   │   │   ├── filesystem.py       # File operations, search
-│   │   │   ├── thumbnails.py       # Thumbnail generation
-│   │   │   ├── audio.py            # Audio metadata & cover art
-│   │   │   ├── transcoding.py      # FFmpeg video transcoding
-│   │   │   └── trash.py            # Trash with manifest tracking
-│   │   └── models/
-│   │       └── schemas.py          # Pydantic models
-│   ├── config.yaml                 # Server configuration
-│   ├── config.docker.yaml          # Docker defaults
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   │   ├── pages/                  # FilesPage, PreviewPage
-│   │   ├── components/             # UI components
-│   │   ├── hooks/                  # Custom hooks (selection, clipboard, upload, etc.)
-│   │   ├── contexts/               # AudioPlayerContext
-│   │   └── api/client.ts           # API client
-│   ├── package.json
-│   └── vite.config.ts
-├── templates/                      # Service templates (systemd, launchd, config)
-├── Dockerfile                      # Multi-stage Docker build
-├── docker-compose.yml
-├── install-filamama.sh             # Smart install script
-└── start.sh                        # Development start script
-```
-
 ## Development
 
 ```bash
-# Type checking
-cd frontend && npx tsc --noEmit
-
-# Production build
-cd frontend && npm run build
-
-# Run backend directly
+cd frontend && npx tsc --noEmit    # Type checking
+cd frontend && npm run build       # Production build
 cd backend && source venv/bin/activate
 uvicorn app.main:app --host 0.0.0.0 --port 8011 --reload
 ```
