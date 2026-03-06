@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { MountPoint } from '@/api/client'
+import { SystemStatus } from './SystemStatus'
 
 interface HeaderProps {
   path: string
@@ -76,8 +77,8 @@ export function Header({ path, onNavigate, searchQuery, onSearchChange, searchCo
         ))}
       </nav>
 
-      {/* Search */}
-      <div className="flex items-center gap-1.5 shrink-0">
+      {/* Search + System Status */}
+      <div className="flex items-center gap-2 shrink-0">
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -120,6 +121,7 @@ export function Header({ path, onNavigate, searchQuery, onSearchChange, searchCo
             </Tooltip>
           </TooltipProvider>
         )}
+        <SystemStatus />
       </div>
     </header>
   )

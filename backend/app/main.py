@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from pathlib import Path
 import yaml
 
-from .routers import files, upload, trash
+from .routers import files, upload, trash, system
 from .services.filesystem import FilesystemService, CONTENT_TYPES
 from .services.thumbnails import ThumbnailService
 from .services.audio import AudioMetadataService
@@ -92,6 +92,11 @@ async def lifespan(app: FastAPI):
     files.init_services(fs_service, thumb_service, audio_service, transcode_service)
     upload.init_services(fs_service, max_size_mb=config["upload"]["max_size_mb"])
     trash.init_services(trash_service)
+    system.init_services(
+        root_path=config["root_path"],
+        thumb_cache_dir=config["thumbnails"]["cache_dir"],
+        transcode_cache_dir=config["transcoding"]["cache_dir"],
+    )
     yield
     logger.info("FilaMama shutting down...")
 
@@ -126,6 +131,7 @@ app.add_middleware(
 app.include_router(files.router)
 app.include_router(upload.router)
 app.include_router(trash.router)
+app.include_router(system.router)
 
 
 @app.get("/api/health")

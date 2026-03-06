@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@flatstone/media-components": "file:../../media-components",
+    "@flatstone/ui": "file:../../ui",
     "@radix-ui/react-alert-dialog": "^1.0.5",
     "@radix-ui/react-checkbox": "^1.3.3",
     "@radix-ui/react-context-menu": "^2.1.5",
