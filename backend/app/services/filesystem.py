@@ -46,6 +46,12 @@ class FilesystemService:
             })
         self._magic = magic.Magic(mime=True)
 
+    @staticmethod
+    def _validate_name(name: str) -> None:
+        """Ensure name is a bare filename with no path separators or traversal."""
+        if not name or '/' in name or '\\' in name or name in ('.', '..'):
+            raise ValueError(f"Invalid name: {name}")
+
     def _resolve_path(self, path: str) -> Path:
         # Check if path matches a mount point
         for mount in self.mounts:
@@ -209,8 +215,11 @@ class FilesystemService:
         return self._get_file_info(file_path)
 
     async def create_directory(self, path: str, name: str) -> FileInfo:
+        self._validate_name(name)
         parent_path = self._resolve_path(path)
-        new_dir = parent_path / name
+        new_dir = (parent_path / name).resolve()
+        if not str(new_dir).startswith(str(self.root_path)):
+            raise ValueError("Path traversal attempt detected")
         if new_dir.exists():
             raise FileExistsError(f"Directory already exists: {name}")
         new_dir.mkdir(parents=True)
@@ -232,10 +241,13 @@ class FilesystemService:
         return await asyncio.to_thread(_delete_sync)
 
     async def rename(self, path: str, new_name: str) -> FileInfo:
+        self._validate_name(new_name)
         file_path = self._resolve_path(path)
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {path}")
-        new_path = file_path.parent / new_name
+        new_path = (file_path.parent / new_name).resolve()
+        if not str(new_path).startswith(str(self.root_path)):
+            raise ValueError("Path traversal attempt detected")
         if new_path.exists():
             raise FileExistsError(f"File already exists: {new_name}")
         file_path.rename(new_path)

@@ -96,6 +96,8 @@ async def upload_files(
                 "path": str(file_path.relative_to(fs_service.root_path)),
                 "size": file_path.stat().st_size,
             })
+        except HTTPException:
+            raise
         except Exception as e:
             errors.append({"name": file.filename, "error": str(e)})
 
