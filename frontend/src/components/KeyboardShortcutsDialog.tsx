@@ -1,19 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-
-interface KeyboardShortcutsDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}
-
-interface Shortcut {
-  keys: string
-  description: string
-}
-
-interface ShortcutSection {
-  title: string
-  shortcuts: Shortcut[]
-}
+import { KeyboardShortcutsDialog as SharedKeyboardShortcutsDialog, type ShortcutSection } from '@flatstone/ui'
 
 const sections: ShortcutSection[] = [
   {
@@ -56,34 +41,18 @@ const sections: ShortcutSection[] = [
   },
 ]
 
+interface KeyboardShortcutsDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
 export function KeyboardShortcutsDialog({ open, onOpenChange }: KeyboardShortcutsDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Keyboard Shortcuts</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-6 mt-2">
-          {sections.map((section) => (
-            <div key={section.title}>
-              <h3 className="text-sm font-semibold text-muted-foreground mb-2">{section.title}</h3>
-              <div className="space-y-1">
-                {section.shortcuts.map((shortcut) => (
-                  <div key={shortcut.keys} className="flex items-center justify-between py-1">
-                    <span className="text-sm">{shortcut.description}</span>
-                    <kbd className="px-2 py-0.5 text-xs font-mono bg-muted rounded border">
-                      {shortcut.keys}
-                    </kbd>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground mt-4">
-          Press <kbd className="px-1 py-0.5 text-xs font-mono bg-muted rounded border">?</kbd> to open this dialog
-        </p>
-      </DialogContent>
-    </Dialog>
+    <SharedKeyboardShortcutsDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      sections={sections}
+      hint="Press ? to open this dialog"
+    />
   )
 }

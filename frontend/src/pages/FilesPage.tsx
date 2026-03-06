@@ -733,7 +733,7 @@ export function FilesPage() {
           <UploadProgress
             uploads={uploads}
             isPreparing={isPreparingUpload}
-            isPlayerOpen={isPlayerOpen}
+            style={isPlayerOpen ? { bottom: '5rem' } : undefined}
             onDismiss={dismissUpload}
             onDismissAll={dismissAllUploads}
             onRetry={handleRetry}
