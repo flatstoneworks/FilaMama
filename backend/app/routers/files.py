@@ -32,6 +32,12 @@ def _require_fs():
     return fs_service
 
 
+def _require_thumb():
+    if thumb_service is None:
+        raise HTTPException(status_code=503, detail="Thumbnail service not initialized")
+    return thumb_service
+
+
 def init_services(
     filesystem: FilesystemService,
     thumbnails: ThumbnailService,
@@ -60,45 +66,45 @@ async def list_directory(
 @router.get("/info", response_model=FileInfo)
 @handle_fs_errors
 async def get_file_info(path: str):
-    return await fs_service.get_file_info(path)
+    return await _require_fs().get_file_info(path)
 
 
 @router.post("/mkdir", response_model=FileInfo)
 @handle_fs_errors
 async def create_directory(request: CreateDirectoryRequest):
-    return await fs_service.create_directory(request.path, request.name)
+    return await _require_fs().create_directory(request.path, request.name)
 
 
 @router.post("/delete", response_model=DeleteResponse)
 @handle_fs_errors
 async def delete_files(request: DeleteRequest):
-    count = await fs_service.delete(request.paths)
+    count = await _require_fs().delete(request.paths)
     return DeleteResponse(deleted=count)
 
 
 @router.post("/rename", response_model=FileInfo)
 @handle_fs_errors
 async def rename_file(request: RenameRequest):
-    return await fs_service.rename(request.path, request.new_name)
+    return await _require_fs().rename(request.path, request.new_name)
 
 
 @router.post("/copy", response_model=FileInfo)
 @handle_fs_errors
 async def copy_file(request: FileOperation):
-    return await fs_service.copy(request.source, request.destination, request.overwrite)
+    return await _require_fs().copy(request.source, request.destination, request.overwrite)
 
 
 @router.post("/move", response_model=FileInfo)
 @handle_fs_errors
 async def move_file(request: FileOperation):
-    return await fs_service.move(request.source, request.destination, request.overwrite)
+    return await _require_fs().move(request.source, request.destination, request.overwrite)
 
 
 @router.post("/check-conflicts", response_model=ConflictCheckResponse)
 @handle_fs_errors
 async def check_conflicts(request: ConflictCheckRequest):
     """Check if any source files would conflict with existing files in destination."""
-    conflicts = await fs_service.check_conflicts(request.sources, request.destination)
+    conflicts = await _require_fs().check_conflicts(request.sources, request.destination)
     return ConflictCheckResponse(conflicts=conflicts)
 
 
@@ -106,7 +112,7 @@ async def check_conflicts(request: ConflictCheckRequest):
 @handle_fs_errors
 async def get_folder_size(path: str):
     """Calculate total size of a folder recursively."""
-    size = await fs_service.get_folder_size(path)
+    size = await _require_fs().get_folder_size(path)
     return {"path": path, "size": size}
 
 
@@ -119,7 +125,7 @@ async def search_files(
     content_type: Optional[str] = None,
 ):
     """Search files recursively. Returns results with truncation info."""
-    results, has_more, total_scanned = await fs_service.search(
+    results, has_more, total_scanned = await _require_fs().search(
         query, path, max_results, content_type
     )
     return {
@@ -150,7 +156,7 @@ async def search_content(
     if not query or len(query) < 2:
         raise HTTPException(status_code=400, detail="Query must be at least 2 characters")
 
-    results, files_searched, files_with_matches, has_more = await fs_service.search_content(
+    results, files_searched, files_with_matches, has_more = await _require_fs().search_content(
         query, path, max_files, max_depth
     )
     return {
@@ -164,13 +170,13 @@ async def search_content(
 @router.get("/disk-usage", response_model=DiskUsage)
 @handle_fs_errors
 async def get_disk_usage(path: str = "/"):
-    return await fs_service.get_disk_usage(path)
+    return await _require_fs().get_disk_usage(path)
 
 
 @router.get("/download")
 @handle_fs_errors
 async def download_file(path: str):
-    file_path = fs_service.get_absolute_path(path)
+    file_path = _require_fs().get_absolute_path(path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     if file_path.is_dir():
@@ -189,7 +195,7 @@ async def download_zip(paths: List[str]):
         with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
             for path in paths:
                 try:
-                    file_path = fs_service.get_absolute_path(path)
+                    file_path = _require_fs().get_absolute_path(path)
                     if not file_path.exists():
                         continue
                     if file_path.is_file():
@@ -227,8 +233,8 @@ async def download_zip(paths: List[str]):
 @router.get("/thumbnail")
 @handle_fs_errors
 async def get_thumbnail(path: str, size: str = Query("thumb", pattern="^(thumb|large)$")):
-    file_path = fs_service.get_absolute_path(path)
-    thumb_bytes = await thumb_service.get_thumbnail(file_path, size)
+    file_path = _require_fs().get_absolute_path(path)
+    thumb_bytes = await _require_thumb().get_thumbnail(file_path, size)
     if thumb_bytes is None:
         raise HTTPException(status_code=404, detail="Cannot generate thumbnail")
     return StreamingResponse(io.BytesIO(thumb_bytes), media_type="image/jpeg")
@@ -237,7 +243,7 @@ async def get_thumbnail(path: str, size: str = Query("thumb", pattern="^(thumb|l
 @router.get("/preview")
 @handle_fs_errors
 async def preview_file(path: str):
-    file_path = fs_service.get_absolute_path(path)
+    file_path = _require_fs().get_absolute_path(path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(file_path)
@@ -246,7 +252,7 @@ async def preview_file(path: str):
 @router.get("/text", response_model=TextFileContent)
 @handle_fs_errors
 async def get_text_content(path: str, max_size: int = Query(10 * 1024 * 1024)):
-    file_path = fs_service.get_absolute_path(path)
+    file_path = _require_fs().get_absolute_path(path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     if file_path.is_dir():
@@ -264,7 +270,7 @@ async def get_text_content(path: str, max_size: int = Query(10 * 1024 * 1024)):
 @router.post("/text", response_model=OperationSuccess)
 @handle_fs_errors
 async def save_text_content(path: str, content: str):
-    file_path = fs_service.get_absolute_path(path)
+    file_path = _require_fs().get_absolute_path(path)
     file_path.write_text(content, encoding='utf-8')
     return OperationSuccess(success=True, message="File saved successfully")
 
@@ -293,7 +299,7 @@ STREAM_MIME_TYPES = {
 @handle_fs_errors
 async def stream_file(path: str, request: Request):
     """Stream a file with HTTP Range request support for video seeking."""
-    file_path = fs_service.get_absolute_path(path)
+    file_path = _require_fs().get_absolute_path(path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     if file_path.is_dir():
@@ -374,7 +380,7 @@ async def get_video_info(path: str):
     if not transcode_service:
         raise HTTPException(status_code=501, detail="Transcoding service not available")
 
-    file_path = fs_service.get_absolute_path(path)
+    file_path = _require_fs().get_absolute_path(path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -406,7 +412,7 @@ async def transcode_stream(path: str, request: Request):
     if not transcode_service:
         raise HTTPException(status_code=501, detail="Transcoding service not available")
 
-    file_path = fs_service.get_absolute_path(path)
+    file_path = _require_fs().get_absolute_path(path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -424,7 +430,7 @@ async def get_audio_metadata(path: str):
     if not audio_service:
         raise HTTPException(status_code=501, detail="Audio metadata service not available")
 
-    file_path = fs_service.get_absolute_path(path)
+    file_path = _require_fs().get_absolute_path(path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -442,7 +448,7 @@ async def get_audio_cover(path: str):
     if not audio_service:
         raise HTTPException(status_code=501, detail="Audio metadata service not available")
 
-    file_path = fs_service.get_absolute_path(path)
+    file_path = _require_fs().get_absolute_path(path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -461,7 +467,7 @@ async def get_audio_lyrics(path: str):
     if not audio_service:
         raise HTTPException(status_code=501, detail="Audio metadata service not available")
 
-    file_path = fs_service.get_absolute_path(path)
+    file_path = _require_fs().get_absolute_path(path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
 

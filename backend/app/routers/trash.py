@@ -31,32 +31,32 @@ async def move_to_trash(request: DeleteRequest):
 @router.get("/list")
 @handle_fs_errors
 async def list_trash():
-    items = await trash_service.list_trash()
+    items = await _require_trash().list_trash()
     return {"items": items}
 
 
 @router.post("/restore")
 @handle_fs_errors
 async def restore_from_trash(request: DeleteRequest):
-    count = await trash_service.restore(request.paths)
+    count = await _require_trash().restore(request.paths)
     return {"restored": count}
 
 
 @router.post("/delete-permanent")
 @handle_fs_errors
 async def delete_permanent(request: DeleteRequest):
-    count = await trash_service.delete_permanent(request.paths)
+    count = await _require_trash().delete_permanent(request.paths)
     return {"deleted": count}
 
 
 @router.post("/empty")
 @handle_fs_errors
 async def empty_trash():
-    count = await trash_service.empty_trash()
+    count = await _require_trash().empty_trash()
     return {"deleted": count}
 
 
 @router.get("/info")
 @handle_fs_errors
 async def get_trash_info():
-    return await trash_service.get_info()
+    return await _require_trash().get_info()
