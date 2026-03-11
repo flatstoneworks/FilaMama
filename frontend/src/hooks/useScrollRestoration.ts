@@ -1,1 +1,1 @@
-export { useScrollRestoration } from '@flatstone/ui'
+export { useScrollRestoration } from '@flatstoneworks/ui'

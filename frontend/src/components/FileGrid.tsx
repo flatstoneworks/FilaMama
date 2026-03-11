@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { FileIcon, isTextFile, isAudioFile } from './FileIcon'
-import { VideoPreview, isVideoFile, videoNeedsTranscoding } from '@flatstone/media-components'
+import { VideoPreview, isVideoFile, videoNeedsTranscoding } from '@flatstoneworks/media-components'
 import { TextPreview } from './TextPreview'
 import { AudioCover } from './AudioCover'
 import { FileContextMenu } from './FileContextMenu'

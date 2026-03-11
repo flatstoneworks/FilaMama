@@ -1,4 +1,4 @@
-import { KeyboardShortcutsDialog as SharedKeyboardShortcutsDialog, type ShortcutSection } from '@flatstone/ui'
+import { KeyboardShortcutsDialog as SharedKeyboardShortcutsDialog, type ShortcutSection } from '@flatstoneworks/ui'
 
 const sections: ShortcutSection[] = [
   {

@@ -1,1 +1,1 @@
-export { useDebounce } from '@flatstone/ui'
+export { useDebounce } from '@flatstoneworks/ui'

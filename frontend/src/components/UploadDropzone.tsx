@@ -1,2 +1,2 @@
-export { UploadDropzone } from '@flatstone/ui'
-export type { UploadDropzoneProps, FileWithPath } from '@flatstone/ui'
+export { UploadDropzone } from '@flatstoneworks/ui'
+export type { UploadDropzoneProps, FileWithPath } from '@flatstoneworks/ui'

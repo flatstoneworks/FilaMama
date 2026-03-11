@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { HoverCard, HoverCardTrigger, HoverCardContent } from '@flatstone/ui'
+import { HoverCard, HoverCardTrigger, HoverCardContent } from '@flatstoneworks/ui'
 import { cn } from '@/lib/utils'
 
 interface SystemInfo {

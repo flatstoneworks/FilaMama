@@ -106,7 +106,7 @@ export function getFileName(path: string): string {
   return path.substring(lastSlash + 1)
 }
 
-export { isVideoFile, isImageFile, videoNeedsTranscoding, formatVideoTime } from '@flatstone/media-components'
+export { isVideoFile, isImageFile, videoNeedsTranscoding, formatVideoTime } from '@flatstoneworks/media-components'
 
 export function formatUploadSpeed(bytesPerSecond: number): string {
   if (bytesPerSecond === 0) return '0 B/s'

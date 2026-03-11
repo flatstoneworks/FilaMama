@@ -1,4 +1,4 @@
-import { DeleteConfirmDialog, type DeleteItem } from '@flatstone/ui'
+import { DeleteConfirmDialog, type DeleteItem } from '@flatstoneworks/ui'
 
 interface DeleteDialogProps {
   open: boolean

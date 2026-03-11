@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { MiniPlayer as SharedMiniPlayer, type MiniPlayerTrack } from '@flatstone/ui'
+import { MiniPlayer as SharedMiniPlayer, type MiniPlayerTrack } from '@flatstoneworks/ui'
 import type { AudioTrack } from '@/contexts/AudioPlayerContext'
 import { api } from '@/api/client'
 import type { AudioMetadata } from '@/api/client'

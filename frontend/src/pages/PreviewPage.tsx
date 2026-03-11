@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { ArrowLeft, Download, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { getFileType, isPreviewable, isTextFile, getLanguageFromExtension } from '@/components/FileIcon'
 import { joinPath, getParentPath, getFileName } from '@/lib/utils'
-import { VideoPlayer, videoNeedsTranscoding } from '@flatstone/media-components'
+import { VideoPlayer, videoNeedsTranscoding } from '@flatstoneworks/media-components'
 import { PdfViewer } from '@/components/PdfViewer'
 import { useAudioPlayer } from '@/contexts/AudioPlayerContext'
 

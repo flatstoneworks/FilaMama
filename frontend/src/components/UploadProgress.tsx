@@ -1,2 +1,2 @@
-export { UploadProgress } from '@flatstone/ui'
-export type { UploadProgressProps, UploadItem } from '@flatstone/ui'
+export { UploadProgress } from '@flatstoneworks/ui'
+export type { UploadProgressProps, UploadItem } from '@flatstoneworks/ui'
