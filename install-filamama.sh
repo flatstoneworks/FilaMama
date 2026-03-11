@@ -18,11 +18,14 @@ NC='\033[0m'
 # ─── Globals ───────────────────────────────────────────────────────────
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATES_DIR="$PROJECT_DIR/templates"
+CONFIG_DIR="/etc/filamama"
+CONFIG_FILE="$CONFIG_DIR/config.yaml"
 
 # Defaults (overridden by config wizard or flags)
 FILAMAMA_PORT="${FILAMAMA_PORT:-1031}"
 FILAMAMA_ROOT_PATH="${FILAMAMA_ROOT_PATH:-$HOME}"
 FILAMAMA_MAX_UPLOAD_MB="${FILAMAMA_MAX_UPLOAD_MB:-10240}"
+FILAMAMA_MOUNTS=()
 SKIP_SERVICE=false
 SKIP_WIZARD=false
 
@@ -248,25 +251,117 @@ config_wizard() {
     read -r -p "Max upload size in MB [$FILAMAMA_MAX_UPLOAD_MB]: " input
     FILAMAMA_MAX_UPLOAD_MB="${input:-$FILAMAMA_MAX_UPLOAD_MB}"
 
+    # Mount points
+    echo ""
+    echo -e "${BOLD}Mount Points${NC}"
+    echo "Mounts let you access directories outside the root path."
+    echo "They appear in the sidebar. Leave name empty to stop adding."
+    echo ""
+
+    # Load existing mounts from current config if it exists
+    if [ -f "$CONFIG_FILE" ] && [ ${#FILAMAMA_MOUNTS[@]} -eq 0 ]; then
+        while IFS= read -r line; do
+            if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*name:[[:space:]]*\"(.+)\" ]]; then
+                local mount_name="${BASH_REMATCH[1]}"
+                local mount_path=""
+                local mount_icon="hard-drive"
+                # Read next lines for path and icon
+                IFS= read -r line2
+                if [[ "$line2" =~ path:[[:space:]]*\"(.+)\" ]]; then
+                    mount_path="${BASH_REMATCH[1]}"
+                fi
+                IFS= read -r line3
+                if [[ "$line3" =~ icon:[[:space:]]*\"(.+)\" ]]; then
+                    mount_icon="${BASH_REMATCH[1]}"
+                fi
+                if [ -n "$mount_name" ] && [ -n "$mount_path" ]; then
+                    FILAMAMA_MOUNTS+=("$mount_name|$mount_path|$mount_icon")
+                    echo "  Existing mount: $mount_name -> $mount_path"
+                fi
+            fi
+        done < "$CONFIG_FILE"
+        if [ ${#FILAMAMA_MOUNTS[@]} -gt 0 ]; then
+            echo ""
+            read -r -p "Keep existing mounts? (Y/n) " reply
+            if [[ "$reply" =~ ^[Nn]$ ]]; then
+                FILAMAMA_MOUNTS=()
+            fi
+        fi
+    fi
+
+    while true; do
+        read -r -p "Mount name (empty to finish): " mount_name
+        [ -z "$mount_name" ] && break
+
+        read -r -p "  Path for '$mount_name': " mount_path
+        if [ ! -d "$mount_path" ]; then
+            warn "Directory does not exist: $mount_path (will be added anyway)"
+        fi
+
+        read -r -p "  Icon [$( echo "hard-drive" )]: " mount_icon
+        mount_icon="${mount_icon:-hard-drive}"
+
+        FILAMAMA_MOUNTS+=("$mount_name|$mount_path|$mount_icon")
+        success "Added mount: $mount_name -> $mount_path"
+    done
+
     echo ""
     info "Configuration:"
     echo "  Root path:   $FILAMAMA_ROOT_PATH"
     echo "  Port:        $FILAMAMA_PORT"
     echo "  Upload max:  ${FILAMAMA_MAX_UPLOAD_MB}MB"
+    echo "  Config file: $CONFIG_FILE"
+    if [ ${#FILAMAMA_MOUNTS[@]} -gt 0 ]; then
+        echo "  Mounts:"
+        for mount in "${FILAMAMA_MOUNTS[@]}"; do
+            IFS='|' read -r name path icon <<< "$mount"
+            echo "    - $name -> $path"
+        done
+    else
+        echo "  Mounts:      (none)"
+    fi
     echo ""
 }
 
 # ─── Generate config.yaml ─────────────────────────────────────────────
 
 generate_config() {
-    info "Generating config.yaml..."
+    info "Generating config at $CONFIG_FILE..."
+
+    # Create /etc/filamama/ directory
+    sudo mkdir -p "$CONFIG_DIR"
+
+    # Build mounts YAML block
+    local mounts_yaml=""
+    if [ ${#FILAMAMA_MOUNTS[@]} -gt 0 ]; then
+        for mount in "${FILAMAMA_MOUNTS[@]}"; do
+            IFS='|' read -r name path icon <<< "$mount"
+            mounts_yaml+="  - name: \"$name\""$'\n'
+            mounts_yaml+="    path: \"$path\""$'\n'
+            mounts_yaml+="    icon: \"$icon\""$'\n'
+        done
+    else
+        mounts_yaml="  []"$'\n'
+    fi
+
+    # Generate config from template
+    local tmp_config
+    tmp_config=$(mktemp)
 
     sed -e "s|__PORT__|$FILAMAMA_PORT|g" \
         -e "s|__ROOT_PATH__|$FILAMAMA_ROOT_PATH|g" \
         -e "s|__MAX_UPLOAD_MB__|$FILAMAMA_MAX_UPLOAD_MB|g" \
-        "$TEMPLATES_DIR/config.yaml.template" > "$PROJECT_DIR/backend/config.yaml"
+        "$TEMPLATES_DIR/config.yaml.template" > "$tmp_config"
 
-    success "Config written to backend/config.yaml"
+    # Replace __MOUNTS__ placeholder with generated YAML
+    # Use awk since mounts_yaml is multiline
+    awk -v mounts="$mounts_yaml" '{gsub(/__MOUNTS__/, mounts); print}' "$tmp_config" > "${tmp_config}.final"
+
+    sudo cp "${tmp_config}.final" "$CONFIG_FILE"
+    sudo chmod 644 "$CONFIG_FILE"
+    rm -f "$tmp_config" "${tmp_config}.final"
+
+    success "Config written to $CONFIG_FILE"
 }
 
 # ─── Service setup ─────────────────────────────────────────────────────
@@ -427,6 +522,7 @@ cmd_install() {
     echo ""
     echo "  FilaMama: http://$(hostname):$FILAMAMA_PORT"
     echo "  API docs: http://$(hostname):$FILAMAMA_PORT/docs"
+    echo "  Config:   $CONFIG_FILE"
     echo ""
 
     if [ "$OS" = "linux" ] && [ "$SKIP_SERVICE" = false ]; then
@@ -434,12 +530,14 @@ cmd_install() {
         echo "  sudo systemctl status filamama   # Check status"
         echo "  sudo systemctl restart filamama   # Restart"
         echo "  sudo journalctl -u filamama -f    # View logs"
+        echo "  sudo vi $CONFIG_FILE     # Edit config"
     elif [ "$OS" = "macos" ] && [ "$SKIP_SERVICE" = false ]; then
         echo "Commands:"
         echo "  launchctl list com.filamama       # Check status"
         echo "  launchctl stop com.filamama        # Stop"
         echo "  launchctl start com.filamama       # Start"
         echo "  cat /tmp/filamama.err.log          # View logs"
+        echo "  vi $CONFIG_FILE          # Edit config"
     fi
     echo ""
 }
@@ -499,7 +597,7 @@ cmd_uninstall() {
     banner
     detect_os
 
-    echo -e "${YELLOW}This will stop and remove the FilaMama service.${NC}"
+    echo -e "${YELLOW}This will stop and remove the FilaMama service and config.${NC}"
     echo "Your data and application files will be preserved."
     echo ""
     read -r -p "Continue? (y/N) " reply
@@ -528,6 +626,12 @@ cmd_uninstall() {
         local plist="$HOME/Library/LaunchAgents/com.filamama.plist"
         launchctl unload "$plist" 2>/dev/null || true
         rm -f "$plist"
+    fi
+
+    # Remove config directory
+    if [ -d "$CONFIG_DIR" ]; then
+        sudo rm -rf "$CONFIG_DIR"
+        success "Config removed ($CONFIG_DIR)"
     fi
 
     success "Service removed"
@@ -570,15 +674,34 @@ cmd_status() {
         else
             echo -e "  Service: ${RED}stopped${NC}"
         fi
-        echo "  Config:  $PROJECT_DIR/backend/config.yaml"
+        echo "  Config:  $CONFIG_FILE"
 
         # Show config values if file exists
-        if [ -f "$PROJECT_DIR/backend/config.yaml" ]; then
+        if [ -f "$CONFIG_FILE" ]; then
             local port root_path
-            port=$(grep -m1 'port:' "$PROJECT_DIR/backend/config.yaml" | awk '{print $2}')
-            root_path=$(grep 'root_path:' "$PROJECT_DIR/backend/config.yaml" | awk '{print $2}' | tr -d '"')
+            port=$(grep -m1 'port:' "$CONFIG_FILE" | awk '{print $2}')
+            root_path=$(grep 'root_path:' "$CONFIG_FILE" | awk '{print $2}' | tr -d '"')
             echo "  Port:    $port"
             echo "  Root:    $root_path"
+
+            # Show mounts
+            local mount_count
+            mount_count=$(grep -c '^\s*- name:' "$CONFIG_FILE" 2>/dev/null || echo "0")
+            if [ "$mount_count" -gt 0 ]; then
+                echo "  Mounts:  $mount_count configured"
+                grep -A1 '^\s*- name:' "$CONFIG_FILE" | grep -E '(name|path):' | while IFS= read -r line; do
+                    if [[ "$line" =~ name:[[:space:]]*\"(.+)\" ]]; then
+                        printf "    - %s" "${BASH_REMATCH[1]}"
+                    elif [[ "$line" =~ path:[[:space:]]*\"(.+)\" ]]; then
+                        printf " -> %s\n" "${BASH_REMATCH[1]}"
+                    fi
+                done
+            else
+                echo "  Mounts:  (none)"
+            fi
+        else
+            warn "Config file not found at $CONFIG_FILE"
+            echo "  Run './install-filamama.sh --configure' to create it"
         fi
     elif [ "$OS" = "macos" ]; then
         if launchctl list com.filamama >/dev/null 2>&1; then
@@ -586,6 +709,7 @@ cmd_status() {
         else
             echo -e "  Service: ${RED}stopped${NC}"
         fi
+        echo "  Config:  $CONFIG_FILE"
     fi
 
     echo ""
@@ -599,9 +723,9 @@ usage() {
     echo "Commands:"
     echo "  --install      Install FilaMama (default)"
     echo "  --update       Pull latest code, rebuild, restart service"
-    echo "  --uninstall    Remove service (keeps files)"
+    echo "  --uninstall    Remove service and config (keeps files)"
     echo "  --configure    Re-run config wizard"
-    echo "  --status       Show service status"
+    echo "  --status       Show service status and config"
     echo ""
     echo "Options:"
     echo "  --no-service   Skip service setup (just build)"
@@ -609,6 +733,8 @@ usage() {
     echo "  --port N       Set port (default: 1031)"
     echo "  --root PATH    Set root browse path (default: \$HOME)"
     echo "  --help         Show this help"
+    echo ""
+    echo "Config file: $CONFIG_FILE"
     echo ""
     echo "Environment variables:"
     echo "  FILAMAMA_PORT           Port number"

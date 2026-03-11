@@ -39,9 +39,12 @@ backend/app/
   models/      — Pydantic schemas
   utils/       — Error handling decorators
 backend/
-  config.yaml       — Server config (root path, mounts, thumbnails, transcoding, upload)
+  config.yaml       — Default config (used as fallback)
+  config.dev.yaml   — Development defaults (FILAMAMA_DEV=1)
   config.docker.yaml — Docker defaults
-  config.dev.yaml   — Development defaults
+
+/etc/filamama/
+  config.yaml       — Production config (managed by install script, separate from app code)
 
 frontend/src/
   pages/       — FilesPage (browser), PreviewPage (file viewer)

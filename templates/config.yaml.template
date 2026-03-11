@@ -1,4 +1,5 @@
 # FilaMama Configuration
+# Location: /etc/filamama/config.yaml
 
 server:
   host: "0.0.0.0"
@@ -8,7 +9,9 @@ server:
 root_path: "__ROOT_PATH__"
 
 # Mount points - access directories outside root_path
-mounts: []
+# Each mount appears in the sidebar and allows browsing that path
+mounts:
+__MOUNTS__
 
 # Thumbnail settings
 thumbnails:

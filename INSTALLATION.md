@@ -2,330 +2,210 @@
 
 ## Overview
 
-FilaMama can be installed as a systemd service that runs automatically on system boot, ensuring it's always available.
+FilaMama runs as a single-process service (FastAPI serves both API and frontend). Configuration lives in `/etc/filamama/config.yaml`, separate from the application code.
 
-## Installation
-
-### Step 1: Run the Installation Script
+## Quick Install
 
 ```bash
-cd /home/flatstone/Claude/FLATSTONE/FilaMama
-./install.sh
+git clone https://github.com/flatstoneworks/FilaMama.git
+cd FilaMama
+./install-filamama.sh
 ```
 
-The script will:
-1. ✅ Check prerequisites (Python3, Node.js, npm)
-2. ✅ Set up Python virtual environment
-3. ✅ Install backend dependencies (FastAPI, Uvicorn, etc.)
-4. ✅ Install frontend dependencies (React, Vite, etc.)
-5. ✅ Build frontend for production
-6. ✅ Create data directories
-7. ✅ Configure and install systemd services
-8. ✅ Enable services to start on boot
-9. ✅ Start both services
-
-### Step 2: Verify Installation
-
-After installation completes, check that services are running:
-
-```bash
-sudo systemctl status filamama-backend
-sudo systemctl status filamama-frontend
-```
-
-Both should show "active (running)" in green.
-
-### Step 3: Access FilaMama
-
-Open your browser to:
-- **Frontend UI:** http://spark.local:1030
-- **Backend API:** http://spark.local:1031
-- **API Docs:** http://spark.local:1031/docs
-
-**Note:** The production service runs on ports 1030-1031. Development mode (using `./start.sh`) runs on ports 8010-8011, allowing you to run both simultaneously.
-
-## Service Management
-
-### Status Commands
-
-```bash
-# Check if services are running
-sudo systemctl status filamama-backend
-sudo systemctl status filamama-frontend
-
-# Check if services are enabled (start on boot)
-sudo systemctl is-enabled filamama-backend
-sudo systemctl is-enabled filamama-frontend
-```
-
-### Start/Stop Commands
-
-```bash
-# Stop services
-sudo systemctl stop filamama-backend
-sudo systemctl stop filamama-frontend
-
-# Start services
-sudo systemctl start filamama-backend
-sudo systemctl start filamama-frontend
-
-# Restart services (useful after config changes)
-sudo systemctl restart filamama-backend
-sudo systemctl restart filamama-frontend
-```
-
-### Log Viewing
-
-```bash
-# View backend logs (follow mode - live updates)
-sudo journalctl -u filamama-backend -f
-
-# View frontend logs (follow mode)
-sudo journalctl -u filamama-frontend -f
-
-# View last 50 lines of backend logs
-sudo journalctl -u filamama-backend -n 50
-
-# View last 50 lines of frontend logs
-sudo journalctl -u filamama-frontend -n 50
-```
-
-### Enable/Disable Auto-Start
-
-```bash
-# Disable auto-start on boot
-sudo systemctl disable filamama-backend
-sudo systemctl disable filamama-frontend
-
-# Re-enable auto-start on boot
-sudo systemctl enable filamama-backend
-sudo systemctl enable filamama-frontend
-```
-
-## Uninstallation
-
-To remove the systemd services (keeps your data):
-
-```bash
-cd /home/flatstone/Claude/FLATSTONE/FilaMama
-./uninstall.sh
-```
-
-This will:
-- Stop both services
-- Disable auto-start on boot
-- Remove systemd service files
-- Keep your application files and data intact
-
-To completely remove FilaMama including data:
-
-```bash
-cd /home/flatstone/Claude/FLATSTONE
-rm -rf FilaMama
-```
-
-## Updating FilaMama
-
-After making code changes:
-
-### Backend Changes
-
-```bash
-# Restart the backend service
-sudo systemctl restart filamama-backend
-
-# View logs to check for errors
-sudo journalctl -u filamama-backend -f
-```
-
-### Frontend Changes
-
-```bash
-# Rebuild the frontend
-cd /home/flatstone/Claude/FLATSTONE/FilaMama/frontend
-npm run build
-
-# Restart the frontend service
-sudo systemctl restart filamama-frontend
-
-# View logs to check for errors
-sudo journalctl -u filamama-frontend -f
-```
-
-### Dependency Changes
-
-If you update `requirements.txt` or `package.json`:
-
-```bash
-# Reinstall dependencies
-cd /home/flatstone/Claude/FLATSTONE/FilaMama
-./install.sh
-
-# The script will detect existing installations and update them
-```
-
-## Troubleshooting
-
-### Service Won't Start
-
-1. Check the logs for error messages:
-   ```bash
-   sudo journalctl -u filamama-backend -n 50
-   sudo journalctl -u filamama-frontend -n 50
-   ```
-
-2. Verify the ports aren't in use:
-   ```bash
-   ss -tlnp | grep -E ':(8010|8011)'
-   ```
-
-3. Check file permissions:
-   ```bash
-   ls -la /home/flatstone/Claude/FLATSTONE/FilaMama
-   ```
-
-### Port Conflicts
-
-If ports 1030 or 1031 are already in use:
-
-1. Find what's using the port:
-   ```bash
-   sudo lsof -i :1030
-   sudo lsof -i :1031
-   ```
-
-2. Either stop the conflicting service or update `ports.json` with new ports
-
-3. Update the systemd service files:
-   ```bash
-   sudo nano /etc/systemd/system/filamama-backend.service
-   sudo nano /etc/systemd/system/filamama-frontend.service
-   ```
-
-4. Reload and restart:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl restart filamama-backend
-   sudo systemctl restart filamama-frontend
-   ```
-
-**Port Allocation:**
-- Production (systemd): 1030-1031
-- Development (./start.sh): 8010-8011
-
-### Frontend Build Fails
-
-If the frontend build fails during installation:
-
-1. Check for TypeScript errors:
-   ```bash
-   cd frontend
-   npx tsc --noEmit
-   ```
-
-2. Check for missing dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Clear the build cache:
-   ```bash
-   rm -rf dist node_modules/.vite
-   npm run build
-   ```
-
-### Backend Won't Start
-
-Common issues:
-
-1. **Python virtual environment issues:**
-   ```bash
-   rm -rf backend/venv
-   python3 -m venv backend/venv
-   source backend/venv/bin/activate
-   pip install -r backend/requirements.txt
-   ```
-
-2. **Config file issues:**
-   Check `backend/config.yaml` for syntax errors
-
-3. **Permission issues:**
-   Ensure the user running the service has access to the root_path in config.yaml
-
-## Files Created
-
-The installation creates these files:
-
-- `/etc/systemd/system/filamama-backend.service` - Backend systemd service
-- `/etc/systemd/system/filamama-frontend.service` - Frontend systemd service
-- `backend/venv/` - Python virtual environment
-- `frontend/node_modules/` - Node.js dependencies
-- `frontend/dist/` - Production build of frontend
-- `data/thumbnails/` - Generated thumbnail cache
+The installer will:
+1. Install system dependencies (FFmpeg, ripgrep, libmagic, Cairo)
+2. Set up Python virtual environment and install backend dependencies
+3. Build the frontend for production
+4. Run the interactive config wizard (root path, port, mount points)
+5. Write config to `/etc/filamama/config.yaml`
+6. Install and start the systemd service (Linux) or launchd service (macOS)
 
 ## Configuration
 
-### Backend Configuration
+### Config File
 
-Edit `backend/config.yaml` to change:
-- Root directory for file browsing
-- Thumbnail settings
-- Upload limits
+Production config is stored at `/etc/filamama/config.yaml`. This is separate from the application directory so updates and reinstalls don't overwrite your settings.
 
-After changing config, restart the backend:
+```yaml
+# /etc/filamama/config.yaml
+server:
+  host: "0.0.0.0"
+  port: 1031
+
+root_path: "/home/user"
+
+mounts:
+  - name: "External"
+    path: "/media/external-drive"
+    icon: "hard-drive"
+  - name: "NAS"
+    path: "/mnt/nas"
+    icon: "hard-drive"
+
+thumbnails:
+  enabled: true
+  cache_dir: "data/thumbnails"
+  # ...
+
+upload:
+  max_size_mb: 10240
+  chunk_size_mb: 10
+```
+
+### Reconfigure
+
+Run the config wizard again to change settings:
+
 ```bash
-sudo systemctl restart filamama-backend
+./install-filamama.sh --configure
 ```
 
-### Port Configuration
+This updates `/etc/filamama/config.yaml` and optionally restarts the service.
 
-Edit `ports.json` to document port allocations:
-```json
-{
-  "project": "FilaMama",
-  "basePort": 8010,
-  "range": 10,
-  "allocated": {
-    "frontend": 8010,
-    "backend": 8011
-  }
-}
+### Environment Variable Overrides
+
+All config values can be overridden via environment variables without editing the config file:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `FILAMAMA_CONFIG` | Config file path | `/etc/filamama/config.yaml` |
+| `FILAMAMA_ROOT_PATH` | Root browse directory | `/home/user` |
+| `FILAMAMA_HOST` | Server bind host | `0.0.0.0` |
+| `FILAMAMA_PORT` | Server bind port | `1031` |
+| `FILAMAMA_DATA_DIR` | Thumbnail + transcoding cache | `/data` |
+| `FILAMAMA_MAX_UPLOAD_MB` | Max upload size in MB | `10240` |
+| `FILAMAMA_CORS_ORIGINS` | Comma-separated CORS origins | `http://host:1031` |
+| `FILAMAMA_FRONTEND_DIST` | Frontend dist directory | `/app/frontend/dist` |
+
+## Service Management
+
+### Commands
+
+```bash
+# Check status
+./install-filamama.sh --status
+
+# Or use systemctl directly
+sudo systemctl status filamama
+sudo systemctl restart filamama
+sudo systemctl stop filamama
+
+# View logs
+sudo journalctl -u filamama -f
+sudo journalctl -u filamama -n 50
 ```
 
-## Development vs Production
+### Update
 
-### Development Mode (Ports 8010-8011)
+Pull latest code, rebuild, and restart:
 
-Use `./start.sh` for development:
-- Hot reload for frontend changes
-- Auto-reload for backend changes
-- Detailed error messages
-- Not persistent (stops when terminal closes)
-- Frontend: http://spark.local:8010
-- Backend: http://spark.local:8011
+```bash
+./install-filamama.sh --update
+```
 
-### Production Mode (Ports 1030-1031)
+### Uninstall
 
-Use `./install.sh` for production:
-- Runs as system service
-- Auto-starts on boot
-- Runs in background
-- Managed by systemd
-- Production-optimized build
-- Frontend: http://spark.local:1030
-- Backend: http://spark.local:1031
+Removes the service and `/etc/filamama/` config. Application files are preserved:
 
-**You can run both simultaneously!** Development and production use different ports, so you can test changes in dev mode while keeping production running.
+```bash
+./install-filamama.sh --uninstall
+```
 
-## Security Notes
+## Installer Options
 
-The systemd services include basic security hardening:
-- `NoNewPrivileges=true` - Prevents privilege escalation
-- `PrivateTmp=true` - Isolated /tmp directory
-- Runs as non-root user (your user account)
+```
+Usage: ./install-filamama.sh [command] [options]
 
-For additional security:
-- Configure firewall rules for ports 8010/8011
-- Use HTTPS with a reverse proxy (nginx, Caddy)
-- Restrict file browser root path in config.yaml
-- Enable authentication if exposing to network
+Commands:
+  --install      Install FilaMama (default)
+  --update       Pull latest code, rebuild, restart service
+  --uninstall    Remove service and config (keeps files)
+  --configure    Re-run config wizard
+  --status       Show service status and config
+
+Options:
+  --no-service   Skip service setup (just build)
+  --no-wizard    Skip interactive config wizard (use defaults/env vars)
+  --port N       Set port (default: 1031)
+  --root PATH    Set root browse path (default: $HOME)
+```
+
+## URLs
+
+| Mode | URL | Description |
+|------|-----|-------------|
+| Production | `http://<hostname>:1031` | Single-process (API + frontend) |
+| Production | `http://<hostname>:1031/docs` | Swagger API docs |
+| Development | `http://<hostname>:8010` | Frontend dev server (hot reload) |
+| Development | `http://<hostname>:8011` | Backend dev server |
+
+Development and production use different ports, so you can run both simultaneously.
+
+## Docker
+
+```bash
+docker compose up
+```
+
+Or manually:
+
+```bash
+docker build -t filamama .
+docker run -p 1031:1031 -v ~/:/browse filamama
+```
+
+## Files Created
+
+| Path | Description |
+|------|-------------|
+| `/etc/filamama/config.yaml` | Production config |
+| `/etc/systemd/system/filamama.service` | systemd unit (Linux) |
+| `~/Library/LaunchAgents/com.filamama.plist` | launchd plist (macOS) |
+| `backend/venv/` | Python virtual environment |
+| `frontend/dist/` | Production frontend build |
+| `data/thumbnails/` | Thumbnail cache |
+| `data/transcoded/` | Transcoded video cache |
+
+## Troubleshooting
+
+### Service won't start
+
+```bash
+# Check logs
+sudo journalctl -u filamama -n 50
+
+# Check port in use
+sudo lsof -i :1031
+
+# Verify config
+cat /etc/filamama/config.yaml
+```
+
+### Config not found
+
+If the service can't find the config:
+
+```bash
+# Verify the file exists
+ls -la /etc/filamama/config.yaml
+
+# Re-run config wizard
+./install-filamama.sh --configure
+```
+
+### Port conflicts
+
+Change the port via the config wizard or edit `/etc/filamama/config.yaml` directly, then restart:
+
+```bash
+sudo systemctl restart filamama
+```
+
+## Security
+
+The systemd service includes:
+- `NoNewPrivileges=true` — prevents privilege escalation
+- `PrivateTmp=true` — isolated /tmp directory
+- Runs as non-root user
+- Path traversal protection on all file operations
+- Server-side upload size enforcement
