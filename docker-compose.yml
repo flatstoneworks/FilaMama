@@ -2,7 +2,7 @@ services:
   filamama:
     build: .
     ports:
-      - "1031:1031"
+      - "5031:5031"
     volumes:
       - ${BROWSE_PATH:-~/}:/browse
       - filamama-data:/data

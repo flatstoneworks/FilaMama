@@ -14,8 +14,7 @@ export default defineConfig({
         rollupOptions: {
             output: {
                 manualChunks: {
-                    'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-                    'vendor-query': ['@tanstack/react-query', '@tanstack/react-virtual'],
+                    'vendor-react': ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query', '@tanstack/react-virtual'],
                     'vendor-ui': [
                         '@radix-ui/react-context-menu',
                         '@radix-ui/react-dialog',
@@ -37,21 +36,21 @@ export default defineConfig({
     },
     server: {
         host: '0.0.0.0',
-        port: 8010,
+        port: 5030,
         allowedHosts: true,
         proxy: {
             '/api': {
-                target: 'http://localhost:8011',
+                target: 'http://localhost:5031',
                 changeOrigin: true,
             },
         },
     },
     preview: {
         host: '0.0.0.0',
-        port: 1030,
+        port: 5030,
         proxy: {
             '/api': {
-                target: 'http://localhost:1031',
+                target: 'http://localhost:5031',
                 changeOrigin: true,
             },
         },

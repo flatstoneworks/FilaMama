@@ -11,11 +11,11 @@ FilaMama is a fast, beautiful file manager web application. Browse, preview, and
 
 ## Tech Stack
 
-- **Frontend:** React 18, TypeScript, Vite, TanStack Query, Tailwind CSS, shadcn/ui, React Router (dev: 8010, prod: 1031)
-- **Backend:** FastAPI, Python 3.12, Pydantic, Pillow, mutagen, CairoSVG (dev: 8011, prod: 1031)
+- **Frontend:** React 18, TypeScript, Vite, TanStack Query, Tailwind CSS, shadcn/ui, React Router (port 5030)
+- **Backend:** FastAPI, Python 3.12, Pydantic, Pillow, mutagen, CairoSVG (port 5031)
 - **System:** FFmpeg (transcoding), ripgrep (content search), libmagic (MIME detection)
 - **Packaging:** Docker, systemd, launchd, install script
-- **URLs:** http://spark.local:8010 (dev) | http://spark.local:1031 (prod) | `/docs` (Swagger)
+- **URLs:** http://spark.local:5030 (dev) | http://spark.local:5031 (prod) | `/docs` (Swagger)
 
 ## Development Commands
 
