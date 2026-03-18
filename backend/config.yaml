@@ -1,8 +1,9 @@
 # FilaMama Configuration
+# Location: /etc/filamama/config.yaml
 
 server:
   host: "0.0.0.0"
-  port: 8011
+  port: 1031
 
 # Root directory for file browsing
 root_path: "/home/flatstone"
@@ -10,12 +11,7 @@ root_path: "/home/flatstone"
 # Mount points - access directories outside root_path
 # Each mount appears in the sidebar and allows browsing that path
 mounts:
-  - name: "FLATSTONE"
-    path: "/home/flatstone/FLATSTONE"
-    icon: "hard-drive"
-  - name: "Master"
-    path: "/media/Master"
-    icon: "hard-drive"
+__MOUNTS__
 
 # Thumbnail settings
 thumbnails:
@@ -36,7 +32,7 @@ transcoding:
 
 # Upload settings
 upload:
-  max_size_mb: 10240  # 10GB
+  max_size_mb: 20000
   chunk_size_mb: 10
 
 # File type icons mapping
