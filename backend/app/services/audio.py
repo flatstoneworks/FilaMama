@@ -32,7 +32,9 @@ class AudioMetadataService:
         if relative_path.startswith('/'):
             relative_path = relative_path[1:]
         full_path = (self.root_path / relative_path).resolve()
-        if not str(full_path).startswith(str(self.root_path.resolve())):
+        try:
+            full_path.relative_to(self.root_path)
+        except ValueError:
             raise ValueError("Path traversal attempt detected")
         return full_path
 
@@ -155,7 +157,7 @@ class AudioMetadataService:
         }
 
         for tag, field in tag_mapping.items():
-            if tag in audio.tags:
+            if tag in audio.tags and audio.tags[tag]:
                 metadata[field] = audio.tags[tag][0]
 
         # Check for cover art
@@ -219,7 +221,7 @@ class AudioMetadataService:
         }
 
         for tag, field in tag_mapping.items():
-            if tag in audio.tags:
+            if tag in audio.tags and audio.tags[tag]:
                 metadata[field] = audio.tags[tag][0]
 
         # Check for cover art in metadata_block_picture

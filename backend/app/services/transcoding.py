@@ -49,7 +49,10 @@ class TranscodingService:
         cache_key = self._get_cache_key(file_path)
         cache_path = self._get_cache_path(cache_key)
         if cache_path.exists():
-            os.utime(cache_path)
+            try:
+                os.utime(cache_path)
+            except OSError:
+                pass  # File may have been evicted between exists() and utime()
             return cache_path
         return None
 

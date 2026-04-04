@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from enum import Enum
 from datetime import datetime
@@ -26,7 +26,7 @@ class FileInfo(BaseModel):
     name: str
     path: str
     type: FileType
-    size: int
+    size: int = Field(ge=0)
     modified: datetime
     extension: Optional[str] = None
     mime_type: Optional[str] = None
@@ -65,17 +65,17 @@ class ConflictCheckResponse(BaseModel):
 
 
 class RenameRequest(BaseModel):
-    path: str
-    new_name: str
+    path: str = Field(min_length=1)
+    new_name: str = Field(min_length=1, max_length=255)
 
 
 class DeleteRequest(BaseModel):
-    paths: List[str]
+    paths: List[str] = Field(min_length=1, max_length=10000)
 
 
 class CreateDirectoryRequest(BaseModel):
-    path: str
-    name: str
+    path: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=255)
 
 
 class SearchResult(BaseModel):
