@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, memo } from 'react'
 import { FileIcon, isTextFile, isAudioFile } from './FileIcon'
 import { VideoPreview, isVideoFile, videoNeedsTranscoding } from '@flatstoneworks/media-components'
 import { TextPreview } from './TextPreview'
@@ -41,7 +41,7 @@ interface FileGridProps {
   isFavorite?: (path: string) => boolean
 }
 
-export function FileGrid({
+export const FileGrid = memo(function FileGrid({
   files,
   selectedFiles,
   gridSize,
@@ -213,4 +213,4 @@ export function FileGrid({
       })}
     </div>
   )
-}
+})

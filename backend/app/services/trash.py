@@ -45,7 +45,9 @@ class TrashService:
         if path.startswith("/"):
             path = path[1:]
         full_path = (self.root_path / path).resolve()
-        if not str(full_path).startswith(str(self.root_path)):
+        try:
+            full_path.relative_to(self.root_path)
+        except ValueError:
             raise ValueError("Path traversal attempt detected")
         return full_path
 

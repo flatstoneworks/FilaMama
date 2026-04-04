@@ -40,7 +40,10 @@ if os.environ.get("FILAMAMA_ROOT_PATH"):
 if os.environ.get("FILAMAMA_HOST"):
     config["server"]["host"] = os.environ["FILAMAMA_HOST"]
 if os.environ.get("FILAMAMA_PORT"):
-    config["server"]["port"] = int(os.environ["FILAMAMA_PORT"])
+    port_val = int(os.environ["FILAMAMA_PORT"])
+    if not (1 <= port_val <= 65535):
+        raise ValueError(f"FILAMAMA_PORT must be 1-65535, got {port_val}")
+    config["server"]["port"] = port_val
 
 # Data directory override — redirects thumbnail + transcoding cache paths
 if os.environ.get("FILAMAMA_DATA_DIR"):
@@ -115,9 +118,9 @@ else:
     port = config["server"]["port"]
     cors_origins = [
         f"http://spark.local:{port}",  # Self-origin (unified service)
-        "http://spark.local:1030",     # Legacy production frontend
-        "http://spark.local:8010",     # Dev frontend
-        "http://localhost:8010",       # Dev fallback
+        "http://spark.local:1030",     # Production frontend
+        "http://spark.local:5030",     # Dev frontend
+        "http://localhost:5030",       # Dev fallback
     ]
 
 app.add_middleware(

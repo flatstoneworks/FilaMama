@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, memo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { FileIcon, isAudioFile } from './FileIcon'
 import { AudioCover } from './AudioCover'
@@ -42,7 +42,7 @@ interface FileListProps {
   parentRef?: React.RefObject<HTMLDivElement>
 }
 
-export function FileList({
+export const FileList = memo(function FileList({
   files,
   selectedFiles,
   focusedIndex = -1,
@@ -249,4 +249,4 @@ export function FileList({
       </div>
     </div>
   )
-}
+})

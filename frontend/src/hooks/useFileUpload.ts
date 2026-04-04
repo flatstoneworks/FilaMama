@@ -32,16 +32,19 @@ export function useFileUpload(currentPath: string, maxUploadSizeMb?: number) {
         return
       }
 
-      const newUploads: UploadItem[] = validFiles.map((file) => ({
-        id: Math.random().toString(36).slice(2),
-        name: (file as any).customRelativePath || (file as any).webkitRelativePath || file.name,
-        progress: 0,
-        status: 'pending' as const,
-        file: file,
-        relativePath: (file as any).customRelativePath || (file as any).webkitRelativePath || '',
-        totalBytes: file.size,
-        bytesUploaded: 0,
-      }))
+      const newUploads: UploadItem[] = validFiles.map((file) => {
+        const extFile = file as File & { customRelativePath?: string; webkitRelativePath?: string }
+        return {
+          id: crypto.randomUUID(),
+          name: extFile.customRelativePath || extFile.webkitRelativePath || file.name,
+          progress: 0,
+          status: 'pending' as const,
+          file: file,
+          relativePath: extFile.customRelativePath || extFile.webkitRelativePath || '',
+          totalBytes: file.size,
+          bytesUploaded: 0,
+        }
+      })
 
       setUploads((prev) => [...prev, ...newUploads])
       setIsPreparingUpload(false)

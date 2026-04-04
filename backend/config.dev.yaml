@@ -2,7 +2,7 @@
 
 server:
   host: "0.0.0.0"
-  port: 8011
+  port: 5031
 
 # Root directory for file browsing
 root_path: "/home/flatstone"

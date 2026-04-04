@@ -56,7 +56,9 @@ async def upload_files(
                 if '..' in rel_path.split('/') or '..' in rel_path.split('\\'):
                     raise HTTPException(status_code=400, detail=f"Invalid relative path: {rel_path}")
                 file_path = (target_dir / rel_path).resolve()
-                if not str(file_path).startswith(str(target_dir.resolve())):
+                try:
+                    file_path.relative_to(target_dir.resolve())
+                except ValueError:
                     raise HTTPException(status_code=400, detail=f"Path traversal detected: {rel_path}")
                 # Create parent directories if they don't exist
                 file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -66,7 +68,9 @@ async def upload_files(
                 if not safe_name or safe_name in ('.', '..'):
                     raise HTTPException(status_code=400, detail=f"Invalid filename: {file.filename}")
                 file_path = (target_dir / safe_name).resolve()
-                if not str(file_path).startswith(str(target_dir.resolve())):
+                try:
+                    file_path.relative_to(target_dir.resolve())
+                except ValueError:
                     raise HTTPException(status_code=400, detail=f"Invalid filename: {file.filename}")
 
             if file_path.exists() and not overwrite:
@@ -99,6 +103,7 @@ async def upload_files(
         except HTTPException:
             raise
         except Exception as e:
+            logger.exception("Unexpected error uploading file %s", file.filename)
             errors.append({"name": file.filename, "error": str(e)})
 
     return {

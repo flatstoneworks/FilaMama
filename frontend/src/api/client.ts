@@ -54,7 +54,21 @@ async function listDirectory(path = '/', sortBy?: SortField, sortOrder?: SortOrd
   const params = new URLSearchParams({ path })
   if (sortBy) params.set('sort_by', sortBy)
   if (sortOrder) params.set('sort_order', sortOrder)
-  const data = await handleResponse<{ path: string; items: any[] }>(
+  interface DirectoryListingResponse {
+    path: string
+    items: Array<{
+      name: string
+      path: string
+      type: FileType
+      size: number
+      modified: string
+      extension?: string
+      mime_type?: string
+      is_hidden?: boolean
+      has_thumbnail?: boolean
+    }>
+  }
+  const data = await handleResponse<DirectoryListingResponse>(
     await fetch(`${API_BASE}/files/list?${params}`)
   )
 
@@ -192,7 +206,9 @@ async function uploadFile(
             return
           }
         } catch {
-          // If we can't parse the response, assume success
+          // If we can't parse the response as JSON, treat as error
+          reject(new Error('Upload completed but server returned an invalid response'))
+          return
         }
         resolve()
       } else {

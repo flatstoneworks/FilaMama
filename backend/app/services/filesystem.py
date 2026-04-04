@@ -52,6 +52,21 @@ class FilesystemService:
         if not name or '/' in name or '\\' in name or name in ('.', '..'):
             raise ValueError(f"Invalid name: {name}")
 
+    def _is_within_bounds(self, resolved_path: Path) -> bool:
+        """Check if a resolved path is within root_path or any mount point."""
+        try:
+            resolved_path.relative_to(self.root_path)
+            return True
+        except ValueError:
+            pass
+        for mount in self.mounts:
+            try:
+                resolved_path.relative_to(mount['path'])
+                return True
+            except ValueError:
+                continue
+        return False
+
     def _resolve_path(self, path: str) -> Path:
         # Check if path matches a mount point
         for mount in self.mounts:
@@ -59,7 +74,9 @@ class FilesystemService:
             if path == mount_str or path.startswith(mount_str + '/'):
                 full_path = Path(path).resolve()
                 # Security check: ensure resolved path is within mount
-                if not str(full_path).startswith(mount_str):
+                try:
+                    full_path.relative_to(mount['path'])
+                except ValueError:
                     raise ValueError("Path traversal attempt detected")
                 return full_path
 
@@ -67,7 +84,9 @@ class FilesystemService:
         if path.startswith('/'):
             path = path[1:]
         full_path = (self.root_path / path).resolve()
-        if not str(full_path).startswith(str(self.root_path)):
+        try:
+            full_path.relative_to(self.root_path)
+        except ValueError:
             raise ValueError("Path traversal attempt detected")
         return full_path
 
@@ -218,7 +237,7 @@ class FilesystemService:
         self._validate_name(name)
         parent_path = self._resolve_path(path)
         new_dir = (parent_path / name).resolve()
-        if not str(new_dir).startswith(str(self.root_path)):
+        if not self._is_within_bounds(new_dir):
             raise ValueError("Path traversal attempt detected")
         if new_dir.exists():
             raise FileExistsError(f"Directory already exists: {name}")
@@ -246,7 +265,7 @@ class FilesystemService:
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {path}")
         new_path = (file_path.parent / new_name).resolve()
-        if not str(new_path).startswith(str(self.root_path)):
+        if not self._is_within_bounds(new_path):
             raise ValueError("Path traversal attempt detected")
         if new_path.exists():
             raise FileExistsError(f"File already exists: {new_name}")

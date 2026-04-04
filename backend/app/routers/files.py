@@ -267,9 +267,14 @@ async def get_text_content(path: str, max_size: int = Query(10 * 1024 * 1024)):
     return TextFileContent(content=content, size=size)
 
 
+MAX_TEXT_SAVE_SIZE = 50 * 1024 * 1024  # 50MB limit for text saves
+
+
 @router.post("/text", response_model=OperationSuccess)
 @handle_fs_errors
 async def save_text_content(path: str, content: str):
+    if len(content.encode('utf-8')) > MAX_TEXT_SAVE_SIZE:
+        raise HTTPException(status_code=413, detail="Content too large (max 50MB)")
     file_path = _require_fs().get_absolute_path(path)
     file_path.write_text(content, encoding='utf-8')
     return OperationSuccess(success=True, message="File saved successfully")

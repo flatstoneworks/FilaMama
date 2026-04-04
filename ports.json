@@ -9,11 +9,11 @@
     }
   },
   "development": {
-    "basePort": 8010,
+    "basePort": 5030,
     "range": 10,
     "allocated": {
-      "frontend": 8010,
-      "backend": 8011
+      "frontend": 5030,
+      "backend": 5031
     }
   }
 }

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react'
 import type { FileInfo } from '@/api/client'
 import { api } from '@/api/client'
 
@@ -53,17 +53,17 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
     setCurrentIndex(0)
   }, [])
 
+  const value = useMemo(() => ({
+    playlist,
+    currentIndex,
+    isOpen,
+    playTrack,
+    setCurrentIndex,
+    close,
+  }), [playlist, currentIndex, isOpen, playTrack, setCurrentIndex, close])
+
   return (
-    <AudioPlayerContext.Provider
-      value={{
-        playlist,
-        currentIndex,
-        isOpen,
-        playTrack,
-        setCurrentIndex,
-        close,
-      }}
-    >
+    <AudioPlayerContext.Provider value={value}>
       {children}
     </AudioPlayerContext.Provider>
   )
