@@ -33,7 +33,7 @@ export function useFileNavigation(
 
   const openPreview = useCallback((file: FileInfo) => {
     const previewPath = file.path
-    const encodedPath = previewPath.split('/').map(s => encodeURIComponent(s)).join('/')
+    const encodedPath = encodePathForUrl(previewPath)
     navigate(`/view${encodedPath}`)
   }, [navigate])
 

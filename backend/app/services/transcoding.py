@@ -112,7 +112,11 @@ class TranscodingService:
         # If another request is already processing this file, wait for it
         if job_key in self._active_jobs:
             event = self._active_jobs[job_key]
-            await event.wait()
+            try:
+                await asyncio.wait_for(event.wait(), timeout=self.transcode_timeout + 60)
+            except asyncio.TimeoutError:
+                logger.warning("Timed out waiting for transcoding job: %s", file_path.name)
+                return None
             if cache_path.exists():
                 return cache_path
             return None

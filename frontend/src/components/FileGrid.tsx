@@ -158,6 +158,12 @@ export const FileGrid = memo(function FileGrid({
                     alt={file.name}
                     className="max-w-full max-h-full object-contain"
                     loading="lazy"
+                    onError={(e) => {
+                      // Replace broken thumbnail with file icon
+                      const target = e.currentTarget
+                      target.style.display = 'none'
+                      target.parentElement?.classList.add('thumbnail-error')
+                    }}
                   />
                 </div>
               ) : (

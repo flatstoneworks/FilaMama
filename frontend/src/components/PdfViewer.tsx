@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Loader2 } from 'lucide-react'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 
-// Configure worker - use CDN with specific version to match react-pdf
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.4.296/build/pdf.worker.min.mjs`
+// Configure worker - use CDN with version synced to installed pdfjs-dist
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
 
 interface PdfViewerProps {
   fileUrl: string
@@ -21,6 +21,7 @@ export function PdfViewer({ fileUrl, fileName, onLoad }: PdfViewerProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pdfData, setPdfData] = useState<string | null>(null)
+  const pdfDataRef = useRef<string | null>(null)
 
   // Fetch PDF as blob to avoid CORS issues
   useEffect(() => {
@@ -28,25 +29,32 @@ export function PdfViewer({ fileUrl, fileName, onLoad }: PdfViewerProps) {
     setPdfData(null)
     setError(null)
 
+    let cancelled = false
+
     fetch(fileUrl)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.blob()
       })
       .then(blob => {
+        if (cancelled) return
         const url = URL.createObjectURL(blob)
+        pdfDataRef.current = url
         setPdfData(url)
       })
       .catch(err => {
+        if (cancelled) return
         console.error('Failed to fetch PDF:', err)
         setError(`Failed to fetch PDF: ${err.message}`)
         setIsLoading(false)
       })
 
-    // Cleanup blob URL on unmount
+    // Cleanup blob URL on unmount or fileUrl change
     return () => {
-      if (pdfData) {
-        URL.revokeObjectURL(pdfData)
+      cancelled = true
+      if (pdfDataRef.current) {
+        URL.revokeObjectURL(pdfDataRef.current)
+        pdfDataRef.current = null
       }
     }
   }, [fileUrl])

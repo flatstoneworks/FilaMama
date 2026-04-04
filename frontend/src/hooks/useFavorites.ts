@@ -14,7 +14,11 @@ export function useFavorites() {
   })
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(favorites))
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(favorites))
+    } catch {
+      // localStorage may be full or unavailable (e.g. private browsing)
+    }
   }, [favorites])
 
   const addToFavorites = useCallback((path: string) => {

@@ -1,9 +1,19 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { FileInfo } from '@/api/client'
 
 export function useFileSelection(files: FileInfo[]) {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
   const lastSelectedRef = useRef<string | null>(null)
+
+  // Clean up stale selections when the file list changes
+  useEffect(() => {
+    setSelectedFiles(prev => {
+      if (prev.size === 0) return prev
+      const validPaths = new Set(files.map(f => f.path))
+      const cleaned = new Set([...prev].filter(p => validPaths.has(p)))
+      return cleaned.size === prev.size ? prev : cleaned
+    })
+  }, [files])
 
   const selectFile = useCallback((file: FileInfo, event?: React.MouseEvent) => {
     const path = file.path

@@ -48,7 +48,7 @@ export function useKeyboardShortcuts({
   // Reset focused index when path or files change
   useEffect(() => {
     setFocusedIndex(-1)
-  }, [currentPath, displayedFiles.length === 0])
+  }, [currentPath, displayedFiles.length])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -65,24 +65,24 @@ export function PreviewPage() {
     return path.split('/').map(segment => encodeURIComponent(segment)).join('/')
   }
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     if (hasPrev) {
       const prevFile = previewableFiles[currentIndex - 1]
       navigate(`/view${encodePathForUrl(joinPath(dirPath, prevFile.name))}`)
     }
-  }
+  }, [hasPrev, previewableFiles, currentIndex, navigate, dirPath])
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (hasNext) {
       const nextFile = previewableFiles[currentIndex + 1]
       navigate(`/view${encodePathForUrl(joinPath(dirPath, nextFile.name))}`)
     }
-  }
+  }, [hasNext, previewableFiles, currentIndex, navigate, dirPath])
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     // Navigate to the parent folder so scroll restoration kicks in
     navigate(`/browse${encodePathForUrl(dirPath)}`)
-  }
+  }, [navigate, dirPath])
 
   // Keyboard navigation
   // Note: Arrow keys are disabled for video files since VideoPlayer uses them for seeking
@@ -100,7 +100,7 @@ export function PreviewPage() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [hasPrev, hasNext, currentIndex, fileType])
+  }, [hasPrev, hasNext, fileType, handlePrev, handleNext, handleBack])
 
   // Load text content for text/code files
   useEffect(() => {
@@ -109,14 +109,18 @@ export function PreviewPage() {
       setTextContent(null)
 
       if (isTextFile(currentFile.name)) {
+        const abortController = new AbortController()
         const downloadUrl = api.getDownloadUrl(filePath)
-        fetch(downloadUrl)
+        fetch(downloadUrl, { signal: abortController.signal })
           .then((res) => res.text())
           .then((text) => {
             setTextContent(text)
             setIsLoading(false)
           })
-          .catch(() => setIsLoading(false))
+          .catch((err) => {
+            if (err.name !== 'AbortError') setIsLoading(false)
+          })
+        return () => abortController.abort()
       } else {
         // For non-text files, loading is handled by the media element
         setIsLoading(true)
