@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, type FileInfo, type TrashItem, type SearchResult, type ContentSearchResult, type SortField, type SortOrder } from '@/api/client'
+import { api, type FileInfo, type SortField, type SortOrder } from '@/api/client'
 import { useFileSelection } from '@/hooks/useFileSelection'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useScrollRestoration } from '@/hooks/useScrollRestoration'
@@ -28,7 +28,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/components/ui/use-toast'
 import { Loader2, X, FolderSearch, FileText, AlertTriangle } from 'lucide-react'
-import { joinPath } from '@/lib/utils'
+import {
+  joinPath,
+  searchResultToFileInfo,
+  contentSearchResultToFileInfo,
+  trashItemToFileInfo,
+} from '@/lib/utils'
 
 // Maximum files to display without virtualization to prevent performance issues
 const MAX_DISPLAY_FILES = 1000
@@ -146,23 +151,7 @@ export function FilesPage() {
   // Convert trash items to FileInfo format
   const trashFiles: FileInfo[] = useMemo(() => {
     if (!trashListing?.items) return []
-    const thumbnailExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.mov', '.avi', '.mkv', '.webm']
-    return trashListing.items.map((item: TrashItem) => {
-      const ext = item.original_name?.includes('.') ? '.' + item.original_name.split('.').pop()?.toLowerCase() : ''
-      const hasThumbnail = item.type === 'file' && thumbnailExtensions.includes(ext)
-      return {
-        name: item.original_name,
-        path: item.name, // Use trash_name as path identifier for operations
-        type: item.type,
-        size: item.size,
-        modified: item.deleted_at,
-        is_hidden: false,
-        has_thumbnail: hasThumbnail,
-        thumbnail_url: hasThumbnail ? api.getThumbnailUrl(item.path) : undefined,
-        is_directory: item.type === 'directory',
-        extension: ext ? ext.slice(1) : undefined,
-      }
-    })
+    return trashListing.items.map(trashItemToFileInfo)
   }, [trashListing])
 
   const files = isTrashView ? trashFiles : (listing?.files || [])
@@ -228,46 +217,13 @@ export function FilesPage() {
   // Convert filename search results to FileInfo format
   const searchResultsAsFiles: FileInfo[] = useMemo(() => {
     if (!searchResults) return []
-    const thumbnailExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.mov', '.avi', '.mkv', '.webm']
-    return searchResults.map((r: SearchResult) => {
-      const ext = r.name.includes('.') ? '.' + r.name.split('.').pop()?.toLowerCase() : ''
-      const hasThumbnail = r.type === 'file' && thumbnailExtensions.includes(ext)
-      return {
-        name: r.name,
-        path: r.path,
-        type: r.type,
-        size: r.size,
-        modified: r.modified,
-        is_hidden: false,
-        has_thumbnail: hasThumbnail,
-        thumbnail_url: hasThumbnail ? api.getThumbnailUrl(r.path) : undefined,
-        is_directory: r.type === 'directory',
-        extension: ext ? ext.slice(1) : undefined,
-      }
-    })
+    return searchResults.map(searchResultToFileInfo)
   }, [searchResults])
 
-  // Convert content search results
-  const contentSearchResultsAsFiles: (FileInfo & { contentMatches?: ContentSearchResult['matches'] })[] = useMemo(() => {
+  // Convert content search results (preserving per-line matches)
+  const contentSearchResultsAsFiles = useMemo(() => {
     if (!contentSearchResults) return []
-    const thumbnailExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.mov', '.avi', '.mkv', '.webm']
-    return contentSearchResults.map((r: ContentSearchResult) => {
-      const ext = r.name.includes('.') ? '.' + r.name.split('.').pop()?.toLowerCase() : ''
-      const hasThumbnail = r.type === 'file' && thumbnailExtensions.includes(ext)
-      return {
-        name: r.name,
-        path: r.path,
-        type: r.type,
-        size: r.size,
-        modified: r.modified,
-        is_hidden: false,
-        has_thumbnail: hasThumbnail,
-        thumbnail_url: hasThumbnail ? api.getThumbnailUrl(r.path) : undefined,
-        is_directory: r.type === 'directory',
-        extension: ext ? ext.slice(1) : undefined,
-        contentMatches: r.matches,
-      }
-    })
+    return contentSearchResults.map(contentSearchResultToFileInfo)
   }, [contentSearchResults])
 
   // Determine displayed files
@@ -480,7 +436,6 @@ export function FilesPage() {
             type="file"
             multiple
             className="hidden"
-            // @ts-ignore - webkitdirectory is a non-standard attribute
             webkitdirectory=""
             onChange={(e) => e.target.files && handleUpload(e.target.files)}
           />

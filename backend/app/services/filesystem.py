@@ -23,6 +23,11 @@ from ..models.schemas import (
     ContentSearchMatch,
     ContentSearchResult,
 )
+from ..utils.paths import (
+    generate_unique_path,
+    relative_to_root,
+    resolve_within_root,
+)
 
 # Content type definitions for filtering
 CONTENT_TYPES = {
@@ -67,44 +72,14 @@ class FilesystemService:
                 continue
         return False
 
-    def _resolve_path(self, path: str) -> Path:
-        # Check if path matches a mount point
-        for mount in self.mounts:
-            mount_str = str(mount['path'])
-            if path == mount_str or path.startswith(mount_str + '/'):
-                full_path = Path(path).resolve()
-                # Security check: ensure resolved path is within mount
-                try:
-                    full_path.relative_to(mount['path'])
-                except ValueError:
-                    raise ValueError("Path traversal attempt detected")
-                return full_path
+    def _mount_paths(self) -> list[Path]:
+        return [m['path'] for m in self.mounts]
 
-        # Existing root_path logic
-        if path.startswith('/'):
-            path = path[1:]
-        full_path = (self.root_path / path).resolve()
-        try:
-            full_path.relative_to(self.root_path)
-        except ValueError:
-            raise ValueError("Path traversal attempt detected")
-        return full_path
+    def _resolve_path(self, path: str) -> Path:
+        return resolve_within_root(path, self.root_path, self._mount_paths())
 
     def _get_relative_path(self, absolute_path: Path) -> str:
-        abs_str = str(absolute_path)
-        # Check mounts first - return absolute path for mount locations
-        for mount in self.mounts:
-            if abs_str.startswith(str(mount['path'])):
-                return abs_str
-        # Existing root_path logic
-        try:
-            rel = str(absolute_path.relative_to(self.root_path))
-            # Handle case where path equals root_path (relative_to returns ".")
-            if rel == ".":
-                return "/"
-            return "/" + rel
-        except ValueError:
-            return "/"
+        return relative_to_root(absolute_path, self.root_path, self._mount_paths())
 
     def _get_file_type(self, path: Path) -> FileType:
         if path.is_symlink():
@@ -289,12 +264,7 @@ class FilesystemService:
                     else:
                         dst_path.unlink()
                 else:
-                    base = dst_path.stem
-                    ext = dst_path.suffix
-                    counter = 1
-                    while dst_path.exists():
-                        dst_path = dst_path.parent / f"{base}({counter}){ext}"
-                        counter += 1
+                    dst_path = generate_unique_path(dst_path)
             if src_path.is_dir():
                 shutil.copytree(src_path, dst_path)
             else:
@@ -320,12 +290,7 @@ class FilesystemService:
                     else:
                         dst_path.unlink()
                 else:
-                    base = dst_path.stem
-                    ext = dst_path.suffix
-                    counter = 1
-                    while dst_path.exists():
-                        dst_path = dst_path.parent / f"{base}({counter}){ext}"
-                        counter += 1
+                    dst_path = generate_unique_path(dst_path)
             shutil.move(str(src_path), str(dst_path))
             return self._get_file_info(dst_path)
 
