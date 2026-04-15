@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import io
 
-logger = logging.getLogger(__name__)
-
 from ..utils.paths import resolve_within_root
+
+logger = logging.getLogger(__name__)
 
 try:
     from mutagen import File as MutagenFile
