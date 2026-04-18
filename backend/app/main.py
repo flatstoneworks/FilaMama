@@ -10,6 +10,7 @@ from .routers import files, upload, trash, system
 from .services.filesystem import FilesystemService, CONTENT_TYPES
 from .services.thumbnails import ThumbnailService
 from .services.audio import AudioMetadataService
+from .services.content_search import ContentSearchService
 from .services.transcoding import TranscodingService
 from .services.trash import TrashService
 
@@ -85,6 +86,7 @@ transcode_service = TranscodingService(
 trash_service = TrashService(
     root_path=config["root_path"],
 )
+content_search_service = ContentSearchService(fs_service)
 
 
 @asynccontextmanager
@@ -92,7 +94,9 @@ async def lifespan(app: FastAPI):
     logger.info("FilaMama starting...")
     logger.info("Root path: %s", config['root_path'])
     logger.info("Server: http://%s:%s", config['server']['host'], config['server']['port'])
-    files.init_services(fs_service, thumb_service, audio_service, transcode_service)
+    files.init_services(
+        fs_service, thumb_service, audio_service, transcode_service, content_search_service
+    )
     upload.init_services(fs_service, max_size_mb=config["upload"]["max_size_mb"])
     trash.init_services(trash_service)
     system.init_services(

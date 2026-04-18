@@ -1,15 +1,17 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, type FileInfo, type TrashItem, type SearchResult, type ContentSearchResult, type SortField, type SortOrder } from '@/api/client'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { api, type FileInfo, type SortField, type SortOrder } from '@/api/client'
 import { useFileSelection } from '@/hooks/useFileSelection'
-import { useDebounce } from '@/hooks/useDebounce'
 import { useScrollRestoration } from '@/hooks/useScrollRestoration'
 import { useFavorites } from '@/hooks/useFavorites'
 import { useClipboard } from '@/hooks/useClipboard'
 import { useFileUpload } from '@/hooks/useFileUpload'
 import { useFileNavigation } from '@/hooks/useFileNavigation'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { useFileSearch } from '@/hooks/useFileSearch'
+import { useTrashMode } from '@/hooks/useTrashMode'
+import { useFileMutations } from '@/hooks/useFileMutations'
 import { Header } from '@/components/Header'
 import { Sidebar } from '@/components/Sidebar'
 import { Toolbar, type ViewMode } from '@/components/Toolbar'
@@ -26,9 +28,7 @@ import { ConflictDialog } from '@/components/ConflictDialog'
 import { KeyboardShortcutsDialog } from '@/components/KeyboardShortcutsDialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { toast } from '@/components/ui/use-toast'
 import { Loader2, X, FolderSearch, FileText, AlertTriangle } from 'lucide-react'
-import { joinPath } from '@/lib/utils'
 
 // Maximum files to display without virtualization to prevent performance issues
 const MAX_DISPLAY_FILES = 1000
@@ -46,9 +46,6 @@ export function FilesPage() {
     const path = decodeURIComponent(location.pathname).replace(/^\/browse/, '') || '/'
     return path === '' ? '/' : path
   }, [location.pathname])
-
-  // Trash view detection
-  const isTrashView = currentPath === '/.deleted_items'
 
   // URL-backed state
   const viewMode = (searchParams.get('view') as ViewMode) || 'grid'
@@ -122,19 +119,8 @@ export function FilesPage() {
     staleTime: Infinity,
   })
 
-  // Trash info for sidebar badge
-  const { data: trashInfo } = useQuery({
-    queryKey: ['trash-info'],
-    queryFn: () => api.getTrashInfo(),
-    staleTime: 30000,
-  })
-
-  // Trash listing
-  const { data: trashListing, isLoading: isLoadingTrash } = useQuery({
-    queryKey: ['trash-list'],
-    queryFn: () => api.listTrash(),
-    enabled: isTrashView,
-  })
+  // Trash state (view flag, listing, sidebar badge).
+  const { isTrashView, trashFiles, isLoadingTrash, trashInfo } = useTrashMode(currentPath)
 
   // Fetch files (skip in trash view)
   const { data: listing, isLoading: isLoadingDir, error } = useQuery({
@@ -143,139 +129,43 @@ export function FilesPage() {
     enabled: !isTrashView,
   })
 
-  // Convert trash items to FileInfo format
-  const trashFiles: FileInfo[] = useMemo(() => {
-    if (!trashListing?.items) return []
-    const thumbnailExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.mov', '.avi', '.mkv', '.webm']
-    return trashListing.items.map((item: TrashItem) => {
-      const ext = item.original_name?.includes('.') ? '.' + item.original_name.split('.').pop()?.toLowerCase() : ''
-      const hasThumbnail = item.type === 'file' && thumbnailExtensions.includes(ext)
-      return {
-        name: item.original_name,
-        path: item.name, // Use trash_name as path identifier for operations
-        type: item.type,
-        size: item.size,
-        modified: item.deleted_at,
-        is_hidden: false,
-        has_thumbnail: hasThumbnail,
-        thumbnail_url: hasThumbnail ? api.getThumbnailUrl(item.path) : undefined,
-        is_directory: item.type === 'directory',
-        extension: ext ? ext.slice(1) : undefined,
-      }
-    })
-  }, [trashListing])
-
   const files = isTrashView ? trashFiles : (listing?.files || [])
 
-  // Debounce search
-  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+  // Filename + content search (queries, debouncing, result conversion, pagination).
+  const {
+    isFilenameSearchActive,
+    isContentSearchActive,
+    isSearchActive,
+    filenameResultsAsFiles,
+    contentResultsAsFiles,
+    debouncedSearchQuery,
+    isSearching,
+    isSearchFetching,
+    isContentSearching,
+    searchResultsCount,
+    searchHasMore,
+    searchTotalScanned,
+    contentSearchFilesSearched,
+    contentSearchFilesWithMatches,
+    contentSearchHasMore,
+    loadMoreResults,
+  } = useFileSearch({ currentPath, searchQuery, activeContentType, contentSearchMode })
 
-  // Search result limit (increases when user clicks "Load more")
-  const [searchLimit, setSearchLimit] = useState(500)
-  useEffect(() => { setSearchLimit(500) }, [debouncedSearchQuery, activeContentType, currentPath])
+  const isLoading =
+    (isTrashView ? isLoadingTrash : isLoadingDir) ||
+    (isFilenameSearchActive && isSearching) ||
+    (isContentSearchActive && isContentSearching)
 
-  // UI mode flags
-  const isFilenameSearchMode = (!!searchQuery || !!activeContentType) && !contentSearchMode
-  const isContentSearchMode = !!searchQuery && contentSearchMode && searchQuery.length >= 2
-
-  // API query flags
-  const isFilenameSearchReady = (!!debouncedSearchQuery || !!activeContentType) && !contentSearchMode
-  const isContentSearchReady = !!debouncedSearchQuery && contentSearchMode && debouncedSearchQuery.length >= 2
-
-  // Recursive filename search
-  const { data: searchResponse, isLoading: isSearching, isFetching: isSearchFetching } = useQuery({
-    queryKey: ['recursive-search', debouncedSearchQuery, activeContentType, currentPath, searchLimit],
-    queryFn: () => api.searchFiles({
-      query: debouncedSearchQuery || undefined,
-      contentType: activeContentType || undefined,
-      path: currentPath,
-      maxResults: searchLimit,
-    }),
-    enabled: isFilenameSearchReady,
-    placeholderData: (prev) => prev,
-  })
-
-  // Content search
-  const { data: contentSearchResponse, isLoading: isContentSearching } = useQuery({
-    queryKey: ['content-search', debouncedSearchQuery, currentPath],
-    queryFn: () => api.searchContent({
-      query: debouncedSearchQuery,
-      path: currentPath,
-      maxFiles: 100,
-      maxDepth: 3,
-    }),
-    enabled: isContentSearchReady,
-  })
-
-  const searchResults = searchResponse?.results
-  const searchHasMore = searchResponse?.has_more ?? false
-  const searchTotalScanned = searchResponse?.total_scanned ?? 0
-
-  const contentSearchResults = contentSearchResponse?.results
-  const contentSearchFilesSearched = contentSearchResponse?.files_searched ?? 0
-  const contentSearchFilesWithMatches = contentSearchResponse?.files_with_matches ?? 0
-  const contentSearchHasMore = contentSearchResponse?.has_more ?? false
-
-  const isFilenameSearchActive = isFilenameSearchMode
-  const isContentSearchActive = isContentSearchMode
-  const isSearchActive = isFilenameSearchActive || isContentSearchActive
-  const isLoading = (isTrashView ? isLoadingTrash : isLoadingDir) || (isFilenameSearchActive && isSearching) || (isContentSearchActive && isContentSearching)
-
-  // State for showing all files
+  // "Show all files" escape hatch for very large grids.
   const [showAllFiles, setShowAllFiles] = useState(false)
   useEffect(() => { setShowAllFiles(false) }, [currentPath])
 
-  // Convert filename search results to FileInfo format
-  const searchResultsAsFiles: FileInfo[] = useMemo(() => {
-    if (!searchResults) return []
-    const thumbnailExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.mov', '.avi', '.mkv', '.webm']
-    return searchResults.map((r: SearchResult) => {
-      const ext = r.name.includes('.') ? '.' + r.name.split('.').pop()?.toLowerCase() : ''
-      const hasThumbnail = r.type === 'file' && thumbnailExtensions.includes(ext)
-      return {
-        name: r.name,
-        path: r.path,
-        type: r.type,
-        size: r.size,
-        modified: r.modified,
-        is_hidden: false,
-        has_thumbnail: hasThumbnail,
-        thumbnail_url: hasThumbnail ? api.getThumbnailUrl(r.path) : undefined,
-        is_directory: r.type === 'directory',
-        extension: ext ? ext.slice(1) : undefined,
-      }
-    })
-  }, [searchResults])
-
-  // Convert content search results
-  const contentSearchResultsAsFiles: (FileInfo & { contentMatches?: ContentSearchResult['matches'] })[] = useMemo(() => {
-    if (!contentSearchResults) return []
-    const thumbnailExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.mov', '.avi', '.mkv', '.webm']
-    return contentSearchResults.map((r: ContentSearchResult) => {
-      const ext = r.name.includes('.') ? '.' + r.name.split('.').pop()?.toLowerCase() : ''
-      const hasThumbnail = r.type === 'file' && thumbnailExtensions.includes(ext)
-      return {
-        name: r.name,
-        path: r.path,
-        type: r.type,
-        size: r.size,
-        modified: r.modified,
-        is_hidden: false,
-        has_thumbnail: hasThumbnail,
-        thumbnail_url: hasThumbnail ? api.getThumbnailUrl(r.path) : undefined,
-        is_directory: r.type === 'directory',
-        extension: ext ? ext.slice(1) : undefined,
-        contentMatches: r.matches,
-      }
-    })
-  }, [contentSearchResults])
-
   // Determine displayed files
   const filteredFiles = useMemo(() => {
-    if (isContentSearchActive) return contentSearchResultsAsFiles
-    if (isFilenameSearchActive) return searchResultsAsFiles
+    if (isContentSearchActive) return contentResultsAsFiles
+    if (isFilenameSearchActive) return filenameResultsAsFiles
     return files
-  }, [files, isFilenameSearchActive, isContentSearchActive, searchResultsAsFiles, contentSearchResultsAsFiles])
+  }, [files, isFilenameSearchActive, isContentSearchActive, filenameResultsAsFiles, contentResultsAsFiles])
 
   const displayedFiles = useMemo(() => {
     // List view is virtualized, so no limit needed
@@ -332,109 +222,22 @@ export function FilesPage() {
     onShowHelp: () => setShowHelp(true),
   })
 
-  // Move handler
-  const handleMove = async (filesToMove: FileInfo[], targetFolder: FileInfo) => {
-    try {
-      const targetPath = joinPath(currentPath, targetFolder.name)
-      for (const file of filesToMove) {
-        const sourcePath = joinPath(currentPath, file.name)
-        const destPath = joinPath(targetPath, file.name)
-        await api.move(sourcePath, destPath)
-      }
-      queryClient.invalidateQueries({ queryKey: ['files'] })
-      clearSelection()
-      toast({ title: `Moved ${filesToMove.length} item(s)` })
-    } catch (err) {
-      toast({ title: 'Failed to move files', description: err instanceof Error ? err.message : 'Unknown error', variant: 'destructive' })
-    }
-  }
-
-  // Mutations
-  const renameMutation = useMutation({
-    mutationFn: ({ oldName, newName }: { oldName: string; newName: string }) =>
-      api.rename(joinPath(currentPath, oldName), joinPath(currentPath, newName)),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['files', currentPath] })
-      setRenameFile(null)
-      toast({ title: 'Renamed successfully' })
-    },
-    onError: (error: Error) => {
-      toast({ title: 'Failed to rename', description: error.message, variant: 'destructive' })
-    },
+  // All file mutations (rename, new folder, delete, restore, empty trash, move).
+  const {
+    renameMutation,
+    createFolderMutation,
+    deleteMutation,
+    emptyTrashMutation,
+    handleMove,
+    handleRestore,
+  } = useFileMutations({
+    currentPath,
+    isTrashView,
+    clearSelection,
+    onRenameSuccess: () => setRenameFile(null),
+    onCreateFolderSuccess: () => setShowNewFolder(false),
+    onDeleteSuccess: () => setDeleteFiles([]),
   })
-
-  const createFolderMutation = useMutation({
-    mutationFn: (name: string) => api.createFolder(joinPath(currentPath, name)),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['files', currentPath] })
-      setShowNewFolder(false)
-      toast({ title: 'Folder created' })
-    },
-    onError: (error: Error) => {
-      toast({ title: 'Failed to create folder', description: error.message, variant: 'destructive' })
-    },
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: async (filesToDelete: FileInfo[]) => {
-      if (isTrashView) {
-        // Permanently delete from trash - file.path contains trash_name
-        await api.deletePermanent(filesToDelete.map(f => f.path))
-      } else {
-        // Move to trash
-        const paths = filesToDelete.map(f => f.path)
-        await api.moveToTrash(paths)
-      }
-    },
-    onSuccess: () => {
-      if (isTrashView) {
-        queryClient.invalidateQueries({ queryKey: ['trash-list'] })
-      } else {
-        queryClient.invalidateQueries({ queryKey: ['files', currentPath] })
-      }
-      queryClient.invalidateQueries({ queryKey: ['trash-info'] })
-      setDeleteFiles([])
-      clearSelection()
-      toast({ title: isTrashView ? 'Permanently deleted' : 'Moved to Trash' })
-    },
-    onError: (error: Error) => {
-      toast({ title: isTrashView ? 'Failed to delete' : 'Failed to move to Trash', description: error.message, variant: 'destructive' })
-    },
-  })
-
-  const restoreMutation = useMutation({
-    mutationFn: async (filesToRestore: FileInfo[]) => {
-      // file.path contains trash_name in trash view
-      await api.restoreFromTrash(filesToRestore.map(f => f.path))
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trash-list'] })
-      queryClient.invalidateQueries({ queryKey: ['trash-info'] })
-      queryClient.invalidateQueries({ queryKey: ['files'] })
-      clearSelection()
-      toast({ title: 'Restored successfully' })
-    },
-    onError: (error: Error) => {
-      toast({ title: 'Failed to restore', description: error.message, variant: 'destructive' })
-    },
-  })
-
-  const emptyTrashMutation = useMutation({
-    mutationFn: () => api.emptyTrash(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trash-list'] })
-      queryClient.invalidateQueries({ queryKey: ['trash-info'] })
-      clearSelection()
-      toast({ title: 'Trash emptied' })
-    },
-    onError: (error: Error) => {
-      toast({ title: 'Failed to empty trash', description: error.message, variant: 'destructive' })
-    },
-  })
-
-  const handleRestore = useCallback((filesToRestore: FileInfo[]) => {
-    restoreMutation.mutate(filesToRestore)
-  }, [restoreMutation])
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -480,7 +283,6 @@ export function FilesPage() {
             type="file"
             multiple
             className="hidden"
-            // @ts-ignore - webkitdirectory is a non-standard attribute
             webkitdirectory=""
             onChange={(e) => e.target.files && handleUpload(e.target.files)}
           />
@@ -562,7 +364,7 @@ export function FilesPage() {
                 <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
                   <AlertTriangle className="h-3.5 w-3.5" />
                   <span className="text-xs font-medium">
-                    Showing {searchResults?.length ?? 0} of {searchTotalScanned}+ results
+                    Showing {searchResultsCount} of {searchTotalScanned}+ results
                   </span>
                 </div>
               )}
@@ -709,7 +511,7 @@ export function FilesPage() {
                     {searchHasMore && isFilenameSearchActive && !isContentSearchActive && (
                       <div className="flex items-center justify-center py-4 border-t">
                         <button
-                          onClick={() => setSearchLimit(prev => prev + 500)}
+                          onClick={loadMoreResults}
                           disabled={isSearchFetching}
                           className="text-sm text-primary hover:underline disabled:opacity-50"
                         >
@@ -719,7 +521,7 @@ export function FilesPage() {
                               Loading more...
                             </span>
                           ) : (
-                            `Load more results (showing ${searchResults?.length ?? 0} of ${searchTotalScanned}+)`
+                            `Load more results (showing ${searchResultsCount} of ${searchTotalScanned}+)`
                           )}
                         </button>
                       </div>

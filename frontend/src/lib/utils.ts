@@ -1,5 +1,80 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import type {
+  FileInfo,
+  SearchResult,
+  ContentSearchResult,
+  ContentSearchMatch,
+  TrashItem,
+} from "@/api/client"
+
+// File extensions that get a server-side thumbnail.
+// Keep this in sync with the backend thumbnail pipeline.
+export const THUMBNAIL_EXTENSIONS = [
+  '.jpg', '.jpeg', '.png', '.webp', '.gif',
+  '.mp4', '.mov', '.avi', '.mkv', '.webm',
+] as const
+
+// Inlined to avoid a circular import with @/api/client.
+function thumbnailUrl(path: string): string {
+  return `/api/files/thumbnail?path=${encodeURIComponent(path)}`
+}
+
+function getExtension(name: string): string {
+  if (!name.includes('.')) return ''
+  return '.' + name.split('.').pop()!.toLowerCase()
+}
+
+function hasThumbnailExt(name: string, type: string): boolean {
+  return type === 'file' && (THUMBNAIL_EXTENSIONS as readonly string[]).includes(getExtension(name))
+}
+
+/** Convert a recursive-search hit into the FileInfo shape used by the grid/list. */
+export function searchResultToFileInfo(r: SearchResult): FileInfo {
+  const ext = getExtension(r.name)
+  const thumb = hasThumbnailExt(r.name, r.type)
+  return {
+    name: r.name,
+    path: r.path,
+    type: r.type,
+    size: r.size,
+    modified: r.modified,
+    is_hidden: false,
+    has_thumbnail: thumb,
+    thumbnail_url: thumb ? thumbnailUrl(r.path) : undefined,
+    is_directory: r.type === 'directory',
+    extension: ext ? ext.slice(1) : undefined,
+  }
+}
+
+/** Convert a content-search hit, preserving the per-line matches. */
+export function contentSearchResultToFileInfo(
+  r: ContentSearchResult
+): FileInfo & { contentMatches?: ContentSearchMatch[] } {
+  return {
+    ...searchResultToFileInfo(r),
+    contentMatches: r.matches,
+  }
+}
+
+/** Convert a trash manifest entry into the FileInfo shape. */
+export function trashItemToFileInfo(item: TrashItem): FileInfo {
+  const ext = getExtension(item.original_name)
+  const thumb = hasThumbnailExt(item.original_name, item.type)
+  return {
+    name: item.original_name,
+    // Use trash_name as path identifier so trash operations target the right entry.
+    path: item.name,
+    type: item.type,
+    size: item.size,
+    modified: item.deleted_at,
+    is_hidden: false,
+    has_thumbnail: thumb,
+    thumbnail_url: thumb ? thumbnailUrl(item.path) : undefined,
+    is_directory: item.type === 'directory',
+    extension: ext ? ext.slice(1) : undefined,
+  }
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

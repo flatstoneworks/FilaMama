@@ -15,6 +15,7 @@ from ..models.schemas import (
 from ..services.filesystem import FilesystemService
 from ..services.thumbnails import ThumbnailService
 from ..services.audio import AudioMetadataService
+from ..services.content_search import ContentSearchService
 from ..services.transcoding import TranscodingService, BROWSER_VIDEO_CODECS, BROWSER_AUDIO_CODECS
 from ..utils.error_handlers import handle_fs_errors
 
@@ -24,6 +25,7 @@ fs_service: FilesystemService = None
 thumb_service: ThumbnailService = None
 audio_service: AudioMetadataService = None
 transcode_service: TranscodingService = None
+content_search_service: ContentSearchService = None
 
 
 def _require_fs():
@@ -38,17 +40,26 @@ def _require_thumb():
     return thumb_service
 
 
+def _require_content_search():
+    if content_search_service is None:
+        raise HTTPException(status_code=503, detail="Content search service not initialized")
+    return content_search_service
+
+
 def init_services(
     filesystem: FilesystemService,
     thumbnails: ThumbnailService,
     audio: AudioMetadataService = None,
     transcoding: TranscodingService = None,
+    content_search: ContentSearchService = None,
 ):
-    global fs_service, thumb_service, audio_service, transcode_service
+    global fs_service, thumb_service, audio_service, transcode_service, content_search_service
     fs_service = filesystem
     thumb_service = thumbnails
     audio_service = audio
     transcode_service = transcoding
+    # Default to a content searcher backed by the same filesystem service.
+    content_search_service = content_search or ContentSearchService(filesystem)
 
 
 @router.get("/list", response_model=DirectoryListing)
@@ -156,7 +167,7 @@ async def search_content(
     if not query or len(query) < 2:
         raise HTTPException(status_code=400, detail="Query must be at least 2 characters")
 
-    results, files_searched, files_with_matches, has_more = await _require_fs().search_content(
+    results, files_searched, files_with_matches, has_more = await _require_content_search().search(
         query, path, max_files, max_depth
     )
     return {

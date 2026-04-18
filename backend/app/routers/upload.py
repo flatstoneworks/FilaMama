@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 from ..services.filesystem import FilesystemService
 from ..utils.error_handlers import handle_fs_errors
+from ..utils.paths import generate_unique_path
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 
@@ -74,13 +75,7 @@ async def upload_files(
                     raise HTTPException(status_code=400, detail=f"Invalid filename: {file.filename}")
 
             if file_path.exists() and not overwrite:
-                base = file_path.stem
-                ext = file_path.suffix
-                parent = file_path.parent
-                counter = 1
-                while file_path.exists():
-                    file_path = parent / f"{base}({counter}){ext}"
-                    counter += 1
+                file_path = generate_unique_path(file_path)
 
             async with aiofiles.open(file_path, 'wb') as f:
                 bytes_written = 0

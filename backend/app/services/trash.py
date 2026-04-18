@@ -9,6 +9,11 @@ from datetime import datetime
 from typing import List, Optional
 
 from ..models.schemas import FileType, FileInfo
+from ..utils.paths import (
+    generate_unique_path,
+    relative_to_root,
+    resolve_within_root,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,23 +47,10 @@ class TrashService:
         )
 
     def _resolve_path(self, path: str) -> Path:
-        if path.startswith("/"):
-            path = path[1:]
-        full_path = (self.root_path / path).resolve()
-        try:
-            full_path.relative_to(self.root_path)
-        except ValueError:
-            raise ValueError("Path traversal attempt detected")
-        return full_path
+        return resolve_within_root(path, self.root_path)
 
     def _get_relative_path(self, absolute_path: Path) -> str:
-        try:
-            rel = str(absolute_path.relative_to(self.root_path))
-            if rel == ".":
-                return "/"
-            return "/" + rel
-        except ValueError:
-            return "/"
+        return relative_to_root(absolute_path, self.root_path)
 
     async def move_to_trash(self, paths: list[str]) -> int:
         def _move_sync():
@@ -159,14 +151,7 @@ class TrashService:
                 original_path.parent.mkdir(parents=True, exist_ok=True)
 
                 # Handle name collision
-                dest = original_path
-                if dest.exists():
-                    base = dest.stem
-                    ext = dest.suffix
-                    counter = 1
-                    while dest.exists():
-                        dest = dest.parent / f"{base}({counter}){ext}"
-                        counter += 1
+                dest = generate_unique_path(original_path)
 
                 shutil.move(str(trash_path), str(dest))
                 manifest = [e for e in manifest if e["trash_name"] != trash_name]

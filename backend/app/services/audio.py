@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import io
 
+from ..utils.paths import resolve_within_root
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -29,14 +31,7 @@ class AudioMetadataService:
 
     def get_absolute_path(self, relative_path: str) -> Path:
         """Convert relative path to absolute path with bounds checking."""
-        if relative_path.startswith('/'):
-            relative_path = relative_path[1:]
-        full_path = (self.root_path / relative_path).resolve()
-        try:
-            full_path.relative_to(self.root_path)
-        except ValueError:
-            raise ValueError("Path traversal attempt detected")
-        return full_path
+        return resolve_within_root(relative_path, self.root_path)
 
     def is_supported(self, file_path: Path) -> bool:
         """Check if file type is supported for metadata extraction."""
