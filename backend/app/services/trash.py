@@ -6,14 +6,8 @@ import logging
 import time
 from pathlib import Path
 from datetime import datetime
-from typing import List, Optional
 
-from ..models.schemas import FileType, FileInfo
-from ..utils.paths import (
-    generate_unique_path,
-    relative_to_root,
-    resolve_within_root,
-)
+from ..utils.paths import generate_unique_path
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +16,9 @@ MANIFEST_NAME = ".manifest.json"
 
 
 class TrashService:
-    def __init__(self, root_path: str):
-        self.root_path = Path(root_path).resolve()
+    def __init__(self, filesystem_service):
+        self.fs_service = filesystem_service
+        self.root_path = filesystem_service.root_path
         self.trash_dir = self.root_path / TRASH_DIR_NAME
         self.manifest_path = self.trash_dir / MANIFEST_NAME
         self._lock = asyncio.Lock()
@@ -47,10 +42,16 @@ class TrashService:
         )
 
     def _resolve_path(self, path: str) -> Path:
-        return resolve_within_root(path, self.root_path)
+        return self.fs_service.get_absolute_path(path)
 
     def _get_relative_path(self, absolute_path: Path) -> str:
-        return relative_to_root(absolute_path, self.root_path)
+        return self.fs_service.get_relative_path(absolute_path)
+
+    def _trash_item_path(self, trash_name: str) -> Path:
+        trash_path = (self.trash_dir / trash_name).resolve()
+        if not self.fs_service._is_within_path(trash_path, self.trash_dir):
+            raise ValueError("Path traversal attempt detected")
+        return trash_path
 
     async def move_to_trash(self, paths: list[str]) -> int:
         def _move_sync():
@@ -64,7 +65,7 @@ class TrashService:
                     continue
 
                 # Prevent trashing the trash folder itself
-                if str(file_path).startswith(str(self.trash_dir)):
+                if self.fs_service._is_within_path(file_path, self.trash_dir):
                     continue
 
                 timestamp = int(time.time() * 1000)
@@ -99,7 +100,10 @@ class TrashService:
             items = []
 
             for entry in manifest:
-                trash_path = self.trash_dir / entry["trash_name"]
+                try:
+                    trash_path = self._trash_item_path(entry["trash_name"])
+                except ValueError:
+                    continue
                 if not trash_path.exists():
                     continue
 
@@ -140,7 +144,11 @@ class TrashService:
                 if not entry:
                     continue
 
-                trash_path = self.trash_dir / trash_name
+                try:
+                    trash_path = self._trash_item_path(trash_name)
+                except ValueError:
+                    manifest = [e for e in manifest if e["trash_name"] != trash_name]
+                    continue
                 if not trash_path.exists():
                     manifest = [e for e in manifest if e["trash_name"] != trash_name]
                     continue
@@ -169,7 +177,11 @@ class TrashService:
             deleted = 0
 
             for trash_name in trash_names:
-                trash_path = self.trash_dir / trash_name
+                try:
+                    trash_path = self._trash_item_path(trash_name)
+                except ValueError:
+                    manifest = [e for e in manifest if e["trash_name"] != trash_name]
+                    continue
                 if trash_path.exists():
                     if trash_path.is_dir():
                         shutil.rmtree(trash_path)
@@ -191,7 +203,10 @@ class TrashService:
             deleted = 0
 
             for entry in manifest:
-                trash_path = self.trash_dir / entry["trash_name"]
+                try:
+                    trash_path = self._trash_item_path(entry["trash_name"])
+                except ValueError:
+                    continue
                 if trash_path.exists():
                     if trash_path.is_dir():
                         shutil.rmtree(trash_path)
@@ -212,7 +227,10 @@ class TrashService:
             total_size = 0
 
             for entry in manifest:
-                trash_path = self.trash_dir / entry["trash_name"]
+                try:
+                    trash_path = self._trash_item_path(entry["trash_name"])
+                except ValueError:
+                    continue
                 if not trash_path.exists():
                     continue
                 count += 1

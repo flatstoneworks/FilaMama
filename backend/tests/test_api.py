@@ -189,11 +189,7 @@ class TestUploadEndpoint:
             files={"files": ("evil.txt", b"evil", "text/plain")},
             data={"path": "/", "relative_paths": "../../etc/evil.txt"},
         )
-        # The endpoint returns 200 but the file goes into errors array
-        assert response.status_code == 200
-        data = response.json()
-        assert data["failed"] == 1
-        assert data["success"] == 0
+        assert response.status_code == 400
         # File should NOT end up outside root
         assert not (tmp_tree / "etc" / "evil.txt").exists()
 
@@ -205,6 +201,53 @@ class TestUploadEndpoint:
             data={"path": "/nonexistent_dir"},
         )
         assert response.status_code == 404
+
+
+# ─── Trash endpoints ──────────────────────────────────────────────────────────
+
+
+class TestTrashEndpoints:
+    @pytest.mark.asyncio
+    async def test_move_to_trash_and_restore(self, client, tmp_tree):
+        response = await client.post(
+            "/api/trash/move-to-trash",
+            json={"paths": ["/file1.txt"]},
+        )
+        assert response.status_code == 200
+        assert not (tmp_tree / "root" / "file1.txt").exists()
+
+        listing = await client.get("/api/trash/list")
+        assert listing.status_code == 200
+        items = listing.json()["items"]
+        assert len(items) == 1
+
+        restore = await client.post(
+            "/api/trash/restore",
+            json={"paths": [items[0]["name"]]},
+        )
+        assert restore.status_code == 200
+        assert (tmp_tree / "root" / "file1.txt").exists()
+
+    @pytest.mark.asyncio
+    async def test_move_mount_file_to_trash_and_restore(self, client, tmp_tree):
+        mount_file = (tmp_tree / "mount_a" / "mount_file.txt").resolve()
+        response = await client.post(
+            "/api/trash/move-to-trash",
+            json={"paths": [str(mount_file)]},
+        )
+        assert response.status_code == 200
+        assert not mount_file.exists()
+
+        listing = await client.get("/api/trash/list")
+        items = listing.json()["items"]
+        mount_item = next(item for item in items if item["original_name"] == "mount_file.txt")
+
+        restore = await client.post(
+            "/api/trash/restore",
+            json={"paths": [mount_item["name"]]},
+        )
+        assert restore.status_code == 200
+        assert mount_file.exists()
 
 
 # ─── Stream / Download endpoints ─────────────────────────────────────────────

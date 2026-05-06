@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, type FileInfo } from '@/api/client'
 import { toast } from '@/components/ui/use-toast'
-import { joinPath } from '@/lib/utils'
+import { getParentPath, joinPath } from '@/lib/utils'
 
 interface UseFileMutationsArgs {
   currentPath: string
@@ -35,8 +35,8 @@ export function useFileMutations({
   const queryClient = useQueryClient()
 
   const renameMutation = useMutation({
-    mutationFn: ({ oldName, newName }: { oldName: string; newName: string }) =>
-      api.rename(joinPath(currentPath, oldName), joinPath(currentPath, newName)),
+    mutationFn: ({ path, newName }: { path: string; newName: string }) =>
+      api.rename(path, joinPath(getParentPath(path) || '/', newName)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files', currentPath] })
       onRenameSuccess?.()
@@ -122,11 +122,8 @@ export function useFileMutations({
   const handleMove = useCallback(
     async (filesToMove: FileInfo[], targetFolder: FileInfo) => {
       try {
-        const targetPath = joinPath(currentPath, targetFolder.name)
         for (const file of filesToMove) {
-          const sourcePath = joinPath(currentPath, file.name)
-          const destPath = joinPath(targetPath, file.name)
-          await api.move(sourcePath, destPath)
+          await api.move(file.path, targetFolder.path)
         }
         queryClient.invalidateQueries({ queryKey: ['files'] })
         clearSelection()

@@ -39,7 +39,7 @@ interface FileListProps {
   onAddFavorite?: (path: string) => void
   onRemoveFavorite?: (path: string) => void
   isFavorite?: (path: string) => boolean
-  parentRef?: React.RefObject<HTMLDivElement>
+  parentRef?: React.RefObject<HTMLDivElement | null>
 }
 
 export const FileList = memo(function FileList({

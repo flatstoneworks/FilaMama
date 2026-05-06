@@ -46,6 +46,12 @@ class TestResolvePath:
         result = fs_service._resolve_path("file1.txt")
         assert result == (tmp_tree / "root" / "file1.txt").resolve()
 
+    def test_traversal_attack_sibling_prefix(self, fs_service, tmp_tree):
+        sibling = tmp_tree / "root_evil"
+        sibling.mkdir()
+        with pytest.raises(ValueError, match="Path traversal"):
+            fs_service._resolve_path("/../root_evil")
+
 
 # ─── list_directory ──────────────────────────────────────────────────────────
 
@@ -163,6 +169,11 @@ class TestFileOperations:
             await fs_service.create_directory("/", "subdir")
 
     @pytest.mark.asyncio
+    async def test_create_directory_rejects_nested_name(self, fs_service):
+        with pytest.raises(ValueError, match="Invalid directory name"):
+            await fs_service.create_directory("/", "../escape")
+
+    @pytest.mark.asyncio
     async def test_delete_file(self, fs_service, tmp_tree):
         assert (tmp_tree / "root" / "file1.txt").exists()
         count = await fs_service.delete(["/file1.txt"])
@@ -191,6 +202,11 @@ class TestFileOperations:
     async def test_rename_to_existing(self, fs_service):
         with pytest.raises(FileExistsError):
             await fs_service.rename("/file1.txt", "file2.py")
+
+    @pytest.mark.asyncio
+    async def test_rename_rejects_nested_name(self, fs_service):
+        with pytest.raises(ValueError, match="Invalid name"):
+            await fs_service.rename("/file1.txt", "../escape.txt")
 
     @pytest.mark.asyncio
     async def test_copy_file(self, fs_service, tmp_tree):

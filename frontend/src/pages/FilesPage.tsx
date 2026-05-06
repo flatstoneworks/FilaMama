@@ -549,7 +549,7 @@ export function FilesPage() {
         onOpenChange={(open) => !open && setRenameFile(null)}
         currentName={renameFile?.name || ''}
         onRename={(newName) =>
-          renameFile && renameMutation.mutate({ oldName: renameFile.name, newName })
+          renameFile && renameMutation.mutate({ path: renameFile.path, newName })
         }
         isLoading={renameMutation.isPending}
       />

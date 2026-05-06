@@ -2,6 +2,28 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
+const chunkMatchers: Array<[string, string[]]> = [
+    ['vendor-react', [
+        '/node_modules/react/',
+        '/node_modules/react-dom/',
+        '/node_modules/react-router/',
+        '/node_modules/react-router-dom/',
+        '/node_modules/@tanstack/',
+    ]],
+    ['vendor-ui', [
+        '/node_modules/@radix-ui/',
+        '/node_modules/lucide-react/',
+        '/node_modules/@flatstoneworks/ui/',
+    ]],
+    ['vendor-pdf', [
+        '/node_modules/pdfjs-dist/',
+        '/node_modules/react-pdf/',
+    ]],
+    ['vendor-syntax', [
+        '/node_modules/react-syntax-highlighter/',
+    ]],
+];
+
 export default defineConfig({
     plugins: [react()],
     resolve: {
@@ -13,23 +35,14 @@ export default defineConfig({
         chunkSizeWarningLimit: 700,
         rollupOptions: {
             output: {
-                manualChunks: {
-                    'vendor-react': ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query', '@tanstack/react-virtual'],
-                    'vendor-ui': [
-                        '@radix-ui/react-context-menu',
-                        '@radix-ui/react-dialog',
-                        '@radix-ui/react-dropdown-menu',
-                        '@radix-ui/react-select',
-                        '@radix-ui/react-slider',
-                        '@radix-ui/react-tooltip',
-                        '@radix-ui/react-toast',
-                        '@radix-ui/react-alert-dialog',
-                        '@radix-ui/react-scroll-area',
-                        '@radix-ui/react-progress',
-                        'lucide-react',
-                    ],
-                    'vendor-pdf': ['pdfjs-dist', 'react-pdf'],
-                    'vendor-syntax': ['react-syntax-highlighter'],
+                manualChunks(id) {
+                    const normalized = id.split(path.sep).join('/');
+                    for (const [chunkName, matchers] of chunkMatchers) {
+                        if (matchers.some((matcher) => normalized.includes(matcher))) {
+                            return chunkName;
+                        }
+                    }
+                    return undefined;
                 },
             },
         },

@@ -2,6 +2,8 @@
 
 import 'react'
 
+declare module '*.css'
+
 declare module 'react' {
   interface InputHTMLAttributes<T> {
     // Chromium-specific attribute that lets <input type="file"> pick a folder.

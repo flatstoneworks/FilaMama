@@ -55,13 +55,16 @@ def relative_to_root(
     root itself becoming ``/``). Paths inside a mount are returned as the
     full absolute path (matching how mounts are addressed in requests).
     """
-    abs_str = str(absolute_path)
+    resolved_path = absolute_path.resolve()
     if mounts:
         for mount in mounts:
-            if abs_str.startswith(str(mount)):
-                return abs_str
+            try:
+                resolved_path.relative_to(mount)
+                return str(resolved_path)
+            except ValueError:
+                continue
     try:
-        rel = str(absolute_path.relative_to(root))
+        rel = str(resolved_path.relative_to(root))
         if rel == ".":
             return "/"
         return "/" + rel

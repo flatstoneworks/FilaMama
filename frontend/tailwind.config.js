@@ -1,7 +1,12 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ["class"],
-  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}", "./node_modules/@flatstoneworks/media-components/dist/**/*.js"],
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+    "./node_modules/@flatstoneworks/media-components/dist/**/*.{js,mjs}",
+    "./node_modules/@flatstoneworks/ui/dist/**/*.{js,mjs}",
+  ],
   theme: {
     extend: {
       colors: {
@@ -46,5 +51,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [],
 }

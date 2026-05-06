@@ -138,7 +138,7 @@ export const FileGrid = memo(function FileGrid({
                 </div>
               ) : isTextFile(file.name) ? (
                 <TextPreview
-                  src={api.getDownloadUrl(file.path)}
+                  path={file.path}
                   fileName={file.name}
                   width={gridSize - 16}
                   height={gridSize - 16}

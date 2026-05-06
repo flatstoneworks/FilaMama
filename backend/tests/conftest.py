@@ -77,8 +77,10 @@ def thumb_service(tmp_path):
 
 
 @pytest_asyncio.fixture
-async def client(tmp_tree):
+async def client(tmp_tree, monkeypatch):
     """FastAPI test client using httpx with a fresh app instance."""
+    monkeypatch.setenv("FILAMAMA_ALLOW_INSECURE", "true")
+
     # Set up config to point at temp directories
     root = tmp_tree / "root"
     mount_a = tmp_tree / "mount_a"
@@ -88,7 +90,8 @@ async def client(tmp_tree):
     from app.services.filesystem import FilesystemService
     from app.services.thumbnails import ThumbnailService
     from app.services.audio import AudioMetadataService
-    from app.routers import files, upload
+    from app.services.trash import TrashService
+    from app.routers import files, upload, trash
 
     fs = FilesystemService(
         root_path=str(root),
@@ -100,9 +103,11 @@ async def client(tmp_tree):
         quality=85,
     )
     audio = AudioMetadataService(root_path=root)
+    trash_service = TrashService(fs)
 
     files.init_services(fs, thumb, audio)
     upload.init_services(fs)
+    trash.init_services(trash_service)
 
     # Import the app after services are wired
     from app.main import app

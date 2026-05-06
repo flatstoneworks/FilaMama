@@ -109,18 +109,19 @@ export function PreviewPage() {
       setTextContent(null)
 
       if (isTextFile(currentFile.name)) {
-        const abortController = new AbortController()
-        const downloadUrl = api.getDownloadUrl(filePath)
-        fetch(downloadUrl, { signal: abortController.signal })
-          .then((res) => res.text())
-          .then((text) => {
-            setTextContent(text)
+        let cancelled = false
+        api.getTextContent(filePath)
+          .then(({ content }) => {
+            if (cancelled) return
+            setTextContent(content)
             setIsLoading(false)
           })
-          .catch((err) => {
-            if (err.name !== 'AbortError') setIsLoading(false)
+          .catch(() => {
+            if (!cancelled) setIsLoading(false)
           })
-        return () => abortController.abort()
+        return () => {
+          cancelled = true
+        }
       } else {
         // For non-text files, loading is handled by the media element
         setIsLoading(true)

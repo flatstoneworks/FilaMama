@@ -10,8 +10,7 @@ root_path: "/home/flatstone"
 
 # Mount points - access directories outside root_path
 # Each mount appears in the sidebar and allows browsing that path
-mounts:
-__MOUNTS__
+mounts: []
 
 # Thumbnail settings
 thumbnails:

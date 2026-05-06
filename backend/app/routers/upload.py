@@ -57,9 +57,7 @@ async def upload_files(
                 if '..' in rel_path.split('/') or '..' in rel_path.split('\\'):
                     raise HTTPException(status_code=400, detail=f"Invalid relative path: {rel_path}")
                 file_path = (target_dir / rel_path).resolve()
-                try:
-                    file_path.relative_to(target_dir.resolve())
-                except ValueError:
+                if not fs_service._is_within_path(file_path, target_dir.resolve()):
                     raise HTTPException(status_code=400, detail=f"Path traversal detected: {rel_path}")
                 # Create parent directories if they don't exist
                 file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -69,9 +67,7 @@ async def upload_files(
                 if not safe_name or safe_name in ('.', '..'):
                     raise HTTPException(status_code=400, detail=f"Invalid filename: {file.filename}")
                 file_path = (target_dir / safe_name).resolve()
-                try:
-                    file_path.relative_to(target_dir.resolve())
-                except ValueError:
+                if not fs_service._is_within_path(file_path, target_dir.resolve()):
                     raise HTTPException(status_code=400, detail=f"Invalid filename: {file.filename}")
 
             if file_path.exists() and not overwrite:
@@ -92,7 +88,7 @@ async def upload_files(
 
             uploaded.append({
                 "name": file_path.name,
-                "path": str(file_path.relative_to(fs_service.root_path)),
+                "path": fs_service.get_relative_path(file_path),
                 "size": file_path.stat().st_size,
             })
         except HTTPException:

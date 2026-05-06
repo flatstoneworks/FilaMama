@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { getLanguageFromExtension } from './FileIcon'
 
 interface TextPreviewProps {
-  src: string           // URL to fetch text content
+  path: string          // File path to fetch text content for
   fileName: string      // Filename for language detection
   className?: string
   maxLines?: number     // Max lines to show (default 12)
@@ -15,7 +15,7 @@ interface TextPreviewProps {
 }
 
 export function TextPreview({
-  src,
+  path,
   fileName,
   className,
   maxLines = 12,
@@ -40,12 +40,16 @@ export function TextPreview({
     // Create abort controller for cleanup
     fetchAbortRef.current = new AbortController()
 
-    fetch(src, { signal: fetchAbortRef.current.signal })
-      .then(res => {
+    const url = new URL('/api/files/text', window.location.origin)
+    url.searchParams.set('path', path)
+    url.searchParams.set('max_size', (1024 * 1024).toString())
+
+    fetch(url.toString(), { signal: fetchAbortRef.current.signal })
+      .then((res) => {
         if (!res.ok) throw new Error('Failed to load')
-        return res.text()
+        return res.json() as Promise<{ content: string }>
       })
-      .then(text => {
+      .then(({ content: text }) => {
         // Limit to first N lines
         const lines = text.split('\n')
         const preview = lines.slice(0, maxLines).join('\n')
@@ -59,7 +63,7 @@ export function TextPreview({
           setIsLoading(false)
         }
       })
-  }, [src, content, isLoading, maxLines])
+  }, [path, content, isLoading, maxLines])
 
   const handleMouseLeave = useCallback(() => {
     setIsHovering(false)

@@ -1,9 +1,12 @@
 from fastapi import APIRouter, HTTPException, Query, Request
+from starlette.background import BackgroundTask
 from fastapi.responses import FileResponse, StreamingResponse, Response
 from typing import List, Optional
 import zipfile
 import io
 import os
+import asyncio
+import tempfile
 import aiofiles
 
 from ..models.schemas import (
@@ -200,44 +203,50 @@ async def download_file(path: str):
 async def download_zip(paths: List[str]):
     MAX_ZIP_SIZE = 4 * 1024 * 1024 * 1024  # 4GB limit
 
-    def generate_zip():
-        buffer = io.BytesIO()
+    def build_zip_file() -> str:
         total_size = 0
-        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for path in paths:
-                try:
-                    file_path = _require_fs().get_absolute_path(path)
-                    if not file_path.exists():
-                        continue
-                    if file_path.is_file():
-                        total_size += file_path.stat().st_size
-                        if total_size > MAX_ZIP_SIZE:
-                            raise HTTPException(status_code=413, detail="Zip would exceed 4GB size limit")
-                        zf.write(file_path, file_path.name)
-                    else:
-                        for root, dirs, files_in_dir in file_path.walk():
-                            dirs[:] = [d for d in dirs if not d.startswith('.')]
-                            for file in files_in_dir:
-                                if file.startswith('.'):
-                                    continue
-                                full_path = root / file
-                                total_size += full_path.stat().st_size
-                                if total_size > MAX_ZIP_SIZE:
-                                    raise HTTPException(status_code=413, detail="Zip would exceed 4GB size limit")
-                                arcname = str(full_path.relative_to(file_path.parent))
-                                zf.write(full_path, arcname)
-                except HTTPException:
-                    raise
-                except (ValueError, PermissionError):
-                    continue
-        buffer.seek(0)
-        return buffer.getvalue()
+        temp_file = tempfile.NamedTemporaryFile(prefix="filamama-", suffix=".zip", delete=False)
+        temp_file.close()
 
-    zip_content = generate_zip()
-    return StreamingResponse(
-        io.BytesIO(zip_content),
+        try:
+            with zipfile.ZipFile(temp_file.name, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for path in paths:
+                    try:
+                        file_path = _require_fs().get_absolute_path(path)
+                        if not file_path.exists():
+                            continue
+                        if file_path.is_file():
+                            total_size += file_path.stat().st_size
+                            if total_size > MAX_ZIP_SIZE:
+                                raise HTTPException(status_code=413, detail="Zip would exceed 4GB size limit")
+                            zf.write(file_path, file_path.name)
+                        else:
+                            for root, dirs, files_in_dir in file_path.walk():
+                                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                                for file in files_in_dir:
+                                    if file.startswith('.'):
+                                        continue
+                                    full_path = root / file
+                                    total_size += full_path.stat().st_size
+                                    if total_size > MAX_ZIP_SIZE:
+                                        raise HTTPException(status_code=413, detail="Zip would exceed 4GB size limit")
+                                    arcname = str(full_path.relative_to(file_path.parent))
+                                    zf.write(full_path, arcname)
+                    except HTTPException:
+                        raise
+                    except (ValueError, PermissionError):
+                        continue
+            return temp_file.name
+        except Exception:
+            os.unlink(temp_file.name)
+            raise
+
+    zip_path = await asyncio.to_thread(build_zip_file)
+    return FileResponse(
+        zip_path,
+        filename="download.zip",
         media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=download.zip"},
+        background=BackgroundTask(os.unlink, zip_path),
     )
 
 
@@ -334,8 +343,23 @@ async def _serve_file_with_ranges(file_path, content_type: str, request: Request
         try:
             range_spec = range_header.replace('bytes=', '')
             parts = range_spec.split('-')
-            start = int(parts[0]) if parts[0] else 0
-            end = int(parts[1]) if parts[1] else file_size - 1
+            if len(parts) != 2:
+                raise ValueError
+
+            if parts[0] and parts[1]:
+                start = int(parts[0])
+                end = int(parts[1])
+            elif parts[0]:
+                start = int(parts[0])
+                end = file_size - 1
+            elif parts[1]:
+                suffix_length = int(parts[1])
+                if suffix_length <= 0:
+                    raise ValueError
+                start = max(file_size - suffix_length, 0)
+                end = file_size - 1
+            else:
+                raise ValueError
         except (ValueError, IndexError):
             raise HTTPException(status_code=416, detail="Invalid range header")
 

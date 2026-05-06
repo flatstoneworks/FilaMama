@@ -8,7 +8,6 @@ import { joinPath } from '@/lib/utils'
 interface ClipboardState {
   files: FileInfo[]
   operation: 'copy' | 'cut'
-  sourcePath: string
 }
 
 export function useClipboard(currentPath: string) {
@@ -17,14 +16,14 @@ export function useClipboard(currentPath: string) {
   const [conflictFiles, setConflictFiles] = useState<string[]>([])
 
   const handleCopy = useCallback((files: FileInfo[]) => {
-    setClipboard({ files, operation: 'copy', sourcePath: currentPath })
+    setClipboard({ files, operation: 'copy' })
     toast({ title: `${files.length} item(s) copied to clipboard` })
-  }, [currentPath])
+  }, [])
 
   const handleCut = useCallback((files: FileInfo[]) => {
-    setClipboard({ files, operation: 'cut', sourcePath: currentPath })
+    setClipboard({ files, operation: 'cut' })
     toast({ title: `${files.length} item(s) cut to clipboard` })
-  }, [currentPath])
+  }, [])
 
   const executePaste = async (resolution: ConflictResolution) => {
     if (!clipboard) return
@@ -33,7 +32,7 @@ export function useClipboard(currentPath: string) {
     const skipConflicts = resolution === 'skip'
 
     for (const file of clipboard.files) {
-      const srcPath = joinPath(clipboard.sourcePath, file.name)
+      const srcPath = file.path
       const destPath = joinPath(currentPath, file.name)
 
       if (skipConflicts && conflictFiles.includes(file.name)) {
@@ -53,7 +52,7 @@ export function useClipboard(currentPath: string) {
       if (!clipboard) return
 
       if (!resolution) {
-        const sourcePaths = clipboard.files.map(f => joinPath(clipboard.sourcePath, f.name))
+        const sourcePaths = clipboard.files.map((f) => f.path)
         const conflicts = await api.checkConflicts(sourcePaths, currentPath)
 
         if (conflicts.length > 0) {

@@ -6,7 +6,11 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Optional
 import mimetypes
-import magic
+
+try:
+    import magic
+except ImportError:
+    magic = None
 
 logger = logging.getLogger(__name__)
 
@@ -45,27 +49,35 @@ class FilesystemService:
                 'path': Path(m['path']).resolve(),
                 'icon': m.get('icon', 'folder'),
             })
-        self._magic = magic.Magic(mime=True)
+        self._magic = None
+        if magic is not None:
+            try:
+                self._magic = magic.Magic(mime=True)
+            except ImportError:
+                logger.warning("libmagic is unavailable; falling back to extension-based MIME detection")
 
     @staticmethod
-    def _validate_name(name: str) -> None:
+    def _validate_name(name: str, kind: str = "name") -> str:
         """Ensure name is a bare filename with no path separators or traversal."""
         if not name or '/' in name or '\\' in name or name in ('.', '..'):
-            raise ValueError(f"Invalid name: {name}")
+            raise ValueError(f"Invalid {kind}: {name}")
+        return name
+
+    @staticmethod
+    def _is_within_path(path: Path, base: Path) -> bool:
+        try:
+            path.resolve().relative_to(base.resolve())
+            return True
+        except ValueError:
+            return False
 
     def _is_within_bounds(self, resolved_path: Path) -> bool:
         """Check if a resolved path is within root_path or any mount point."""
-        try:
-            resolved_path.relative_to(self.root_path)
+        if self._is_within_path(resolved_path, self.root_path):
             return True
-        except ValueError:
-            pass
         for mount in self.mounts:
-            try:
-                resolved_path.relative_to(mount['path'])
+            if self._is_within_path(resolved_path, mount['path']):
                 return True
-            except ValueError:
-                continue
         return False
 
     def _mount_paths(self) -> list[Path]:
@@ -91,6 +103,8 @@ class FilesystemService:
         mime, _ = mimetypes.guess_type(str(path))
         if mime:
             return mime
+        if self._magic is None:
+            return None
         try:
             return self._magic.from_file(str(path))
         except Exception:
@@ -179,15 +193,13 @@ class FilesystemService:
         parent = None
         if path != "/":
             parent_path = dir_path.parent
-            parent_str = str(parent_path)
             # Check if parent is within a mount
             for mount in self.mounts:
-                mount_str = str(mount['path'])
-                if parent_str.startswith(mount_str):
+                if self._is_within_path(parent_path, mount['path']):
                     parent = self._get_relative_path(parent_path)
                     break
             # Check if parent is within root_path
-            if parent is None and parent_str.startswith(str(self.root_path)):
+            if parent is None and self._is_within_path(parent_path, self.root_path):
                 parent = self._get_relative_path(parent_path)
 
         return DirectoryListing(
@@ -205,13 +217,13 @@ class FilesystemService:
         return self._get_file_info(file_path)
 
     async def create_directory(self, path: str, name: str) -> FileInfo:
-        self._validate_name(name)
+        safe_name = self._validate_name(name, "directory name")
         parent_path = self._resolve_path(path)
-        new_dir = (parent_path / name).resolve()
+        new_dir = (parent_path / safe_name).resolve()
         if not self._is_within_bounds(new_dir):
             raise ValueError("Path traversal attempt detected")
         if new_dir.exists():
-            raise FileExistsError(f"Directory already exists: {name}")
+            raise FileExistsError(f"Directory already exists: {safe_name}")
         new_dir.mkdir(parents=True)
         return self._get_file_info(new_dir)
 
@@ -231,15 +243,15 @@ class FilesystemService:
         return await asyncio.to_thread(_delete_sync)
 
     async def rename(self, path: str, new_name: str) -> FileInfo:
-        self._validate_name(new_name)
+        safe_name = self._validate_name(new_name)
         file_path = self._resolve_path(path)
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {path}")
-        new_path = (file_path.parent / new_name).resolve()
+        new_path = (file_path.parent / safe_name).resolve()
         if not self._is_within_bounds(new_path):
             raise ValueError("Path traversal attempt detected")
         if new_path.exists():
-            raise FileExistsError(f"File already exists: {new_name}")
+            raise FileExistsError(f"File already exists: {safe_name}")
         file_path.rename(new_path)
         return self._get_file_info(new_path)
 
@@ -424,3 +436,6 @@ class FilesystemService:
 
     def get_absolute_path(self, relative_path: str) -> Path:
         return self._resolve_path(relative_path)
+
+    def get_relative_path(self, absolute_path: Path) -> str:
+        return self._get_relative_path(absolute_path)

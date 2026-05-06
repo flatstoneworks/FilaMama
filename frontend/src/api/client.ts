@@ -163,6 +163,15 @@ async function getFolderSize(path: string): Promise<number> {
   return response.size
 }
 
+async function getTextContent(path: string, maxSize?: number): Promise<{ content: string; size: number }> {
+  const url = new URL(`${API_BASE}/files/text`, window.location.origin)
+  url.searchParams.set('path', path)
+  if (maxSize) {
+    url.searchParams.set('max_size', maxSize.toString())
+  }
+  return handleResponse(await fetch(url.toString()))
+}
+
 export interface UploadProgressEvent {
   percent: number
   bytesUploaded: number
@@ -469,6 +478,7 @@ export const api = {
   move,
   checkConflicts,
   getFolderSize,
+  getTextContent,
   uploadFile,
   getThumbnailUrl,
   getDownloadUrl,

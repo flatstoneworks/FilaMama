@@ -3,7 +3,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 from pathlib import Path
+import base64
+import binascii
+import secrets
 import yaml
 
 from .routers import files, upload, trash, system
@@ -61,6 +66,42 @@ cors_origins_override = os.environ.get("FILAMAMA_CORS_ORIGINS")
 
 # Frontend dist override
 frontend_dist_override = os.environ.get("FILAMAMA_FRONTEND_DIST")
+auth_user = os.environ.get("FILAMAMA_AUTH_USER")
+auth_password = os.environ.get("FILAMAMA_AUTH_PASSWORD")
+allow_insecure = dev_mode or os.environ.get("FILAMAMA_ALLOW_INSECURE", "").lower() in ("1", "true", "yes")
+
+
+def _is_loopback_host(host: str) -> bool:
+    normalized = host.strip().lower()
+    return normalized in {"127.0.0.1", "localhost", "::1"}
+
+
+class BasicAuthMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, username: str, password: str):
+        super().__init__(app)
+        self.username = username
+        self.password = password
+
+    async def dispatch(self, request, call_next):
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Basic "):
+            token = auth_header[6:]
+            try:
+                decoded = base64.b64decode(token).decode("utf-8")
+                username, password = decoded.split(":", 1)
+            except (binascii.Error, UnicodeDecodeError, ValueError):
+                username, password = "", ""
+
+            if secrets.compare_digest(username, self.username) and secrets.compare_digest(password, self.password):
+                return await call_next(request)
+
+        return Response(
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="FilaMama"'},
+        )
 
 # --- Service initialization ---
 
@@ -84,7 +125,7 @@ transcode_service = TranscodingService(
     transcode_timeout=config["transcoding"].get("transcode_timeout", 3600),
 )
 trash_service = TrashService(
-    root_path=config["root_path"],
+    filesystem_service=fs_service,
 )
 content_search_service = ContentSearchService(fs_service)
 
@@ -115,6 +156,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+if bool(auth_user) != bool(auth_password):
+    raise RuntimeError("Set both FILAMAMA_AUTH_USER and FILAMAMA_AUTH_PASSWORD, or neither.")
+
+if not auth_user and not allow_insecure and not _is_loopback_host(config["server"]["host"]):
+    raise RuntimeError(
+        "Refusing insecure network-exposed startup without authentication. "
+        "Set FILAMAMA_AUTH_USER and FILAMAMA_AUTH_PASSWORD, or FILAMAMA_ALLOW_INSECURE=true."
+    )
+
 # CORS: use env var override or hardcoded defaults
 if cors_origins_override:
     cors_origins = [o.strip() for o in cors_origins_override.split(",") if o.strip()]
@@ -134,6 +184,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if auth_user and auth_password:
+    app.add_middleware(BasicAuthMiddleware, username=auth_user, password=auth_password)
 
 app.include_router(files.router)
 app.include_router(upload.router)
