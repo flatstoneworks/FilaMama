@@ -1,0 +1,54 @@
+{
+  "name": "@flatstone/media-components",
+  "version": "0.1.4",
+  "description": "Shared media components for FLATSTONE projects (video player, preview, thumbnails)",
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server.js",
+      "types": "./dist/server.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "clsx": "^2.1.0",
+    "tailwind-merge": "^2.2.0"
+  },
+  "peerDependencies": {
+    "@radix-ui/react-slider": "^1.1.0",
+    "jszip": "^3.10.0",
+    "lucide-react": ">=0.300.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0",
+    "sharp": "^0.33.0 || ^0.34.0"
+  },
+  "peerDependenciesMeta": {
+    "sharp": { "optional": true },
+    "jszip": { "optional": true },
+    "@radix-ui/react-slider": { "optional": true },
+    "lucide-react": { "optional": true },
+    "react": { "optional": true },
+    "react-dom": { "optional": true }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flatstoneworks/media-components.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}
