@@ -8,10 +8,10 @@ import {
   type MediaDetailMetadataRow,
   type MediaDetailSection,
 } from '@flatstoneworks/ui'
-import { Bot, FileAudio, FileVideo, ImageIcon, Music, NotebookText } from 'lucide-react'
+import { Bot, FileAudio, FileText, FileVideo, ImageIcon, Music, NotebookText } from 'lucide-react'
 import { api, type AudioMetadata } from '@/api/client'
 import { getFileType, isPreviewable, isTextFile, getLanguageFromExtension } from '@/components/FileIcon'
-import { joinPath, getParentPath, getFileName, formatBytes, formatFileDate } from '@/lib/utils'
+import { joinPath, getParentPath, getFileName, formatBytes, formatFileDate, cn } from '@/lib/utils'
 import { VideoPlayer, videoNeedsTranscoding } from '@flatstoneworks/media-components'
 import { PdfViewer } from '@/components/PdfViewer'
 import { useAudioPlayer } from '@/contexts/AudioPlayerContext'
@@ -51,6 +51,14 @@ function getTypeLabel(fileType: string, ext?: string) {
   if (fileType === 'audio') return 'Audio'
   if (fileType === 'code') return 'Text'
   return 'File'
+}
+
+function getTypeIcon(fileType: string, ext?: string, className = 'h-4 w-4') {
+  if (fileType === 'image') return <ImageIcon className={className} aria-hidden="true" />
+  if (fileType === 'video') return <FileVideo className={className} aria-hidden="true" />
+  if (fileType === 'audio') return <FileAudio className={className} aria-hidden="true" />
+  if (ext === 'pdf' || fileType === 'code') return <FileText className={className} aria-hidden="true" />
+  return <NotebookText className={className} aria-hidden="true" />
 }
 
 function compactRows(rows: Array<MediaDetailMetadataRow | null | false | undefined>): MediaDetailMetadataRow[] {
@@ -341,22 +349,6 @@ export function PreviewPage() {
     return [...mediaRows, ...baseRows, ...agentRows]
   }, [agentRows, baseRows, mediaRows])
 
-  const subtitle = useMemo(() => {
-    if (agentContext?.artifact) {
-      const artifactTitle = agentContext.artifact.title || agentContext.artifact.source_type || 'Agent artifact'
-      return (
-        <span className="inline-flex min-w-0 items-center gap-1.5">
-          <Bot className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">
-            {artifactTitle}
-            {agentContext.artifact.provider ? ` via ${agentContext.artifact.provider}` : ''}
-          </span>
-        </span>
-      )
-    }
-    return dirPath
-  }, [agentContext, dirPath])
-
   const mediaContent = useMemo(() => {
     if (!currentFile) return null
 
@@ -463,20 +455,26 @@ export function PreviewPage() {
     ? <img src={fileUrl} alt={currentFile.name} className="max-h-none max-w-none" />
     : undefined
 
-  const detailIcon = fileType === 'image'
-    ? <ImageIcon className="h-4 w-4" />
-    : fileType === 'video'
-      ? <FileVideo className="h-4 w-4" />
-      : fileType === 'audio'
-        ? <FileAudio className="h-4 w-4" />
-        : undefined
+  const navState = currentIndex >= 0 && previewableFiles.length > 1
+    ? {
+      currentIndex,
+      total: previewableFiles.length,
+      hasPrevious: hasPrev,
+      hasNext,
+    }
+    : undefined
+
+  const headerTypeLabel = getTypeIcon(fileType, ext, 'h-3.5 w-3.5')
 
   return (
     <MediaDetailShell
       title={fileName || 'Preview'}
-      subtitle={subtitle}
-      typeLabel={getTypeLabel(fileType, ext)}
-      className={isPlayerOpen ? 'pb-16' : undefined}
+      typeLabel={headerTypeLabel}
+      className={cn(
+        '[&_aside_h2]:flex-1',
+        isPlayerOpen && 'pb-16',
+        navState && '[&_header>div:last-child>span:first-child]:hidden [&_header>div:last-child>div:first-of-type]:hidden'
+      )}
       media={mediaContent}
       mediaClassName={ext === 'pdf' ? 'p-0' : undefined}
       isLoading={!currentFile && !listing ? true : Boolean(currentFile && isLoading && ext !== 'pdf')}
@@ -486,12 +484,7 @@ export function PreviewPage() {
           <p className="text-sm text-white/60">{fileName}</p>
         </>
       ) : undefined}
-      nav={{
-        currentIndex,
-        total: previewableFiles.length,
-        hasPrevious: hasPrev,
-        hasNext,
-      }}
+      nav={navState}
       onBack={handleBack}
       onPrevious={handlePrev}
       onNext={handleNext}
@@ -505,11 +498,16 @@ export function PreviewPage() {
       metadataRows={metadataRows}
       sections={detailsSections}
       detailsTitle={
-        <span className="inline-flex items-center gap-2">
-          {detailIcon}
-          Details
+        <span className="flex w-full min-w-0 items-center justify-between gap-3">
+          <span className="min-w-0 truncate">Information</span>
+          {navState && (
+            <span className="shrink-0 text-sm font-normal tabular-nums text-muted-foreground">
+              {navState.currentIndex + 1} / {navState.total}
+            </span>
+          )}
         </span>
       }
+      backLabel="Go back"
     />
   )
 }
