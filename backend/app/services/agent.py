@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from ..models.schemas import Actor, ArtifactMetadataInput, FileInfo, SearchResult
+from ..models.schemas import Actor, ActorType, ArtifactMetadataInput, FileInfo, SearchResult
 from ..utils.paths import generate_unique_path
 
 logger = logging.getLogger(__name__)
@@ -180,6 +180,11 @@ class AgentService:
 
     def _actor_columns(self, actor: Actor) -> tuple[str, str, str]:
         return actor.id, actor.type.value if hasattr(actor.type, "value") else str(actor.type), actor.name
+
+    @staticmethod
+    def _actor_type_value(actor: Actor | dict[str, Any]) -> str:
+        actor_type = actor["type"] if isinstance(actor, dict) else actor.type
+        return actor_type.value if hasattr(actor_type, "value") else str(actor_type)
 
     def _resolve_existing_path(self, path: str) -> Path:
         file_path = self.fs.get_absolute_path(path)
@@ -553,8 +558,10 @@ class AgentService:
                     clauses.append("timestamp < ?")
                     params.append(cursor)
                 if public_path:
-                    clauses.append("paths_json LIKE ?")
-                    params.append(f"%{public_path}%")
+                    clauses.append(
+                        "EXISTS (SELECT 1 FROM json_each(activity_events.paths_json) WHERE json_each.value = ?)"
+                    )
+                    params.append(public_path)
                 where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
                 rows = conn.execute(
                     f"SELECT * FROM activity_events {where} ORDER BY timestamp DESC LIMIT ?",
@@ -831,8 +838,10 @@ class AgentService:
                     clauses.append("status = ?")
                     params.append(status)
                 if public_path:
-                    clauses.append("paths_json LIKE ?")
-                    params.append(f"%{public_path}%")
+                    clauses.append(
+                        "EXISTS (SELECT 1 FROM json_each(proposals.paths_json) WHERE json_each.value = ?)"
+                    )
+                    params.append(public_path)
                 where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
                 rows = conn.execute(
                     f"SELECT * FROM proposals {where} ORDER BY updated_at DESC",
@@ -847,12 +856,19 @@ class AgentService:
 
         async with self._write_lock:
             proposal = await asyncio.to_thread(self._load_pending_proposal_sync, proposal_id)
+            self._validate_approval_actor(proposal, actor)
             try:
                 result = await self._execute_proposal(proposal)
             except Exception as exc:
                 await asyncio.to_thread(self._mark_proposal_sync, proposal_id, "failed", actor, str(exc), {"error": str(exc)})
                 raise
             return await asyncio.to_thread(self._mark_proposal_sync, proposal_id, "approved", actor, None, {"result": result})
+
+    def _validate_approval_actor(self, proposal: dict, actor: Actor) -> None:
+        if self._actor_type_value(actor) != ActorType.HUMAN.value:
+            raise PermissionError("Only human actors can approve proposals")
+        if proposal["actor"]["id"] == actor.id:
+            raise PermissionError("Proposal creator cannot approve their own proposal")
 
     async def reject_proposal(self, proposal_id: str, reason: Optional[str], actor: Actor) -> dict:
         await self.ensure_initialized()
@@ -946,12 +962,27 @@ class AgentService:
                     (public_path, _now()),
                 ).fetchall()
                 proposals = conn.execute(
-                    "SELECT * FROM proposals WHERE status = 'pending' AND paths_json LIKE ? ORDER BY updated_at DESC",
-                    (f"%{public_path}%",),
+                    """
+                    SELECT * FROM proposals
+                    WHERE status = 'pending'
+                      AND EXISTS (
+                        SELECT 1 FROM json_each(proposals.paths_json)
+                        WHERE json_each.value = ?
+                      )
+                    ORDER BY updated_at DESC
+                    """,
+                    (public_path,),
                 ).fetchall()
                 activity = conn.execute(
-                    "SELECT * FROM activity_events WHERE paths_json LIKE ? ORDER BY timestamp DESC LIMIT 20",
-                    (f"%{public_path}%",),
+                    """
+                    SELECT * FROM activity_events
+                    WHERE EXISTS (
+                        SELECT 1 FROM json_each(activity_events.paths_json)
+                        WHERE json_each.value = ?
+                    )
+                    ORDER BY timestamp DESC LIMIT 20
+                    """,
+                    (public_path,),
                 ).fetchall()
                 return {
                     "file": file_info.model_dump(mode="json"),

@@ -312,6 +312,19 @@ class TestAgentEndpoints:
         assert response.status_code == 409
 
     @pytest.mark.asyncio
+    async def test_agent_create_text_artifact_rejects_private_dir(self, client, tmp_tree):
+        response = await client.post(
+            "/api/agent/artifacts/text",
+            json={
+                "path": "/.filamama/private.md",
+                "content": "should not write",
+                "metadata": {"title": "Private"},
+            },
+        )
+        assert response.status_code == 403
+        assert not (tmp_tree / "root" / ".filamama" / "private.md").exists()
+
+    @pytest.mark.asyncio
     async def test_filamama_private_dir_is_protected(self, client):
         # Initialize the agent DB, then verify normal file APIs cannot enter it.
         response = await client.post(
@@ -350,9 +363,36 @@ class TestAgentEndpoints:
         assert (tmp_tree / "root" / "file1.txt").exists()
         assert not (tmp_tree / "root" / "approved.txt").exists()
 
+        same_agent = await client.post(
+            f"/api/agent/proposals/{proposal_id}/approve",
+            headers={"X-FilaMama-Actor-Id": "hermes", "X-FilaMama-Actor-Type": "agent"},
+        )
+        assert same_agent.status_code == 403
+        assert (tmp_tree / "root" / "file1.txt").exists()
+        assert not (tmp_tree / "root" / "approved.txt").exists()
+
         approved = await client.post(f"/api/agent/proposals/{proposal_id}/approve")
         assert approved.status_code == 200
         assert (tmp_tree / "root" / "approved.txt").exists()
+
+    @pytest.mark.asyncio
+    async def test_agent_path_filters_match_exact_json_path(self, client):
+        foo = await client.post(
+            "/api/agent/artifacts/text",
+            json={"path": "/foo.txt", "content": "foo", "metadata": {"title": "Foo"}},
+        )
+        assert foo.status_code == 200
+        foobar = await client.post(
+            "/api/agent/artifacts/text",
+            json={"path": "/foo-bar.txt", "content": "foo bar", "metadata": {"title": "Foo bar"}},
+        )
+        assert foobar.status_code == 200
+
+        activity = await client.get("/api/agent/activity", params={"path": "/foo.txt"})
+        assert activity.status_code == 200
+        paths = [event["paths"][0] for event in activity.json()["items"]]
+        assert "/foo.txt" in paths
+        assert "/foo-bar.txt" not in paths
 
 
 # ─── Stream / Download endpoints ─────────────────────────────────────────────
