@@ -117,6 +117,7 @@ export function FilesPage() {
   const [showEmptyTrash, setShowEmptyTrash] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false)
+  const [mobileSelectionMode, setMobileSelectionMode] = useState(false)
 
   // Global audio player
   const { isOpen: isPlayerOpen } = useAudioPlayer()
@@ -199,13 +200,21 @@ export function FilesPage() {
   // Selection
   const { selectedFiles, selectFile, clearSelection } = useFileSelection(displayedFiles)
   const selectedFilesList = displayedFiles.filter((f) => selectedFiles.has(f.path))
+  const clearSelectionAndMobileMode = useCallback(() => {
+    clearSelection()
+    setMobileSelectionMode(false)
+  }, [clearSelection])
+
+  useEffect(() => {
+    setMobileSelectionMode(false)
+  }, [currentPath])
 
   // Extracted hooks
   const { favorites, addToFavorites, removeFromFavorites, isFavorite } = useFavorites()
   const { clipboard, conflictFiles, handleCopy, handleCut, pasteMutation, handleConflictResolution } = useClipboard(currentPath)
   const { uploads, isPreparingUpload, setIsPreparingUpload, handleUpload, handleRetry, dismissUpload, dismissAllUploads } =
     useFileUpload(currentPath, config?.max_upload_size_mb)
-  const { handleNavigate, openPreview, handleOpen, handleDownload } = useFileNavigation(clearSelection)
+  const { handleNavigate, openPreview, handleOpen, handleDownload } = useFileNavigation(clearSelectionAndMobileMode)
 
   // Wrap handleOpen to provide displayedFiles
   const handleOpenFile = useCallback((file: FileInfo) => {
@@ -225,7 +234,7 @@ export function FilesPage() {
     gridSize,
     isAudioPlayerOpen: isPlayerOpen,
     selectFile,
-    clearSelection,
+    clearSelection: clearSelectionAndMobileMode,
     onCopy: handleCopy,
     onCut: handleCut,
     onPaste: () => pasteMutation.mutate(undefined),
@@ -248,7 +257,7 @@ export function FilesPage() {
   } = useFileMutations({
     currentPath,
     isTrashView,
-    clearSelection,
+    clearSelection: clearSelectionAndMobileMode,
     onRenameSuccess: () => setRenameFile(null),
     onCreateFolderSuccess: () => setShowNewFolder(false),
     onDeleteSuccess: () => setDeleteFiles([]),
@@ -293,6 +302,7 @@ export function FilesPage() {
         activeContentType={activeContentType}
         itemCount={filteredFiles.length}
         selectedCount={selectedFiles.size}
+        selectionMode={mobileSelectionMode || selectedFiles.size > 0}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         sortBy={sortBy}
@@ -300,8 +310,9 @@ export function FilesPage() {
         onSortChange={handleSortChange}
         isTrashView={isTrashView}
         onOpenMenu={() => setMobileNavOpen(true)}
+        onStartSelection={() => setMobileSelectionMode(true)}
         onRefresh={refreshCurrentView}
-        onClearSelection={clearSelection}
+        onClearSelection={clearSelectionAndMobileMode}
         onCopy={() => handleCopy(selectedFilesList)}
         onCut={() => handleCut(selectedFilesList)}
         onDelete={() => setDeleteFiles(selectedFilesList)}
@@ -546,6 +557,7 @@ export function FilesPage() {
                         trashMode={isTrashView}
                         showPath={isFilenameSearchActive}
                         basePath={currentPath}
+                        selectionMode={mobileSelectionMode}
                         onSelect={selectFile}
                         onOpen={handleOpenFile}
                         onRename={setRenameFile}
@@ -568,6 +580,7 @@ export function FilesPage() {
                         trashMode={isTrashView}
                         showPath={isFilenameSearchActive}
                         basePath={currentPath}
+                        selectionMode={mobileSelectionMode}
                         onSelect={selectFile}
                         onOpen={handleOpenFile}
                         onRename={setRenameFile}
@@ -634,7 +647,7 @@ export function FilesPage() {
         </main>
       </div>
 
-      {!isTrashView && selectedFiles.size === 0 && (
+      {!isTrashView && !mobileSelectionMode && selectedFiles.size === 0 && (
         <Button
           className={`fixed right-4 z-40 h-14 w-14 rounded-full shadow-lg md:hidden ${isPlayerOpen ? 'bottom-24' : 'bottom-[calc(env(safe-area-inset-bottom)+1rem)]'}`}
           size="icon"

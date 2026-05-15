@@ -10,6 +10,7 @@ import type { FileInfo } from '@/api/client'
 import { api } from '@/api/client'
 import { cn, isFileSelected, createCheckboxClickHandler } from '@/lib/utils'
 import { useDragAndDrop } from '@/hooks/useDragAndDrop'
+import { useLongPressSelection } from '@/hooks/useLongPressSelection'
 
 function getRelativeDir(filePath: string, basePath: string): string {
   const dir = filePath.substring(0, filePath.lastIndexOf('/'))
@@ -26,6 +27,7 @@ interface FileGridProps {
   trashMode?: boolean
   showPath?: boolean
   basePath?: string
+  selectionMode?: boolean
   onSelect: (file: FileInfo, e?: React.MouseEvent) => void
   onOpen: (file: FileInfo) => void
   onRename: (file: FileInfo) => void
@@ -49,6 +51,7 @@ export const FileGrid = memo(function FileGrid({
   trashMode,
   showPath,
   basePath,
+  selectionMode,
   onSelect,
   onOpen,
   onRename,
@@ -64,37 +67,15 @@ export const FileGrid = memo(function FileGrid({
   isFavorite,
 }: FileGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const longPressTimerRef = useRef<number | null>(null)
-  const longPressedPathRef = useRef<string | null>(null)
-  const lastPointerTypeRef = useRef<string | null>(null)
   const { draggedFiles, dropTarget, handleDragStart, handleDragEnd, handleDragOver, handleDragLeave, handleDrop } =
     useDragAndDrop({ files, selectedFiles, onMove })
-
-  const clearLongPress = () => {
-    if (longPressTimerRef.current) {
-      window.clearTimeout(longPressTimerRef.current)
-      longPressTimerRef.current = null
-    }
-  }
-
-  const startLongPress = (file: FileInfo, event: React.PointerEvent) => {
-    lastPointerTypeRef.current = event.pointerType
-    if (event.pointerType === 'mouse' || selectedFiles.size > 0) return
-    clearLongPress()
-    longPressTimerRef.current = window.setTimeout(() => {
-      longPressedPathRef.current = file.path
-      onSelect(file)
-    }, 450)
-  }
-
-  const toggleSelection = (file: FileInfo, event: React.MouseEvent) => {
-    const syntheticEvent = {
-      ...event,
-      ctrlKey: true,
-      metaKey: true,
-    } as React.MouseEvent
-    onSelect(file, syntheticEvent)
-  }
+  const {
+    handleClick,
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerEnd,
+  } = useLongPressSelection({ selectedFiles, selectionMode, onSelect })
+  const isSelecting = selectionMode || selectedFiles.size > 0
 
   return (
     <div
@@ -128,22 +109,12 @@ export const FileGrid = memo(function FileGrid({
                   isDragging && 'opacity-50',
                   isDroppable && 'ring-2 ring-primary bg-primary/10'
                 )}
-                onClick={(event) => {
-                  if (longPressedPathRef.current === file.path) {
-                    longPressedPathRef.current = null
-                    return
-                  }
-                  if (selectedFiles.size > 0 && lastPointerTypeRef.current && lastPointerTypeRef.current !== 'mouse') {
-                    toggleSelection(file, event)
-                    return
-                  }
-                  onOpen(file)
-                }}
-                onPointerDown={(event) => startLongPress(file, event)}
-                onPointerUp={clearLongPress}
-                onPointerMove={clearLongPress}
-                onPointerLeave={clearLongPress}
-                onPointerCancel={clearLongPress}
+                onClick={(event) => handleClick(file, event, onOpen)}
+                onPointerDown={(event) => handlePointerDown(file, event)}
+                onPointerUp={handlePointerEnd}
+                onPointerMove={handlePointerMove}
+                onPointerLeave={handlePointerEnd}
+                onPointerCancel={handlePointerEnd}
                 draggable
                 onDragStart={(e) => handleDragStart(e, file)}
                 onDragEnd={handleDragEnd}
@@ -155,8 +126,9 @@ export const FileGrid = memo(function FileGrid({
               <div
                 className={cn(
                   'absolute left-0 top-0 z-10 cursor-pointer p-1.5 transition-opacity',
-                  selectedFiles.size === 0 && 'pointer-events-none opacity-0 md:pointer-events-auto md:opacity-100'
+                  !isSelecting && 'pointer-events-none opacity-0 md:pointer-events-auto md:opacity-100'
                 )}
+                aria-hidden={!isSelecting}
                 onClick={createCheckboxClickHandler(file, onSelect)}
               >
                 <Checkbox

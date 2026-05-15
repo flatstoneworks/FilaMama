@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, memo } from 'react'
+import { useState, useRef, memo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { FileIcon, isAudioFile } from './FileIcon'
 import { AudioCover } from './AudioCover'
@@ -9,25 +9,11 @@ import { HardDrive, Loader2 } from 'lucide-react'
 import { api, type FileInfo } from '@/api/client'
 import { cn, isFileSelected, createCheckboxClickHandler, formatBytes, formatFileDate } from '@/lib/utils'
 import { useDragAndDrop } from '@/hooks/useDragAndDrop'
+import { useLongPressSelection } from '@/hooks/useLongPressSelection'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 
 const DESKTOP_ROW_HEIGHT = 40
 const MOBILE_ROW_HEIGHT = 68
-
-function useMobileRows() {
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
-  )
-
-  useEffect(() => {
-    const query = window.matchMedia('(max-width: 767px)')
-    const update = () => setIsMobile(query.matches)
-    update()
-    query.addEventListener('change', update)
-    return () => query.removeEventListener('change', update)
-  }, [])
-
-  return isMobile
-}
 
 function getRelativeDir(filePath: string, basePath: string): string {
   const dir = filePath.substring(0, filePath.lastIndexOf('/'))
@@ -43,6 +29,7 @@ interface FileListProps {
   trashMode?: boolean
   showPath?: boolean
   basePath?: string
+  selectionMode?: boolean
   onSelect: (file: FileInfo, e?: React.MouseEvent) => void
   onOpen: (file: FileInfo) => void
   onRename: (file: FileInfo) => void
@@ -66,6 +53,7 @@ export const FileList = memo(function FileList({
   trashMode,
   showPath,
   basePath,
+  selectionMode,
   onSelect,
   onOpen,
   onRename,
@@ -81,15 +69,19 @@ export const FileList = memo(function FileList({
   isFavorite,
   parentRef,
 }: FileListProps) {
-  const isMobile = useMobileRows()
+  const isMobile = useMediaQuery('(max-width: 767px)')
   const [folderSizes, setFolderSizes] = useState<Record<string, number | 'loading'>>({})
   const internalRef = useRef<HTMLDivElement>(null)
-  const longPressTimerRef = useRef<number | null>(null)
-  const longPressedPathRef = useRef<string | null>(null)
-  const lastPointerTypeRef = useRef<string | null>(null)
   const scrollRef = parentRef || internalRef
   const { draggedFiles, dropTarget, handleDragStart, handleDragEnd, handleDragOver, handleDragLeave, handleDrop } =
     useDragAndDrop({ files, selectedFiles, onMove })
+  const {
+    handleClick,
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerEnd,
+  } = useLongPressSelection({ selectedFiles, selectionMode, onSelect })
+  const isSelecting = selectionMode || selectedFiles.size > 0
 
   const virtualizer = useVirtualizer({
     count: files.length,
@@ -127,32 +119,6 @@ export const FileList = memo(function FileList({
         -
       </button>
     )
-  }
-
-  const clearLongPress = () => {
-    if (longPressTimerRef.current) {
-      window.clearTimeout(longPressTimerRef.current)
-      longPressTimerRef.current = null
-    }
-  }
-
-  const startLongPress = (file: FileInfo, event: React.PointerEvent) => {
-    lastPointerTypeRef.current = event.pointerType
-    if (event.pointerType === 'mouse' || selectedFiles.size > 0) return
-    clearLongPress()
-    longPressTimerRef.current = window.setTimeout(() => {
-      longPressedPathRef.current = file.path
-      onSelect(file)
-    }, 450)
-  }
-
-  const toggleSelection = (file: FileInfo, event: React.MouseEvent) => {
-    const syntheticEvent = {
-      ...event,
-      ctrlKey: true,
-      metaKey: true,
-    } as React.MouseEvent
-    onSelect(file, syntheticEvent)
   }
 
   return (
@@ -202,29 +168,19 @@ export const FileList = memo(function FileList({
                     tabIndex={isFocused ? 0 : -1}
                     className={cn(
                       'group grid h-full gap-3 px-3 py-2 text-sm cursor-pointer transition-colors md:grid-cols-[auto_1fr_100px_150px] md:gap-4 md:px-4',
-                      selectedFiles.size > 0 ? 'grid-cols-[auto_1fr]' : 'grid-cols-[1fr]',
+                      isSelecting ? 'grid-cols-[auto_1fr]' : 'grid-cols-[1fr]',
                       'hover:bg-accent/50',
                       isFileSelected(file, selectedFiles) && 'bg-primary/10 border-l-2 border-primary',
                       isFocused && !isFileSelected(file, selectedFiles) && 'bg-primary/5 ring-1 ring-primary/50',
                       isDragging && 'opacity-50',
                       isDroppable && 'ring-2 ring-primary bg-primary/10'
                     )}
-                    onClick={(event) => {
-                      if (longPressedPathRef.current === file.path) {
-                        longPressedPathRef.current = null
-                        return
-                      }
-                      if (selectedFiles.size > 0 && lastPointerTypeRef.current && lastPointerTypeRef.current !== 'mouse') {
-                        toggleSelection(file, event)
-                        return
-                      }
-                      onOpen(file)
-                    }}
-                    onPointerDown={(event) => startLongPress(file, event)}
-                    onPointerUp={clearLongPress}
-                    onPointerMove={clearLongPress}
-                    onPointerLeave={clearLongPress}
-                    onPointerCancel={clearLongPress}
+                    onClick={(event) => handleClick(file, event, onOpen)}
+                    onPointerDown={(event) => handlePointerDown(file, event)}
+                    onPointerUp={handlePointerEnd}
+                    onPointerMove={handlePointerMove}
+                    onPointerLeave={handlePointerEnd}
+                    onPointerCancel={handlePointerEnd}
                     draggable
                     onDragStart={(e) => handleDragStart(e, file)}
                     onDragEnd={handleDragEnd}
@@ -236,8 +192,9 @@ export const FileList = memo(function FileList({
                     <div
                       className={cn(
                         'w-10 -ml-2 cursor-pointer items-center justify-center md:flex md:w-8',
-                        selectedFiles.size > 0 ? 'flex' : 'hidden'
+                        isSelecting ? 'flex' : 'hidden'
                       )}
+                      aria-hidden={!isSelecting}
                       onClick={createCheckboxClickHandler(file, onSelect)}
                     >
                       <Checkbox

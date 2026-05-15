@@ -5,6 +5,7 @@ import {
   ArrowUp,
   ArrowUpDown,
   Check,
+  CheckSquare,
   Copy,
   FileText,
   Grid,
@@ -47,6 +48,7 @@ interface MobileFileHeaderProps {
   activeContentType?: string | null
   itemCount: number
   selectedCount: number
+  selectionMode: boolean
   viewMode: ViewMode
   onViewModeChange: (mode: ViewMode) => void
   sortBy: SortField
@@ -54,6 +56,7 @@ interface MobileFileHeaderProps {
   onSortChange: (field: SortField, order: SortOrder) => void
   isTrashView?: boolean
   onOpenMenu: () => void
+  onStartSelection: () => void
   onRefresh: () => void
   onClearSelection: () => void
   onCopy: () => void
@@ -112,6 +115,7 @@ export function MobileFileHeader({
   activeContentType,
   itemCount,
   selectedCount,
+  selectionMode,
   viewMode,
   onViewModeChange,
   sortBy,
@@ -119,6 +123,7 @@ export function MobileFileHeader({
   onSortChange,
   isTrashView,
   onOpenMenu,
+  onStartSelection,
   onRefresh,
   onClearSelection,
   onCopy,
@@ -135,7 +140,7 @@ export function MobileFileHeader({
   )
   const showSearch = searchOpen || searchQuery.length > 0
 
-  if (selectedCount > 0) {
+  if (selectionMode) {
     return (
       <header className="md:hidden border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="flex h-14 items-center gap-1 px-2">
@@ -143,27 +148,31 @@ export function MobileFileHeader({
             <X className="h-5 w-5" />
           </Button>
           <div className="flex-1 min-w-0 px-1">
-            <div className="truncate text-base font-semibold">{selectedCount} selected</div>
-            <div className="text-xs text-muted-foreground">Choose an action</div>
+            <div className="truncate text-base font-semibold">
+              {selectedCount > 0 ? `${selectedCount} selected` : 'Select items'}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {selectedCount > 0 ? 'Choose an action' : 'Tap files to select'}
+            </div>
           </div>
           {isTrashView ? (
             <>
-              <Button variant="ghost" size="icon" className="h-11 w-11" onClick={onRestore} aria-label="Restore">
+              <Button variant="ghost" size="icon" className="h-11 w-11" onClick={onRestore} aria-label="Restore" disabled={selectedCount === 0}>
                 <ArchiveRestore className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-11 w-11 text-destructive" onClick={onDelete} aria-label="Delete permanently">
+              <Button variant="ghost" size="icon" className="h-11 w-11 text-destructive" onClick={onDelete} aria-label="Delete permanently" disabled={selectedCount === 0}>
                 <Trash2 className="h-5 w-5" />
               </Button>
             </>
           ) : (
             <>
-              <Button variant="ghost" size="icon" className="h-11 w-11" onClick={onCopy} aria-label="Copy">
+              <Button variant="ghost" size="icon" className="h-11 w-11" onClick={onCopy} aria-label="Copy" disabled={selectedCount === 0}>
                 <Copy className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-11 w-11" onClick={onCut} aria-label="Cut">
+              <Button variant="ghost" size="icon" className="h-11 w-11" onClick={onCut} aria-label="Cut" disabled={selectedCount === 0}>
                 <Scissors className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-11 w-11 text-destructive" onClick={onDelete} aria-label="Delete">
+              <Button variant="ghost" size="icon" className="h-11 w-11 text-destructive" onClick={onDelete} aria-label="Delete" disabled={selectedCount === 0}>
                 <Trash2 className="h-5 w-5" />
               </Button>
             </>
@@ -199,6 +208,11 @@ export function MobileFileHeader({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onClick={onStartSelection} disabled={itemCount === 0}>
+              <CheckSquare className="mr-2 h-4 w-4" />
+              Select
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onRefresh}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Refresh
