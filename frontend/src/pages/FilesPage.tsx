@@ -15,6 +15,8 @@ import { useFileMutations } from '@/hooks/useFileMutations'
 import { Header } from '@/components/Header'
 import { Sidebar } from '@/components/Sidebar'
 import { Toolbar, type ViewMode } from '@/components/Toolbar'
+import { MobileFileHeader } from '@/components/MobileFileHeader'
+import { MobileFileActionSheet } from '@/components/MobileFileActionSheet'
 import { FileGrid } from '@/components/FileGrid'
 import { FileList } from '@/components/FileList'
 import { ContentSearchResults } from '@/components/ContentSearchResults'
@@ -28,8 +30,11 @@ import { ConflictDialog } from '@/components/ConflictDialog'
 import { KeyboardShortcutsDialog } from '@/components/KeyboardShortcutsDialog'
 import { AgentContextPanel } from '@/components/AgentContextPanel'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Loader2, X, FolderSearch, FileText, AlertTriangle } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Loader2, X, FolderSearch, FileText, AlertTriangle, Plus } from 'lucide-react'
 
 // Maximum files to display without virtualization to prevent performance issues
 const MAX_DISPLAY_FILES = 1000
@@ -110,6 +115,9 @@ export function FilesPage() {
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [deleteFiles, setDeleteFiles] = useState<FileInfo[]>([])
   const [showEmptyTrash, setShowEmptyTrash] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false)
+  const [mobileSelectionMode, setMobileSelectionMode] = useState(false)
 
   // Global audio player
   const { isOpen: isPlayerOpen } = useAudioPlayer()
@@ -192,13 +200,21 @@ export function FilesPage() {
   // Selection
   const { selectedFiles, selectFile, clearSelection } = useFileSelection(displayedFiles)
   const selectedFilesList = displayedFiles.filter((f) => selectedFiles.has(f.path))
+  const clearSelectionAndMobileMode = useCallback(() => {
+    clearSelection()
+    setMobileSelectionMode(false)
+  }, [clearSelection])
+
+  useEffect(() => {
+    setMobileSelectionMode(false)
+  }, [currentPath])
 
   // Extracted hooks
   const { favorites, addToFavorites, removeFromFavorites, isFavorite } = useFavorites()
   const { clipboard, conflictFiles, handleCopy, handleCut, pasteMutation, handleConflictResolution } = useClipboard(currentPath)
   const { uploads, isPreparingUpload, setIsPreparingUpload, handleUpload, handleRetry, dismissUpload, dismissAllUploads } =
     useFileUpload(currentPath, config?.max_upload_size_mb)
-  const { handleNavigate, openPreview, handleOpen, handleDownload } = useFileNavigation(clearSelection)
+  const { handleNavigate, openPreview, handleOpen, handleDownload } = useFileNavigation(clearSelectionAndMobileMode)
 
   // Wrap handleOpen to provide displayedFiles
   const handleOpenFile = useCallback((file: FileInfo) => {
@@ -218,7 +234,7 @@ export function FilesPage() {
     gridSize,
     isAudioPlayerOpen: isPlayerOpen,
     selectFile,
-    clearSelection,
+    clearSelection: clearSelectionAndMobileMode,
     onCopy: handleCopy,
     onCut: handleCut,
     onPaste: () => pasteMutation.mutate(undefined),
@@ -241,11 +257,20 @@ export function FilesPage() {
   } = useFileMutations({
     currentPath,
     isTrashView,
-    clearSelection,
+    clearSelection: clearSelectionAndMobileMode,
     onRenameSuccess: () => setRenameFile(null),
     onCreateFolderSuccess: () => setShowNewFolder(false),
     onDeleteSuccess: () => setDeleteFiles([]),
   })
+
+  const refreshCurrentView = useCallback(() => {
+    if (isTrashView) {
+      queryClient.invalidateQueries({ queryKey: ['trash-list'] })
+      queryClient.invalidateQueries({ queryKey: ['trash-info'] })
+    } else {
+      queryClient.invalidateQueries({ queryKey: ['files', currentPath] })
+    }
+  }, [currentPath, isTrashView, queryClient])
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -255,15 +280,79 @@ export function FilesPage() {
       >
         Skip to main content
       </a>
-      <Header
+      <div className="hidden md:block">
+        <Header
+          path={currentPath}
+          onNavigate={handleNavigate}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchContent={contentSearchMode}
+          onSearchContentChange={setContentSearchMode}
+          mounts={config?.mounts}
+        />
+      </div>
+
+      <MobileFileHeader
         path={currentPath}
-        onNavigate={handleNavigate}
+        mounts={config?.mounts}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         searchContent={contentSearchMode}
         onSearchContentChange={setContentSearchMode}
-        mounts={config?.mounts}
+        activeContentType={activeContentType}
+        itemCount={filteredFiles.length}
+        selectedCount={selectedFiles.size}
+        selectionMode={mobileSelectionMode || selectedFiles.size > 0}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        onSortChange={handleSortChange}
+        isTrashView={isTrashView}
+        onOpenMenu={() => setMobileNavOpen(true)}
+        onStartSelection={() => setMobileSelectionMode(true)}
+        onRefresh={refreshCurrentView}
+        onClearSelection={clearSelectionAndMobileMode}
+        onCopy={() => handleCopy(selectedFilesList)}
+        onCut={() => handleCut(selectedFilesList)}
+        onDelete={() => setDeleteFiles(selectedFilesList)}
+        onRestore={() => handleRestore(selectedFilesList)}
+        onEmptyTrash={() => setShowEmptyTrash(true)}
       />
+
+      <Dialog open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+        <DialogContent className="fixed bottom-0 left-0 top-0 h-dvh max-w-[21rem] translate-x-0 translate-y-0 gap-0 rounded-none border-y-0 border-l-0 p-0">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Navigation</DialogTitle>
+            <DialogDescription>Browse favorites, folders, mounts, trash, and file type filters.</DialogDescription>
+          </DialogHeader>
+          <Sidebar
+            currentPath={currentPath}
+            onNavigate={(path) => {
+              handleNavigate(path)
+              setMobileNavOpen(false)
+            }}
+            favorites={favorites}
+            onRemoveFavorite={removeFromFavorites}
+            activeContentType={activeContentType}
+            onContentTypeChange={(type) => {
+              setActiveContentType(type)
+              setMobileNavOpen(false)
+            }}
+            mounts={config?.mounts}
+            contentTypes={config?.content_types}
+            trashCount={trashInfo?.count ?? 0}
+            agentOpenTasks={agentInbox?.tasks.length ?? 0}
+            agentPendingProposals={agentInbox?.proposals.length ?? 0}
+            onOpenAgentInbox={() => {
+              navigate('/agent')
+              setMobileNavOpen(false)
+            }}
+            className="h-full border-r-0 bg-background"
+            style={{ width: '100%' }}
+          />
+        </DialogContent>
+      </Dialog>
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
@@ -279,6 +368,7 @@ export function FilesPage() {
           agentOpenTasks={agentInbox?.tasks.length ?? 0}
           agentPendingProposals={agentInbox?.proposals.length ?? 0}
           onOpenAgentInbox={() => navigate('/agent')}
+          className="hidden md:flex"
         />
 
         <main id="main-content" className="flex-1 flex flex-col overflow-hidden">
@@ -298,51 +388,48 @@ export function FilesPage() {
             onChange={(e) => e.target.files && handleUpload(e.target.files)}
           />
 
-          <Toolbar
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-            gridSize={gridSize}
-            onGridSizeChange={setGridSize}
-            itemCount={filteredFiles.length}
-            selectedCount={selectedFiles.size}
-            hasClipboard={!!clipboard}
-            clipboardInfo={clipboard ? { count: clipboard.files.length, operation: clipboard.operation } : null}
-            isTrashView={isTrashView}
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            onSortChange={handleSortChange}
-            onNewFolder={() => setShowNewFolder(true)}
-            onUpload={() => fileInputRef.current?.click()}
-            onUploadFolder={() => folderInputRef.current?.click()}
-            onDelete={() => setDeleteFiles(selectedFilesList)}
-            onCopy={() => handleCopy(selectedFilesList)}
-            onCut={() => handleCut(selectedFilesList)}
-            onPaste={() => pasteMutation.mutate(undefined)}
-            onRefresh={() => {
-              if (isTrashView) {
-                queryClient.invalidateQueries({ queryKey: ['trash-list'] })
-                queryClient.invalidateQueries({ queryKey: ['trash-info'] })
-              } else {
-                queryClient.invalidateQueries({ queryKey: ['files', currentPath] })
-              }
-            }}
-            onRestore={() => handleRestore(selectedFilesList)}
-            onEmptyTrash={() => setShowEmptyTrash(true)}
-          />
+          <div className="hidden md:block">
+            <Toolbar
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              gridSize={gridSize}
+              onGridSizeChange={setGridSize}
+              itemCount={filteredFiles.length}
+              selectedCount={selectedFiles.size}
+              hasClipboard={!!clipboard}
+              clipboardInfo={clipboard ? { count: clipboard.files.length, operation: clipboard.operation } : null}
+              isTrashView={isTrashView}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSortChange={handleSortChange}
+              onNewFolder={() => setShowNewFolder(true)}
+              onUpload={() => fileInputRef.current?.click()}
+              onUploadFolder={() => folderInputRef.current?.click()}
+              onDelete={() => setDeleteFiles(selectedFilesList)}
+              onCopy={() => handleCopy(selectedFilesList)}
+              onCut={() => handleCut(selectedFilesList)}
+              onPaste={() => pasteMutation.mutate(undefined)}
+              onRefresh={refreshCurrentView}
+              onRestore={() => handleRestore(selectedFilesList)}
+              onEmptyTrash={() => setShowEmptyTrash(true)}
+            />
+          </div>
 
           {!isTrashView && !isSearchActive && (
+            <div className="hidden md:block">
             <AgentContextPanel path={currentPath} />
+            </div>
           )}
 
           {/* Search indicator */}
           {isSearchActive && (
-            <div className="flex items-center gap-2 px-4 py-1.5 bg-muted/50 border-b text-sm">
+            <div className="flex items-center gap-2 border-b bg-muted/50 px-3 py-1.5 text-xs md:px-4 md:text-sm">
               {isContentSearchActive ? (
-                <FileText className="h-4 w-4 text-muted-foreground" />
+                <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
               ) : (
-                <FolderSearch className="h-4 w-4 text-muted-foreground" />
+                <FolderSearch className="h-4 w-4 shrink-0 text-muted-foreground" />
               )}
-              <span className="text-muted-foreground">
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">
                 {isContentSearchActive ? (
                   <>
                     Searching inside files for "<span className="font-medium text-foreground">{debouncedSearchQuery}</span>"
@@ -376,7 +463,7 @@ export function FilesPage() {
               </span>
 
               {searchHasMore && !isSearching && !isContentSearchActive && (
-                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <div className="hidden items-center gap-1.5 rounded bg-amber-500/10 px-2 py-0.5 text-amber-600 dark:text-amber-400 sm:flex">
                   <AlertTriangle className="h-3.5 w-3.5" />
                   <span className="text-xs font-medium">
                     Showing {searchResultsCount} of {searchTotalScanned}+ results
@@ -385,7 +472,7 @@ export function FilesPage() {
               )}
 
               {contentSearchHasMore && !isContentSearching && isContentSearchActive && (
-                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <div className="hidden items-center gap-1.5 rounded bg-amber-500/10 px-2 py-0.5 text-amber-600 dark:text-amber-400 sm:flex">
                   <AlertTriangle className="h-3.5 w-3.5" />
                   <span className="text-xs font-medium">
                     More results available (searched {contentSearchFilesSearched} files)
@@ -399,10 +486,10 @@ export function FilesPage() {
                   setActiveContentType(null)
                   setContentSearchMode(false)
                 }}
-                className="ml-auto flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                className="ml-auto flex shrink-0 items-center gap-1 text-muted-foreground hover:text-foreground"
               >
                 <X className="h-3.5 w-3.5" />
-                <span>Clear</span>
+                <span className="hidden sm:inline">Clear</span>
               </button>
             </div>
           )}
@@ -454,7 +541,7 @@ export function FilesPage() {
                 </div>
               ) : (
                 <ScrollArea className="flex-1" viewportRef={scrollViewportRef}>
-                  <div className={`flex flex-col ${isPlayerOpen ? 'pb-20' : ''}`}>
+                  <div className={cn('flex flex-col pb-24 md:pb-0', isPlayerOpen && 'pb-44 md:pb-20')}>
                     {isContentSearchActive ? (
                       <ContentSearchResults
                         files={displayedFiles}
@@ -470,6 +557,7 @@ export function FilesPage() {
                         trashMode={isTrashView}
                         showPath={isFilenameSearchActive}
                         basePath={currentPath}
+                        selectionMode={mobileSelectionMode}
                         onSelect={selectFile}
                         onOpen={handleOpenFile}
                         onRename={setRenameFile}
@@ -492,6 +580,7 @@ export function FilesPage() {
                         trashMode={isTrashView}
                         showPath={isFilenameSearchActive}
                         basePath={currentPath}
+                        selectionMode={mobileSelectionMode}
                         onSelect={selectFile}
                         onOpen={handleOpenFile}
                         onRename={setRenameFile}
@@ -557,6 +646,30 @@ export function FilesPage() {
           />
         </main>
       </div>
+
+      {!isTrashView && !mobileSelectionMode && selectedFiles.size === 0 && (
+        <Button
+          className={`fixed right-4 z-40 h-14 w-14 rounded-full shadow-lg md:hidden ${isPlayerOpen ? 'bottom-24' : 'bottom-[calc(env(safe-area-inset-bottom)+1rem)]'}`}
+          size="icon"
+          onClick={() => setMobileActionsOpen(true)}
+          aria-label="Create or upload"
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      )}
+
+      <MobileFileActionSheet
+        open={mobileActionsOpen}
+        onOpenChange={setMobileActionsOpen}
+        hasClipboard={!!clipboard}
+        clipboardInfo={clipboard ? { count: clipboard.files.length, operation: clipboard.operation } : null}
+        isTrashView={isTrashView}
+        onNewFolder={() => setShowNewFolder(true)}
+        onUpload={() => fileInputRef.current?.click()}
+        onUploadFolder={() => folderInputRef.current?.click()}
+        onPaste={() => pasteMutation.mutate(undefined)}
+        onRefresh={refreshCurrentView}
+      />
 
       {/* Dialogs */}
       <RenameDialog
