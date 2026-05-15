@@ -37,6 +37,16 @@
   }
 }
 
+@media (max-width: 767px) {
+  :root {
+    --sidebar-width: 0rem;
+  }
+
+  body {
+    overscroll-behavior: none;
+  }
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: hsl(0 0% 25%) transparent;

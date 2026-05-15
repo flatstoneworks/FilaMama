@@ -29,6 +29,8 @@ interface SidebarProps {
   agentOpenTasks?: number
   agentPendingProposals?: number
   onOpenAgentInbox?: () => void
+  className?: string
+  style?: React.CSSProperties
 }
 
 const mountIconMap: Record<string, React.ReactNode> = {
@@ -90,12 +92,18 @@ export function Sidebar({
   agentOpenTasks = 0,
   agentPendingProposals = 0,
   onOpenAgentInbox,
+  className,
+  style,
 }: SidebarProps) {
   const resolvedContentTypes = serverContentTypes
     ? buildContentTypes(serverContentTypes)
     : contentTypes
   return (
-    <nav aria-label="File browser navigation" className="border-r bg-muted/30 flex flex-col" style={{ width: 'var(--sidebar-width)' }}>
+    <nav
+      aria-label="File browser navigation"
+      className={cn('border-r bg-muted/30 flex flex-col', className)}
+      style={{ width: 'var(--sidebar-width)', ...style }}
+    >
       <ScrollArea className="flex-1">
         <div className="p-3">
           {/* Favorites - on top */}
@@ -106,7 +114,7 @@ export function Sidebar({
             <nav className="space-y-0.5">
               {favorites.length === 0 ? (
                 <p className="text-xs text-muted-foreground px-2 py-1">
-                  Right-click a folder to add
+                  Add folders from file actions
                 </p>
               ) : (
                 favorites.map((path) => {

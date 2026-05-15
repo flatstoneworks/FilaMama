@@ -1,4 +1,4 @@
-import { useState, useRef, memo } from 'react'
+import { useEffect, useState, useRef, memo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { FileIcon, isAudioFile } from './FileIcon'
 import { AudioCover } from './AudioCover'
@@ -10,7 +10,24 @@ import { api, type FileInfo } from '@/api/client'
 import { cn, isFileSelected, createCheckboxClickHandler, formatBytes, formatFileDate } from '@/lib/utils'
 import { useDragAndDrop } from '@/hooks/useDragAndDrop'
 
-const ROW_HEIGHT = 40
+const DESKTOP_ROW_HEIGHT = 40
+const MOBILE_ROW_HEIGHT = 68
+
+function useMobileRows() {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  )
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 767px)')
+    const update = () => setIsMobile(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+
+  return isMobile
+}
 
 function getRelativeDir(filePath: string, basePath: string): string {
   const dir = filePath.substring(0, filePath.lastIndexOf('/'))
@@ -26,7 +43,7 @@ interface FileListProps {
   trashMode?: boolean
   showPath?: boolean
   basePath?: string
-  onSelect: (file: FileInfo, e: React.MouseEvent) => void
+  onSelect: (file: FileInfo, e?: React.MouseEvent) => void
   onOpen: (file: FileInfo) => void
   onRename: (file: FileInfo) => void
   onDelete: (files: FileInfo[]) => void
@@ -64,8 +81,12 @@ export const FileList = memo(function FileList({
   isFavorite,
   parentRef,
 }: FileListProps) {
+  const isMobile = useMobileRows()
   const [folderSizes, setFolderSizes] = useState<Record<string, number | 'loading'>>({})
   const internalRef = useRef<HTMLDivElement>(null)
+  const longPressTimerRef = useRef<number | null>(null)
+  const longPressedPathRef = useRef<string | null>(null)
+  const lastPointerTypeRef = useRef<string | null>(null)
   const scrollRef = parentRef || internalRef
   const { draggedFiles, dropTarget, handleDragStart, handleDragEnd, handleDragOver, handleDragLeave, handleDrop } =
     useDragAndDrop({ files, selectedFiles, onMove })
@@ -73,7 +94,7 @@ export const FileList = memo(function FileList({
   const virtualizer = useVirtualizer({
     count: files.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => isMobile ? MOBILE_ROW_HEIGHT : DESKTOP_ROW_HEIGHT,
     overscan: 20,
   })
 
@@ -108,10 +129,36 @@ export const FileList = memo(function FileList({
     )
   }
 
+  const clearLongPress = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }
+
+  const startLongPress = (file: FileInfo, event: React.PointerEvent) => {
+    lastPointerTypeRef.current = event.pointerType
+    if (event.pointerType === 'mouse' || selectedFiles.size > 0) return
+    clearLongPress()
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressedPathRef.current = file.path
+      onSelect(file)
+    }, 450)
+  }
+
+  const toggleSelection = (file: FileInfo, event: React.MouseEvent) => {
+    const syntheticEvent = {
+      ...event,
+      ctrlKey: true,
+      metaKey: true,
+    } as React.MouseEvent
+    onSelect(file, syntheticEvent)
+  }
+
   return (
     <div className="flex flex-col" role="rowgroup" aria-label="File list">
       {/* Header */}
-      <div className="grid grid-cols-[auto_1fr_100px_150px] gap-4 px-4 py-2 text-sm font-medium text-muted-foreground border-b bg-muted/30" role="row" aria-hidden="true">
+      <div className="hidden grid-cols-[auto_1fr_100px_150px] gap-4 border-b bg-muted/30 px-4 py-2 text-sm font-medium text-muted-foreground md:grid" role="row" aria-hidden="true">
         <div className="w-5" />
         <div>Name</div>
         <div className="text-right">Size</div>
@@ -154,14 +201,30 @@ export const FileList = memo(function FileList({
                     aria-label={file.name}
                     tabIndex={isFocused ? 0 : -1}
                     className={cn(
-                      'group grid grid-cols-[auto_1fr_100px_150px] gap-4 px-4 py-2 text-sm cursor-pointer transition-colors h-full',
+                      'group grid h-full gap-3 px-3 py-2 text-sm cursor-pointer transition-colors md:grid-cols-[auto_1fr_100px_150px] md:gap-4 md:px-4',
+                      selectedFiles.size > 0 ? 'grid-cols-[auto_1fr]' : 'grid-cols-[1fr]',
                       'hover:bg-accent/50',
                       isFileSelected(file, selectedFiles) && 'bg-primary/10 border-l-2 border-primary',
                       isFocused && !isFileSelected(file, selectedFiles) && 'bg-primary/5 ring-1 ring-primary/50',
                       isDragging && 'opacity-50',
                       isDroppable && 'ring-2 ring-primary bg-primary/10'
                     )}
-                    onClick={() => onOpen(file)}
+                    onClick={(event) => {
+                      if (longPressedPathRef.current === file.path) {
+                        longPressedPathRef.current = null
+                        return
+                      }
+                      if (selectedFiles.size > 0 && lastPointerTypeRef.current && lastPointerTypeRef.current !== 'mouse') {
+                        toggleSelection(file, event)
+                        return
+                      }
+                      onOpen(file)
+                    }}
+                    onPointerDown={(event) => startLongPress(file, event)}
+                    onPointerUp={clearLongPress}
+                    onPointerMove={clearLongPress}
+                    onPointerLeave={clearLongPress}
+                    onPointerCancel={clearLongPress}
                     draggable
                     onDragStart={(e) => handleDragStart(e, file)}
                     onDragEnd={handleDragEnd}
@@ -171,7 +234,10 @@ export const FileList = memo(function FileList({
                   >
                     {/* Checkbox - always visible with enlarged click area */}
                     <div
-                      className="flex items-center justify-center w-8 -ml-2 cursor-pointer"
+                      className={cn(
+                        'w-10 -ml-2 cursor-pointer items-center justify-center md:flex md:w-8',
+                        selectedFiles.size > 0 ? 'flex' : 'hidden'
+                      )}
                       onClick={createCheckboxClickHandler(file, onSelect)}
                     >
                       <Checkbox
@@ -188,16 +254,19 @@ export const FileList = memo(function FileList({
                         <img
                           src={file.thumbnail_url}
                           alt={file.name}
-                          className="w-8 h-8 rounded object-cover"
+                          className="h-10 w-10 rounded object-cover md:h-8 md:w-8"
                         />
                       ) : isAudioFile(file.name) ? (
-                        <AudioCover path={file.path} size={32} />
+                        <AudioCover path={file.path} size={isMobile ? 40 : 32} />
                       ) : (
-                        <FileIcon name={file.name} isDirectory={file.is_directory ?? false} size={20} />
+                        <FileIcon name={file.name} isDirectory={file.is_directory ?? false} size={isMobile ? 24 : 20} />
                       )}
                       <div className="flex flex-col min-w-0">
                         <span className="truncate" title={file.name}>
                           {file.name}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground md:hidden">
+                          {file.is_directory ? 'Folder' : formatBytes(file.size)} · {formatFileDate(file.modified)}
                         </span>
                         {showPath && basePath && (() => {
                           const rel = getRelativeDir(file.path, basePath)
@@ -214,10 +283,10 @@ export const FileList = memo(function FileList({
                         )}
                       </div>
                     </div>
-                    <div className="text-right text-muted-foreground">
+                    <div className="hidden text-right text-muted-foreground md:block">
                       {getFolderSizeDisplay(file)}
                     </div>
-                    <div className="text-muted-foreground">
+                    <div className="hidden text-muted-foreground md:block">
                       {formatFileDate(file.modified)}
                     </div>
                   </div>

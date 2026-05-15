@@ -26,7 +26,7 @@ interface FileGridProps {
   trashMode?: boolean
   showPath?: boolean
   basePath?: string
-  onSelect: (file: FileInfo, e: React.MouseEvent) => void
+  onSelect: (file: FileInfo, e?: React.MouseEvent) => void
   onOpen: (file: FileInfo) => void
   onRename: (file: FileInfo) => void
   onDelete: (files: FileInfo[]) => void
@@ -64,17 +64,46 @@ export const FileGrid = memo(function FileGrid({
   isFavorite,
 }: FileGridProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const longPressTimerRef = useRef<number | null>(null)
+  const longPressedPathRef = useRef<string | null>(null)
+  const lastPointerTypeRef = useRef<string | null>(null)
   const { draggedFiles, dropTarget, handleDragStart, handleDragEnd, handleDragOver, handleDragLeave, handleDrop } =
     useDragAndDrop({ files, selectedFiles, onMove })
+
+  const clearLongPress = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }
+
+  const startLongPress = (file: FileInfo, event: React.PointerEvent) => {
+    lastPointerTypeRef.current = event.pointerType
+    if (event.pointerType === 'mouse' || selectedFiles.size > 0) return
+    clearLongPress()
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressedPathRef.current = file.path
+      onSelect(file)
+    }, 450)
+  }
+
+  const toggleSelection = (file: FileInfo, event: React.MouseEvent) => {
+    const syntheticEvent = {
+      ...event,
+      ctrlKey: true,
+      metaKey: true,
+    } as React.MouseEvent
+    onSelect(file, syntheticEvent)
+  }
 
   return (
     <div
       ref={containerRef}
       role="grid"
       aria-label="File browser"
-      className="grid gap-2 p-4"
+      className="grid gap-3 p-3 md:gap-2 md:p-4"
       style={{
-        gridTemplateColumns: `repeat(auto-fill, minmax(${gridSize}px, 1fr))`,
+        gridTemplateColumns: `repeat(auto-fill, minmax(min(${gridSize}px, 45vw), 1fr))`,
       }}
     >
       {files.map((file, index) => {
@@ -99,7 +128,22 @@ export const FileGrid = memo(function FileGrid({
                   isDragging && 'opacity-50',
                   isDroppable && 'ring-2 ring-primary bg-primary/10'
                 )}
-                onClick={() => onOpen(file)}
+                onClick={(event) => {
+                  if (longPressedPathRef.current === file.path) {
+                    longPressedPathRef.current = null
+                    return
+                  }
+                  if (selectedFiles.size > 0 && lastPointerTypeRef.current && lastPointerTypeRef.current !== 'mouse') {
+                    toggleSelection(file, event)
+                    return
+                  }
+                  onOpen(file)
+                }}
+                onPointerDown={(event) => startLongPress(file, event)}
+                onPointerUp={clearLongPress}
+                onPointerMove={clearLongPress}
+                onPointerLeave={clearLongPress}
+                onPointerCancel={clearLongPress}
                 draggable
                 onDragStart={(e) => handleDragStart(e, file)}
                 onDragEnd={handleDragEnd}
@@ -109,7 +153,10 @@ export const FileGrid = memo(function FileGrid({
               >
               {/* Checkbox - always visible with enlarged click area */}
               <div
-                className="absolute top-0 left-0 z-10 p-1.5 cursor-pointer"
+                className={cn(
+                  'absolute left-0 top-0 z-10 cursor-pointer p-1.5 transition-opacity',
+                  selectedFiles.size === 0 && 'pointer-events-none opacity-0 md:pointer-events-auto md:opacity-100'
+                )}
                 onClick={createCheckboxClickHandler(file, onSelect)}
               >
                 <Checkbox
