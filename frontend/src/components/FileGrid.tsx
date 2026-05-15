@@ -195,6 +195,11 @@ export const FileGrid = memo(function FileGrid({
                   </span>
                 ) : null
               })()}
+              {file.match_reason && (
+                <span className="text-[10px] text-primary truncate w-full text-center px-1">
+                  Matched {file.match_reason.replace('_', ' ')}
+                </span>
+              )}
             </div>
           </ContextMenuTrigger>
           <FileContextMenu

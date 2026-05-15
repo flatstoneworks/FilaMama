@@ -1,4 +1,4 @@
-import { FileText, Image, Video, Star, Home, FolderOpen, Music, FileImage, Film, FileType, HardDrive, FolderCog, Folder, X, Trash2 } from 'lucide-react'
+import { FileText, Image, Video, Star, Home, FolderOpen, Music, FileImage, Film, FileType, HardDrive, FolderCog, Folder, X, Trash2, Bot } from 'lucide-react'
 import type { MountPoint, AppConfig } from '@/api/client'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -26,6 +26,9 @@ interface SidebarProps {
   mounts?: MountPoint[]
   contentTypes?: AppConfig['content_types']
   trashCount?: number
+  agentOpenTasks?: number
+  agentPendingProposals?: number
+  onOpenAgentInbox?: () => void
 }
 
 const mountIconMap: Record<string, React.ReactNode> = {
@@ -84,6 +87,9 @@ export function Sidebar({
   mounts = [],
   contentTypes: serverContentTypes,
   trashCount = 0,
+  agentOpenTasks = 0,
+  agentPendingProposals = 0,
+  onOpenAgentInbox,
 }: SidebarProps) {
   const resolvedContentTypes = serverContentTypes
     ? buildContentTypes(serverContentTypes)
@@ -188,6 +194,27 @@ export function Sidebar({
                 {trashCount > 0 && (
                   <span className="ml-auto text-xs bg-muted-foreground/20 text-muted-foreground rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
                     {trashCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => {
+                  onContentTypeChange?.(null)
+                  onOpenAgentInbox?.()
+                }}
+                className={cn(
+                  'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
+                  'hover:bg-accent hover:text-accent-foreground',
+                  currentPath === '/agent'
+                    ? 'bg-accent text-accent-foreground font-medium'
+                    : 'text-muted-foreground'
+                )}
+              >
+                <Bot className="h-4 w-4" />
+                <span>Agent Inbox</span>
+                {(agentPendingProposals + agentOpenTasks) > 0 && (
+                  <span className="ml-auto text-xs bg-primary/15 text-primary rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+                    {agentPendingProposals + agentOpenTasks}
                   </span>
                 )}
               </button>

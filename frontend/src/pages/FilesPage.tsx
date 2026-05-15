@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
-import { useLocation, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type FileInfo, type SortField, type SortOrder } from '@/api/client'
 import { useFileSelection } from '@/hooks/useFileSelection'
@@ -26,6 +26,7 @@ import { NewFolderDialog } from '@/components/NewFolderDialog'
 import { DeleteDialog } from '@/components/DeleteDialog'
 import { ConflictDialog } from '@/components/ConflictDialog'
 import { KeyboardShortcutsDialog } from '@/components/KeyboardShortcutsDialog'
+import { AgentContextPanel } from '@/components/AgentContextPanel'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Loader2, X, FolderSearch, FileText, AlertTriangle } from 'lucide-react'
@@ -35,6 +36,7 @@ const MAX_DISPLAY_FILES = 1000
 
 export function FilesPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
   const scrollViewportRef = useRef<HTMLDivElement>(null)
@@ -117,6 +119,12 @@ export function FilesPage() {
     queryKey: ['config'],
     queryFn: () => api.getConfig(),
     staleTime: Infinity,
+  })
+
+  const { data: agentInbox } = useQuery({
+    queryKey: ['agent-inbox'],
+    queryFn: () => api.getAgentInbox(),
+    staleTime: 10000,
   })
 
   // Trash state (view flag, listing, sidebar badge).
@@ -268,6 +276,9 @@ export function FilesPage() {
           mounts={config?.mounts}
           contentTypes={config?.content_types}
           trashCount={trashInfo?.count ?? 0}
+          agentOpenTasks={agentInbox?.tasks.length ?? 0}
+          agentPendingProposals={agentInbox?.proposals.length ?? 0}
+          onOpenAgentInbox={() => navigate('/agent')}
         />
 
         <main id="main-content" className="flex-1 flex flex-col overflow-hidden">
@@ -318,6 +329,10 @@ export function FilesPage() {
             onRestore={() => handleRestore(selectedFilesList)}
             onEmptyTrash={() => setShowEmptyTrash(true)}
           />
+
+          {!isTrashView && !isSearchActive && (
+            <AgentContextPanel path={currentPath} />
+          )}
 
           {/* Search indicator */}
           {isSearchActive && (

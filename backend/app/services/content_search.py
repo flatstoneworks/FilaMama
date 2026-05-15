@@ -45,7 +45,7 @@ EXCLUDED_DIRS = {'node_modules', '__pycache__', 'dist', 'build', 'venv', '.venv'
 
 # Glob excludes passed to ripgrep. Mirrors EXCLUDED_DIRS plus a few file globs.
 _RIPGREP_EXCLUDES = [
-    '!.git', '!node_modules', '!__pycache__',
+    '!.git', '!.filamama', '!node_modules', '!__pycache__',
     '!*.min.js', '!*.min.css',
     '!dist', '!build', '!.venv', '!venv',
 ]

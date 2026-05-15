@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
 from typing import List, Optional
 import aiofiles
 from pathlib import Path
@@ -8,24 +8,60 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 from ..services.filesystem import FilesystemService
+from ..services.agent import AgentService
+from ..models.schemas import Actor, ActorType
 from ..utils.error_handlers import handle_fs_errors
 from ..utils.paths import generate_unique_path
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 
 fs_service: FilesystemService = None
+agent_service: AgentService = None
 max_upload_bytes: int = 0
 
 
-def init_services(filesystem: FilesystemService, max_size_mb: int = 10240):
-    global fs_service, max_upload_bytes
+def init_services(filesystem: FilesystemService, max_size_mb: int = 10240, agent: AgentService = None):
+    global fs_service, max_upload_bytes, agent_service
     fs_service = filesystem
     max_upload_bytes = max_size_mb * 1024 * 1024
+    agent_service = agent
+
+
+def _actor_from_request(request: Request) -> Actor:
+    actor_type_value = request.headers.get("X-FilaMama-Actor-Type", "human")
+    try:
+        actor_type = ActorType(actor_type_value)
+    except ValueError:
+        actor_type = ActorType.HUMAN
+    return Actor(
+        id=request.headers.get("X-FilaMama-Actor-Id", "local-user"),
+        type=actor_type,
+        name=request.headers.get(
+            "X-FilaMama-Actor-Name",
+            "Local user" if actor_type == ActorType.HUMAN else "Agent",
+        ),
+    )
+
+
+async def _audit(request: Request, paths: list[str], uploaded_count: int, failed_count: int):
+    if agent_service is None:
+        return
+    try:
+        await agent_service.record_activity(
+            _actor_from_request(request),
+            "file.upload",
+            paths,
+            f"Uploaded {uploaded_count} file(s)",
+            {"uploaded": uploaded_count, "failed": failed_count},
+        )
+    except Exception:
+        pass
 
 
 @router.post("")
 @handle_fs_errors
 async def upload_files(
+    request: Request,
     files: List[UploadFile] = File(...),
     path: str = Form("/"),
     overwrite: bool = Form(False),
@@ -96,6 +132,8 @@ async def upload_files(
         except Exception as e:
             logger.exception("Unexpected error uploading file %s", file.filename)
             errors.append({"name": file.filename, "error": str(e)})
+
+    await _audit(request, [item["path"] for item in uploaded], len(uploaded), len(errors))
 
     return {
         "uploaded": uploaded,

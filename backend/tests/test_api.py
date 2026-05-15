@@ -250,6 +250,111 @@ class TestTrashEndpoints:
         assert mount_file.exists()
 
 
+# ─── Agent endpoints ─────────────────────────────────────────────────────────
+
+
+class TestAgentEndpoints:
+    @pytest.mark.asyncio
+    async def test_create_text_artifact_metadata_and_search(self, client, tmp_tree):
+        response = await client.post(
+            "/api/agent/artifacts/text",
+            headers={
+                "X-FilaMama-Actor-Id": "hermes",
+                "X-FilaMama-Actor-Type": "agent",
+                "X-FilaMama-Actor-Name": "Hermes",
+            },
+            json={
+                "path": "/agent-report.md",
+                "content": "# Agent report\n",
+                "metadata": {
+                    "title": "Hermes report",
+                    "description": "Generated research artifact",
+                    "source_type": "generated_text",
+                    "provider": "Hermes",
+                    "model": "hermes-v1",
+                    "prompt_summary": "Summarize the workspace",
+                    "labels": ["agent", "report"],
+                },
+            },
+        )
+        assert response.status_code == 200
+        assert (tmp_tree / "root" / "agent-report.md").exists()
+
+        artifact = await client.get("/api/agent/artifacts", params={"path": "/agent-report.md"})
+        assert artifact.status_code == 200
+        data = artifact.json()["artifact"]
+        assert data["provider"] == "Hermes"
+        assert data["labels"] == ["agent", "report"]
+
+        search = await client.get(
+            "/api/files/search",
+            params={"query": "workspace", "path": "/"},
+        )
+        assert search.status_code == 200
+        results = search.json()["results"]
+        hit = next(item for item in results if item["path"] == "/agent-report.md")
+        assert hit["match_reason"] == "metadata"
+
+        activity = await client.get("/api/agent/activity", params={"path": "/agent-report.md"})
+        assert activity.status_code == 200
+        assert activity.json()["items"][0]["actor"]["id"] == "hermes"
+
+    @pytest.mark.asyncio
+    async def test_agent_create_existing_file_conflicts(self, client):
+        response = await client.post(
+            "/api/agent/artifacts/text",
+            json={
+                "path": "/file1.txt",
+                "content": "replacement",
+                "metadata": {"title": "Should conflict"},
+            },
+        )
+        assert response.status_code == 409
+
+    @pytest.mark.asyncio
+    async def test_filamama_private_dir_is_protected(self, client):
+        # Initialize the agent DB, then verify normal file APIs cannot enter it.
+        response = await client.post(
+            "/api/agent/artifacts/text",
+            json={"path": "/created.txt", "content": "ok", "metadata": {}},
+        )
+        assert response.status_code == 200
+
+        listing = await client.get("/api/files/list", params={"path": "/.filamama"})
+        assert listing.status_code == 403
+
+        info = await client.get("/api/files/info", params={"path": "/.filamama/filamama.db"})
+        assert info.status_code == 403
+
+        upload = await client.post(
+            "/api/upload",
+            files={"files": ("x.txt", b"x", "text/plain")},
+            data={"path": "/.filamama"},
+        )
+        assert upload.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_proposal_does_not_mutate_until_approved(self, client, tmp_tree):
+        proposal = await client.post(
+            "/api/agent/proposals",
+            headers={"X-FilaMama-Actor-Id": "hermes", "X-FilaMama-Actor-Type": "agent"},
+            json={
+                "operation": "rename",
+                "paths": ["/file1.txt"],
+                "params": {"new_name": "approved.txt"},
+                "summary": "Rename file1 after review",
+            },
+        )
+        assert proposal.status_code == 200
+        proposal_id = proposal.json()["proposal"]["id"]
+        assert (tmp_tree / "root" / "file1.txt").exists()
+        assert not (tmp_tree / "root" / "approved.txt").exists()
+
+        approved = await client.post(f"/api/agent/proposals/{proposal_id}/approve")
+        assert approved.status_code == 200
+        assert (tmp_tree / "root" / "approved.txt").exists()
+
+
 # ─── Stream / Download endpoints ─────────────────────────────────────────────
 
 

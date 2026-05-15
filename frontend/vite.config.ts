@@ -27,6 +27,7 @@ const chunkMatchers: Array<[string, string[]]> = [
 export default defineConfig({
     plugins: [react()],
     resolve: {
+        dedupe: ['react', 'react-dom'],
         alias: {
             '@': path.resolve(__dirname, './src'),
         },

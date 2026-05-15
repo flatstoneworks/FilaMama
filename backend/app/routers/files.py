@@ -12,7 +12,7 @@ import aiofiles
 from ..models.schemas import (
     FileInfo, DirectoryListing, DiskUsage, SortField, SortOrder,
     RenameRequest, DeleteRequest, CreateDirectoryRequest, FileOperation,
-    DeleteResponse, TextFileContent, OperationSuccess,
+    DeleteResponse, TextFileContent, OperationSuccess, Actor, ActorType,
     ConflictCheckRequest, ConflictCheckResponse,
 )
 from ..services.filesystem import FilesystemService
@@ -20,6 +20,7 @@ from ..services.thumbnails import ThumbnailService
 from ..services.audio import AudioMetadataService
 from ..services.content_search import ContentSearchService
 from ..services.transcoding import TranscodingService, BROWSER_VIDEO_CODECS, BROWSER_AUDIO_CODECS
+from ..services.agent import AgentService
 from ..utils.error_handlers import handle_fs_errors
 
 router = APIRouter(prefix="/api/files", tags=["files"])
@@ -29,6 +30,7 @@ thumb_service: ThumbnailService = None
 audio_service: AudioMetadataService = None
 transcode_service: TranscodingService = None
 content_search_service: ContentSearchService = None
+agent_service: AgentService = None
 
 
 def _require_fs():
@@ -55,14 +57,42 @@ def init_services(
     audio: AudioMetadataService = None,
     transcoding: TranscodingService = None,
     content_search: ContentSearchService = None,
+    agent: AgentService = None,
 ):
-    global fs_service, thumb_service, audio_service, transcode_service, content_search_service
+    global fs_service, thumb_service, audio_service, transcode_service, content_search_service, agent_service
     fs_service = filesystem
     thumb_service = thumbnails
     audio_service = audio
     transcode_service = transcoding
     # Default to a content searcher backed by the same filesystem service.
     content_search_service = content_search or ContentSearchService(filesystem)
+    agent_service = agent
+
+
+def _actor_from_request(request: Request) -> Actor:
+    actor_type_value = request.headers.get("X-FilaMama-Actor-Type", "human")
+    try:
+        actor_type = ActorType(actor_type_value)
+    except ValueError:
+        actor_type = ActorType.HUMAN
+    return Actor(
+        id=request.headers.get("X-FilaMama-Actor-Id", "local-user"),
+        type=actor_type,
+        name=request.headers.get(
+            "X-FilaMama-Actor-Name",
+            "Local user" if actor_type == ActorType.HUMAN else "Agent",
+        ),
+    )
+
+
+async def _audit(request: Request, action: str, paths: list[str], summary: str, metadata: dict | None = None):
+    if agent_service is None:
+        return
+    try:
+        await agent_service.record_activity(_actor_from_request(request), action, paths, summary, metadata)
+    except Exception:
+        # File operations should not fail because the audit log is temporarily unavailable.
+        pass
 
 
 @router.get("/list", response_model=DirectoryListing)
@@ -85,33 +115,54 @@ async def get_file_info(path: str):
 
 @router.post("/mkdir", response_model=FileInfo)
 @handle_fs_errors
-async def create_directory(request: CreateDirectoryRequest):
-    return await _require_fs().create_directory(request.path, request.name)
+async def create_directory(http_request: Request, request: CreateDirectoryRequest):
+    info = await _require_fs().create_directory(request.path, request.name)
+    await _audit(http_request, "file.mkdir", [info.path], f"Created folder {info.name}")
+    return info
 
 
 @router.post("/delete", response_model=DeleteResponse)
 @handle_fs_errors
-async def delete_files(request: DeleteRequest):
+async def delete_files(http_request: Request, request: DeleteRequest):
     count = await _require_fs().delete(request.paths)
+    await _audit(http_request, "file.delete", request.paths, f"Deleted {count} item(s)", {"count": count})
     return DeleteResponse(deleted=count)
 
 
 @router.post("/rename", response_model=FileInfo)
 @handle_fs_errors
-async def rename_file(request: RenameRequest):
-    return await _require_fs().rename(request.path, request.new_name)
+async def rename_file(http_request: Request, request: RenameRequest):
+    info = await _require_fs().rename(request.path, request.new_name)
+    await _audit(http_request, "file.rename", [request.path, info.path], f"Renamed to {info.name}")
+    return info
 
 
 @router.post("/copy", response_model=FileInfo)
 @handle_fs_errors
-async def copy_file(request: FileOperation):
-    return await _require_fs().copy(request.source, request.destination, request.overwrite)
+async def copy_file(http_request: Request, request: FileOperation):
+    info = await _require_fs().copy(request.source, request.destination, request.overwrite)
+    await _audit(
+        http_request,
+        "file.copy",
+        [request.source, info.path],
+        f"Copied {request.source} to {info.path}",
+        {"overwrite": request.overwrite},
+    )
+    return info
 
 
 @router.post("/move", response_model=FileInfo)
 @handle_fs_errors
-async def move_file(request: FileOperation):
-    return await _require_fs().move(request.source, request.destination, request.overwrite)
+async def move_file(http_request: Request, request: FileOperation):
+    info = await _require_fs().move(request.source, request.destination, request.overwrite)
+    await _audit(
+        http_request,
+        "file.move",
+        [request.source, info.path],
+        f"Moved {request.source} to {info.path}",
+        {"overwrite": request.overwrite},
+    )
+    return info
 
 
 @router.post("/check-conflicts", response_model=ConflictCheckResponse)
@@ -142,6 +193,16 @@ async def search_files(
     results, has_more, total_scanned = await _require_fs().search(
         query, path, max_results, content_type
     )
+    if agent_service is not None and query:
+        remaining = max(max_results - len(results), 0)
+        if remaining:
+            metadata_results = await agent_service.search_artifacts(query, path, remaining)
+            existing_paths = {item.path for item in results}
+            for item in metadata_results:
+                if item.path not in existing_paths:
+                    results.append(item)
+                    existing_paths.add(item.path)
+            total_scanned += len(metadata_results)
     return {
         "results": [r.model_dump() for r in results],
         "has_more": has_more,
@@ -292,11 +353,12 @@ MAX_TEXT_SAVE_SIZE = 50 * 1024 * 1024  # 50MB limit for text saves
 
 @router.post("/text", response_model=OperationSuccess)
 @handle_fs_errors
-async def save_text_content(path: str, content: str):
+async def save_text_content(request: Request, path: str, content: str):
     if len(content.encode('utf-8')) > MAX_TEXT_SAVE_SIZE:
         raise HTTPException(status_code=413, detail="Content too large (max 50MB)")
     file_path = _require_fs().get_absolute_path(path)
     file_path.write_text(content, encoding='utf-8')
+    await _audit(request, "file.text.save", [path], f"Saved text file {file_path.name}", {"size": file_path.stat().st_size})
     return OperationSuccess(success=True, message="File saved successfully")
 
 

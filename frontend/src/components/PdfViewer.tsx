@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Loader2 } from 'lucide-react'
@@ -7,6 +7,12 @@ import 'react-pdf/dist/Page/TextLayer.css'
 
 // Configure worker - use CDN with version synced to installed pdfjs-dist
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
+
+const PDF_OPTIONS = {
+  cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
+  cMapPacked: true,
+  standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
+}
 
 interface PdfViewerProps {
   fileUrl: string
@@ -20,42 +26,38 @@ export function PdfViewer({ fileUrl, fileName, onLoad }: PdfViewerProps) {
   const [scale, setScale] = useState<number>(1.2)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [pdfData, setPdfData] = useState<string | null>(null)
-  const pdfDataRef = useRef<string | null>(null)
+  const [pdfData, setPdfData] = useState<Blob | null>(null)
 
   // Fetch PDF as blob to avoid CORS issues
   useEffect(() => {
     setIsLoading(true)
     setPdfData(null)
     setError(null)
+    setNumPages(0)
+    setPageNumber(1)
 
+    const controller = new AbortController()
     let cancelled = false
 
-    fetch(fileUrl)
+    fetch(fileUrl, { signal: controller.signal })
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.blob()
       })
       .then(blob => {
         if (cancelled) return
-        const url = URL.createObjectURL(blob)
-        pdfDataRef.current = url
-        setPdfData(url)
+        setPdfData(blob)
       })
       .catch(err => {
-        if (cancelled) return
+        if (cancelled || (err instanceof Error && err.name === 'AbortError')) return
         console.error('Failed to fetch PDF:', err)
         setError(`Failed to fetch PDF: ${err.message}`)
         setIsLoading(false)
       })
 
-    // Cleanup blob URL on unmount or fileUrl change
     return () => {
       cancelled = true
-      if (pdfDataRef.current) {
-        URL.revokeObjectURL(pdfDataRef.current)
-        pdfDataRef.current = null
-      }
+      controller.abort()
     }
   }, [fileUrl])
 
@@ -155,17 +157,14 @@ export function PdfViewer({ fileUrl, fileName, onLoad }: PdfViewerProps) {
 
         {!error && pdfData && (
           <Document
+            key={fileUrl}
             file={pdfData}
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onDocumentLoadError}
             loading={null}
             error={null}
             className={isLoading ? 'hidden' : ''}
-            options={{
-              cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/cmaps/`,
-              cMapPacked: true,
-              standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
-            }}
+            options={PDF_OPTIONS}
           >
             <Page
               pageNumber={pageNumber}

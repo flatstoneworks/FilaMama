@@ -110,7 +110,8 @@ FilaMama/
 ├── INSTALLATION.md
 ├── USAGE.md
 ├── URL_STRUCTURE.md
-└── PDF_VIEWER_GUIDE.md
+├── PDF_VIEWER_GUIDE.md
+└── WORD_VIEWER_ROADMAP.md
 ```
 
 ## API Endpoints

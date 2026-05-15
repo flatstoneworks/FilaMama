@@ -12,6 +12,7 @@ export interface FileInfo {
   mime_type?: string
   is_hidden: boolean
   has_thumbnail: boolean
+  match_reason?: string | null
   // Computed properties for convenience
   thumbnail_url?: string
   is_directory?: boolean  // Computed from type
@@ -275,6 +276,7 @@ export interface SearchResult {
   type: FileType
   size: number
   modified: string
+  match_reason?: string | null
 }
 
 export interface SearchResponse {
@@ -412,6 +414,104 @@ export interface TrashInfo {
   size: number
 }
 
+export interface AgentActor {
+  id: string
+  type: 'human' | 'agent'
+  name: string
+}
+
+export interface ArtifactMetadata {
+  path: string
+  title?: string | null
+  description?: string | null
+  source_type?: string | null
+  source_url?: string | null
+  provider?: string | null
+  model?: string | null
+  prompt_summary?: string | null
+  labels: string[]
+  task_id?: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+  created_by: string
+}
+
+export interface AgentActivityEvent {
+  id: string
+  timestamp: string
+  actor: AgentActor
+  action: string
+  paths: string[]
+  summary: string
+  metadata: Record<string, unknown>
+}
+
+export interface AgentTask {
+  id: string
+  path: string
+  title: string
+  description?: string | null
+  status: 'open' | 'in_progress' | 'blocked' | 'done' | 'cancelled'
+  created_at: string
+  updated_at: string
+  actor: AgentActor
+}
+
+export interface AgentNote {
+  id: string
+  path: string
+  body: string
+  created_at: string
+  updated_at: string
+  actor: AgentActor
+}
+
+export interface AgentLease {
+  id: string
+  path: string
+  purpose: string
+  expires_at: string
+  created_at: string
+  actor: AgentActor
+}
+
+export interface AgentProposal {
+  id: string
+  operation: 'create_folder' | 'write_text' | 'rename' | 'move' | 'copy' | 'trash'
+  status: 'pending' | 'approved' | 'rejected' | 'failed'
+  paths: string[]
+  params: Record<string, unknown>
+  summary: string
+  reason?: string | null
+  created_at: string
+  updated_at: string
+  actor: AgentActor
+}
+
+export interface AgentInbox {
+  proposals: AgentProposal[]
+  tasks: AgentTask[]
+  leases: AgentLease[]
+  artifacts: ArtifactMetadata[]
+  activity: AgentActivityEvent[]
+}
+
+export interface AgentContext {
+  file: FileInfo
+  artifact: ArtifactMetadata | null
+  notes: AgentNote[]
+  tasks: AgentTask[]
+  leases: AgentLease[]
+  proposals: AgentProposal[]
+  activity: AgentActivityEvent[]
+}
+
+export type ArtifactMetadataInput = Partial<Omit<
+  ArtifactMetadata,
+  'path' | 'created_at' | 'updated_at' | 'created_by'
+>>
+
 async function moveToTrash(paths: string[]): Promise<{ moved: number }> {
   return handleResponse(
     await fetch(`${API_BASE}/trash/move-to-trash`, {
@@ -458,6 +558,207 @@ async function getTrashInfo(): Promise<TrashInfo> {
   return handleResponse(await fetch(`${API_BASE}/trash/info`))
 }
 
+async function getAgentInbox(): Promise<AgentInbox> {
+  return handleResponse(await fetch(`${API_BASE}/agent/inbox`))
+}
+
+async function getAgentContext(path: string): Promise<AgentContext> {
+  return handleResponse(await fetch(`${API_BASE}/agent/context?path=${encodeURIComponent(path)}`))
+}
+
+async function getArtifact(path: string): Promise<{ artifact: ArtifactMetadata | null }> {
+  return handleResponse(await fetch(`${API_BASE}/agent/artifacts?path=${encodeURIComponent(path)}`))
+}
+
+async function updateArtifact(path: string, metadata: ArtifactMetadataInput): Promise<{ artifact: ArtifactMetadata }> {
+  return handleResponse(
+    await fetch(`${API_BASE}/agent/artifacts?path=${encodeURIComponent(path)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(metadata),
+    })
+  )
+}
+
+async function createTextArtifact(params: {
+  path: string
+  content: string
+  metadata?: ArtifactMetadataInput
+}): Promise<{ artifact: ArtifactMetadata }> {
+  return handleResponse(
+    await fetch(`${API_BASE}/agent/artifacts/text`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: params.path, content: params.content, metadata: params.metadata || {} }),
+    })
+  )
+}
+
+async function uploadArtifact(params: {
+  path: string
+  file: File
+  metadata?: ArtifactMetadataInput
+}): Promise<{ artifact: ArtifactMetadata }> {
+  const formData = new FormData()
+  formData.append('file', params.file)
+  formData.append('path', params.path)
+  const metadata = params.metadata || {}
+  if (metadata.title) formData.append('title', metadata.title)
+  if (metadata.description) formData.append('description', metadata.description)
+  if (metadata.source_type) formData.append('source_type', metadata.source_type)
+  if (metadata.source_url) formData.append('source_url', metadata.source_url)
+  if (metadata.provider) formData.append('provider', metadata.provider)
+  if (metadata.model) formData.append('model', metadata.model)
+  if (metadata.prompt_summary) formData.append('prompt_summary', metadata.prompt_summary)
+  if (metadata.task_id) formData.append('task_id', metadata.task_id)
+  if (metadata.labels) formData.append('labels_json', JSON.stringify(metadata.labels))
+  if (metadata.metadata) formData.append('metadata_json', JSON.stringify(metadata.metadata))
+  return handleResponse(
+    await fetch(`${API_BASE}/agent/artifacts/upload`, {
+      method: 'POST',
+      body: formData,
+    })
+  )
+}
+
+async function createAgentFolder(path: string, metadata?: ArtifactMetadataInput): Promise<{ artifact: ArtifactMetadata }> {
+  return handleResponse(
+    await fetch(`${API_BASE}/agent/folders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, metadata: metadata || {} }),
+    })
+  )
+}
+
+async function getAgentActivity(params: {
+  path?: string
+  limit?: number
+  cursor?: string
+} = {}): Promise<{ items: AgentActivityEvent[]; has_more: boolean; next_cursor?: string | null }> {
+  const url = new URL(`${API_BASE}/agent/activity`, window.location.origin)
+  if (params.path) url.searchParams.set('path', params.path)
+  if (params.limit) url.searchParams.set('limit', params.limit.toString())
+  if (params.cursor) url.searchParams.set('cursor', params.cursor)
+  return handleResponse(await fetch(url.toString()))
+}
+
+async function listAgentTasks(params: { path?: string; status?: AgentTask['status'] } = {}): Promise<{ tasks: AgentTask[] }> {
+  const url = new URL(`${API_BASE}/agent/tasks`, window.location.origin)
+  if (params.path) url.searchParams.set('path', params.path)
+  if (params.status) url.searchParams.set('status', params.status)
+  return handleResponse(await fetch(url.toString()))
+}
+
+async function createAgentTask(params: {
+  path: string
+  title: string
+  description?: string
+  status?: AgentTask['status']
+}): Promise<{ task: AgentTask }> {
+  return handleResponse(
+    await fetch(`${API_BASE}/agent/tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    })
+  )
+}
+
+async function updateAgentTask(id: string, params: Partial<Pick<AgentTask, 'title' | 'description' | 'status' | 'path'>>): Promise<{ task: AgentTask }> {
+  return handleResponse(
+    await fetch(`${API_BASE}/agent/tasks/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    })
+  )
+}
+
+async function listAgentNotes(path?: string): Promise<{ notes: AgentNote[] }> {
+  const url = new URL(`${API_BASE}/agent/notes`, window.location.origin)
+  if (path) url.searchParams.set('path', path)
+  return handleResponse(await fetch(url.toString()))
+}
+
+async function createAgentNote(path: string, body: string): Promise<{ note: AgentNote }> {
+  return handleResponse(
+    await fetch(`${API_BASE}/agent/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, body }),
+    })
+  )
+}
+
+async function deleteAgentNote(id: string): Promise<{ note: AgentNote }> {
+  return handleResponse(await fetch(`${API_BASE}/agent/notes/${encodeURIComponent(id)}`, { method: 'DELETE' }))
+}
+
+async function listAgentLeases(path?: string): Promise<{ leases: AgentLease[] }> {
+  const url = new URL(`${API_BASE}/agent/leases`, window.location.origin)
+  if (path) url.searchParams.set('path', path)
+  return handleResponse(await fetch(url.toString()))
+}
+
+async function createAgentLease(params: {
+  path: string
+  purpose: string
+  expires_at?: string
+}): Promise<{ lease: AgentLease }> {
+  return handleResponse(
+    await fetch(`${API_BASE}/agent/leases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    })
+  )
+}
+
+async function deleteAgentLease(id: string): Promise<{ lease: AgentLease }> {
+  return handleResponse(await fetch(`${API_BASE}/agent/leases/${encodeURIComponent(id)}`, { method: 'DELETE' }))
+}
+
+async function listProposals(params: { status?: AgentProposal['status']; path?: string } = {}): Promise<{ proposals: AgentProposal[] }> {
+  const url = new URL(`${API_BASE}/agent/proposals`, window.location.origin)
+  if (params.status) url.searchParams.set('status', params.status)
+  if (params.path) url.searchParams.set('path', params.path)
+  return handleResponse(await fetch(url.toString()))
+}
+
+async function createProposal(params: {
+  operation: AgentProposal['operation']
+  paths: string[]
+  params?: Record<string, unknown>
+  summary?: string
+}): Promise<{ proposal: AgentProposal }> {
+  return handleResponse(
+    await fetch(`${API_BASE}/agent/proposals`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...params, params: params.params || {} }),
+    })
+  )
+}
+
+async function approveProposal(id: string): Promise<{ proposal: AgentProposal }> {
+  return handleResponse(
+    await fetch(`${API_BASE}/agent/proposals/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+    })
+  )
+}
+
+async function rejectProposal(id: string, reason?: string): Promise<{ proposal: AgentProposal }> {
+  return handleResponse(
+    await fetch(`${API_BASE}/agent/proposals/${encodeURIComponent(id)}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    })
+  )
+}
+
 async function getAudioLyrics(path: string): Promise<string | null> {
   try {
     const response = await handleResponse<{ lyrics: string }>(
@@ -498,4 +799,25 @@ export const api = {
   deletePermanent,
   emptyTrash,
   getTrashInfo,
+  getAgentInbox,
+  getAgentContext,
+  getArtifact,
+  updateArtifact,
+  createTextArtifact,
+  uploadArtifact,
+  createAgentFolder,
+  getAgentActivity,
+  listAgentTasks,
+  createAgentTask,
+  updateAgentTask,
+  listAgentNotes,
+  createAgentNote,
+  deleteAgentNote,
+  listAgentLeases,
+  createAgentLease,
+  deleteAgentLease,
+  listProposals,
+  createProposal,
+  approveProposal,
+  rejectProposal,
 }

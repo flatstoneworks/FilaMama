@@ -207,6 +207,11 @@ export const FileList = memo(function FileList({
                             </span>
                           ) : null
                         })()}
+                        {file.match_reason && (
+                          <span className="text-[10px] text-primary truncate">
+                            Matched {file.match_reason.replace('_', ' ')}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right text-muted-foreground">

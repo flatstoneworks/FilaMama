@@ -11,13 +11,14 @@ import binascii
 import secrets
 import yaml
 
-from .routers import files, upload, trash, system
+from .routers import files, upload, trash, system, agent
 from .services.filesystem import FilesystemService, CONTENT_TYPES
 from .services.thumbnails import ThumbnailService
 from .services.audio import AudioMetadataService
 from .services.content_search import ContentSearchService
 from .services.transcoding import TranscodingService
 from .services.trash import TrashService
+from .services.agent import AgentService
 
 import logging
 import os
@@ -38,9 +39,17 @@ else:
 with open(config_path) as f:
     config = yaml.safe_load(f)
 
+
+def _expand_path(value: str) -> str:
+    return str(Path(os.path.expandvars(os.path.expanduser(value))).resolve())
+
 # Root path override
 if os.environ.get("FILAMAMA_ROOT_PATH"):
     config["root_path"] = os.environ["FILAMAMA_ROOT_PATH"]
+config["root_path"] = _expand_path(config["root_path"])
+
+for mount in config.get("mounts", []):
+    mount["path"] = _expand_path(mount["path"])
 
 # Server host/port overrides
 if os.environ.get("FILAMAMA_HOST"):
@@ -128,6 +137,7 @@ trash_service = TrashService(
     filesystem_service=fs_service,
 )
 content_search_service = ContentSearchService(fs_service)
+agent_service = AgentService(fs_service, trash_service)
 
 
 @asynccontextmanager
@@ -136,10 +146,11 @@ async def lifespan(app: FastAPI):
     logger.info("Root path: %s", config['root_path'])
     logger.info("Server: http://%s:%s", config['server']['host'], config['server']['port'])
     files.init_services(
-        fs_service, thumb_service, audio_service, transcode_service, content_search_service
+        fs_service, thumb_service, audio_service, transcode_service, content_search_service, agent_service
     )
-    upload.init_services(fs_service, max_size_mb=config["upload"]["max_size_mb"])
-    trash.init_services(trash_service)
+    upload.init_services(fs_service, max_size_mb=config["upload"]["max_size_mb"], agent=agent_service)
+    trash.init_services(trash_service, agent=agent_service)
+    agent.init_services(agent_service, max_size_mb=config["upload"]["max_size_mb"])
     system.init_services(
         root_path=config["root_path"],
         thumb_cache_dir=config["thumbnails"]["cache_dir"],
@@ -192,6 +203,7 @@ app.include_router(files.router)
 app.include_router(upload.router)
 app.include_router(trash.router)
 app.include_router(system.router)
+app.include_router(agent.router)
 
 
 @app.get("/api/health")
