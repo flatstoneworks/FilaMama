@@ -6,6 +6,7 @@ import { Toaster } from '@/components/ui/toaster'
 import Layout from '@/components/Layout'
 import { FilesPage } from '@/pages/FilesPage'
 import { PreviewPage } from '@/pages/PreviewPage'
+import { AgentInboxPage } from '@/pages/AgentInboxPage'
 import { AudioPlayerProvider, useAudioPlayer } from '@/contexts/AudioPlayerContext'
 import { MiniPlayer } from '@/components/MiniPlayer'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -41,6 +42,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             <Route path="/" element={<Layout />}>
               <Route index element={<Navigate to="/browse" replace />} />
               <Route path="browse/*" element={<FilesPage />} />
+              <Route path="agent" element={<AgentInboxPage />} />
             </Route>
             <Route path="view/*" element={<PreviewPage />} />
           </Routes>

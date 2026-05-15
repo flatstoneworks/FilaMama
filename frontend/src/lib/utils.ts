@@ -41,6 +41,7 @@ export function searchResultToFileInfo(r: SearchResult): FileInfo {
     modified: r.modified,
     is_hidden: false,
     has_thumbnail: thumb,
+    match_reason: r.match_reason,
     thumbnail_url: thumb ? thumbnailUrl(r.path) : undefined,
     is_directory: r.type === 'directory',
     extension: ext ? ext.slice(1) : undefined,

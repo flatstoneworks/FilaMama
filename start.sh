@@ -7,6 +7,7 @@ set -e
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_DIR"
+FILAMAMA_ROOT_PATH="${FILAMAMA_ROOT_PATH:-$HOME}"
 
 echo "Starting FilaMama..."
 
@@ -45,7 +46,7 @@ trap cleanup SIGINT SIGTERM
 echo "Starting backend on port 5031 (dev mode)..."
 cd backend
 source venv/bin/activate
-FILAMAMA_DEV=1 FILAMAMA_PORT=5031 python -m uvicorn app.main:app --host 0.0.0.0 --port 5031 --reload &
+FILAMAMA_DEV=1 FILAMAMA_ROOT_PATH="$FILAMAMA_ROOT_PATH" FILAMAMA_PORT=5031 python -m uvicorn app.main:app --host 0.0.0.0 --port 5031 --reload &
 BACKEND_PID=$!
 cd ..
 
@@ -63,6 +64,7 @@ echo ""
 echo "FilaMama is running!"
 echo "  Frontend: http://spark.local:5030"
 echo "  Backend:  http://spark.local:5031"
+echo "  Root:     $FILAMAMA_ROOT_PATH"
 echo ""
 echo "Press Ctrl+C to stop..."
 

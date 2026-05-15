@@ -14,6 +14,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+RESERVED_AGENT_DIR = ".filamama"
+
 from ..models.schemas import (
     FileType,
     FileInfo,
@@ -83,8 +85,25 @@ class FilesystemService:
     def _mount_paths(self) -> list[Path]:
         return [m['path'] for m in self.mounts]
 
+    def _is_reserved_path(self, resolved_path: Path) -> bool:
+        """Return True for FilaMama's private agent metadata directory."""
+        roots = [self.root_path, *self._mount_paths()]
+        for root in roots:
+            try:
+                rel = resolved_path.resolve().relative_to(root.resolve())
+            except ValueError:
+                continue
+            return RESERVED_AGENT_DIR in rel.parts
+        return False
+
+    def _ensure_not_reserved(self, resolved_path: Path):
+        if self._is_reserved_path(resolved_path):
+            raise PermissionError(f"Access denied: {RESERVED_AGENT_DIR} is reserved for FilaMama metadata")
+
     def _resolve_path(self, path: str) -> Path:
-        return resolve_within_root(path, self.root_path, self._mount_paths())
+        resolved = resolve_within_root(path, self.root_path, self._mount_paths())
+        self._ensure_not_reserved(resolved)
+        return resolved
 
     def _get_relative_path(self, absolute_path: Path) -> str:
         return relative_to_root(absolute_path, self.root_path, self._mount_paths())
@@ -164,6 +183,8 @@ class FilesystemService:
             items: List[FileInfo] = []
             total_size = 0
             for entry in dir_path.iterdir():
+                if entry.name == RESERVED_AGENT_DIR:
+                    continue
                 if not show_hidden and entry.name.startswith('.'):
                     continue
                 file_info = self._get_file_info(entry)
@@ -329,7 +350,7 @@ class FilesystemService:
         def _get_size_sync():
             total_size = 0
             for root, dirs, files in os.walk(folder_path):
-                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                dirs[:] = [d for d in dirs if not d.startswith('.') and d != RESERVED_AGENT_DIR]
                 for file in files:
                     if file.startswith('.'):
                         continue
@@ -372,7 +393,7 @@ class FilesystemService:
             has_more = False
 
             for root, dirs, files in os.walk(search_path):
-                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                dirs[:] = [d for d in dirs if not d.startswith('.') and d != RESERVED_AGENT_DIR]
                 root_path = Path(root)
 
                 # Only search directories if not filtering by content type

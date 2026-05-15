@@ -5,13 +5,10 @@ server:
   port: 5031
 
 # Root directory for file browsing
-root_path: "/home/flatstone"
+root_path: "~"
 
-# Mount points for development (no Master mount)
-mounts:
-  - name: "FLATSTONE"
-    path: "/home/flatstone/FLATSTONE"
-    icon: "hard-drive"
+# Mount points for development
+mounts: []
 
 # Thumbnail settings
 thumbnails:

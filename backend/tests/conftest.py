@@ -91,7 +91,8 @@ async def client(tmp_tree, monkeypatch):
     from app.services.thumbnails import ThumbnailService
     from app.services.audio import AudioMetadataService
     from app.services.trash import TrashService
-    from app.routers import files, upload, trash
+    from app.services.agent import AgentService
+    from app.routers import files, upload, trash, agent
 
     fs = FilesystemService(
         root_path=str(root),
@@ -104,10 +105,12 @@ async def client(tmp_tree, monkeypatch):
     )
     audio = AudioMetadataService(root_path=root)
     trash_service = TrashService(fs)
+    agent_service = AgentService(fs, trash_service)
 
-    files.init_services(fs, thumb, audio)
-    upload.init_services(fs)
-    trash.init_services(trash_service)
+    files.init_services(fs, thumb, audio, agent=agent_service)
+    upload.init_services(fs, agent=agent_service)
+    trash.init_services(trash_service, agent=agent_service)
+    agent.init_services(agent_service)
 
     # Import the app after services are wired
     from app.main import app
