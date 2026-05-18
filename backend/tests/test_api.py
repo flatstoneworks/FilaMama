@@ -194,6 +194,26 @@ class TestUploadEndpoint:
         assert not (tmp_tree / "etc" / "evil.txt").exists()
 
     @pytest.mark.asyncio
+    async def test_upload_folder_preserves_relative_paths(self, client, tmp_tree):
+        response = await client.post(
+            "/api/upload",
+            files={"files": ("nested.txt", b"nested", "text/plain")},
+            data={"path": "/", "relative_paths": "folder/sub/nested.txt"},
+        )
+        assert response.status_code == 200
+        assert (tmp_tree / "root" / "folder" / "sub" / "nested.txt").exists()
+
+    @pytest.mark.asyncio
+    async def test_upload_relative_path_rejects_reserved_dir(self, client, tmp_tree):
+        response = await client.post(
+            "/api/upload",
+            files={"files": ("private.txt", b"private", "text/plain")},
+            data={"path": "/", "relative_paths": ".filamama/private.txt"},
+        )
+        assert response.status_code == 403
+        assert not (tmp_tree / "root" / ".filamama" / "private.txt").exists()
+
+    @pytest.mark.asyncio
     async def test_upload_to_nonexistent_dir(self, client):
         response = await client.post(
             "/api/upload",

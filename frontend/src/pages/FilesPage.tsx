@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect, type ChangeEvent } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type FileInfo, type SortField, type SortOrder } from '@/api/client'
@@ -216,6 +216,14 @@ export function FilesPage() {
     useFileUpload(currentPath, config?.max_upload_size_mb)
   const { handleNavigate, openPreview, handleOpen, handleDownload } = useFileNavigation(clearSelectionAndMobileMode)
 
+  const handleUploadInputChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    const files = event.currentTarget.files
+    if (files?.length) {
+      void handleUpload(Array.from(files))
+    }
+    event.currentTarget.value = ''
+  }, [handleUpload])
+
   // Wrap handleOpen to provide displayedFiles
   const handleOpenFile = useCallback((file: FileInfo) => {
     handleOpen(file, displayedFiles)
@@ -377,7 +385,7 @@ export function FilesPage() {
             type="file"
             multiple
             className="hidden"
-            onChange={(e) => e.target.files && handleUpload(e.target.files)}
+            onChange={handleUploadInputChange}
           />
           <input
             ref={folderInputRef}
@@ -385,7 +393,7 @@ export function FilesPage() {
             multiple
             className="hidden"
             webkitdirectory=""
-            onChange={(e) => e.target.files && handleUpload(e.target.files)}
+            onChange={handleUploadInputChange}
           />
 
           <div className="hidden md:block">

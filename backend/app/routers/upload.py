@@ -3,11 +3,11 @@ import logging
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
 from typing import List, Optional
 import aiofiles
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 logger = logging.getLogger(__name__)
 
-from ..services.filesystem import FilesystemService
+from ..services.filesystem import FilesystemService, RESERVED_AGENT_DIR
 from ..services.agent import AgentService
 from ..models.schemas import Actor, ActorType
 from ..utils.error_handlers import handle_fs_errors
@@ -43,6 +43,23 @@ def _actor_from_request(request: Request) -> Actor:
     )
 
 
+def _safe_relative_upload_path(relative_path: str) -> Path:
+    normalized = relative_path.replace("\\", "/")
+    candidate = PurePosixPath(normalized)
+    parts = tuple(part for part in candidate.parts if part not in ("", "."))
+
+    if candidate.is_absolute() or not parts or any(part == ".." for part in parts):
+        raise HTTPException(status_code=400, detail=f"Invalid relative path: {relative_path}")
+
+    if RESERVED_AGENT_DIR in parts:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Access denied: {RESERVED_AGENT_DIR} is reserved for FilaMama metadata",
+        )
+
+    return Path(*parts)
+
+
 async def _audit(request: Request, paths: list[str], uploaded_count: int, failed_count: int):
     if agent_service is None:
         return
@@ -65,7 +82,7 @@ async def upload_files(
     files: List[UploadFile] = File(...),
     path: str = Form("/"),
     overwrite: bool = Form(False),
-    relative_paths: Optional[str] = Form(None),
+    relative_paths: Optional[List[str]] = Form(None),
 ):
     if fs_service is None:
         raise HTTPException(status_code=503, detail="Upload service not initialized")
@@ -82,26 +99,25 @@ async def upload_files(
 
     for i, file in enumerate(files):
         try:
-            # Check if we have a relative path for this file (folder upload)
-            # Since we upload one file at a time, relative_paths is a single string
-            rel_path = relative_paths if relative_paths and i == 0 else None
+            rel_path = relative_paths[i] if relative_paths and i < len(relative_paths) else None
             logger.debug("Processing file %d: %s, rel_path=%s", i, file.filename, rel_path)
 
             if rel_path:
-                # Folder upload: use the relative path to preserve structure
-                # Sanitize: reject path traversal attempts
-                if '..' in rel_path.split('/') or '..' in rel_path.split('\\'):
-                    raise HTTPException(status_code=400, detail=f"Invalid relative path: {rel_path}")
-                file_path = (target_dir / rel_path).resolve()
+                relative_file_path = _safe_relative_upload_path(rel_path)
+                file_path = (target_dir / relative_file_path).resolve()
                 if not fs_service._is_within_path(file_path, target_dir.resolve()):
                     raise HTTPException(status_code=400, detail=f"Path traversal detected: {rel_path}")
-                # Create parent directories if they don't exist
                 file_path.parent.mkdir(parents=True, exist_ok=True)
             else:
                 # Regular file upload - sanitize filename
                 safe_name = Path(file.filename).name  # Strip any directory components
                 if not safe_name or safe_name in ('.', '..'):
                     raise HTTPException(status_code=400, detail=f"Invalid filename: {file.filename}")
+                if safe_name == RESERVED_AGENT_DIR:
+                    raise HTTPException(
+                        status_code=403,
+                        detail=f"Access denied: {RESERVED_AGENT_DIR} is reserved for FilaMama metadata",
+                    )
                 file_path = (target_dir / safe_name).resolve()
                 if not fs_service._is_within_path(file_path, target_dir.resolve()):
                     raise HTTPException(status_code=400, detail=f"Invalid filename: {file.filename}")
