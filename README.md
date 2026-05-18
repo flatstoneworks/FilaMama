@@ -30,17 +30,41 @@ For detailed file maps, API endpoints, and configuration reference, see [REFEREN
 
 ### Recommended Production: VPS Install
 
-Run this on a Linux VPS:
+Run the one-command installer on a Linux VPS:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/flatstoneworks/FilaMama/main/install-vps.sh | bash
 ```
 
-The installer creates `/opt/filamama`, writes a Docker Compose stack using the prebuilt image `ghcr.io/flatstoneworks/filamama:latest`, requires Basic Auth, and starts FilaMama.
+The VPS installer is the recommended production path. It uses Docker Compose, pulls the prebuilt public image `ghcr.io/flatstoneworks/filamama:latest`, requires Basic Auth, and writes everything under `/opt/filamama`.
 
-For a domain install, point a DNS `A` record at the VPS IP before running the installer and make sure ports `80` and `443` are open. The installer adds Caddy, which automatically obtains HTTPS certificates and reverse proxies traffic to FilaMama.
+It asks for:
 
-Without a domain, the installer exposes FilaMama directly on the port you choose, defaulting to `1031`.
+| Prompt | Default | Notes |
+|--------|---------|-------|
+| Browse path | `/srv/filamama/files` | Mounted into the container as `/browse` |
+| Username | none | Required for Basic Auth |
+| Password | generated if blank | Printed once if generated |
+| Domain | blank | Enables HTTPS mode with Caddy |
+| Port | `1031` | Only used when no domain is configured |
+
+No-domain mode exposes FilaMama directly:
+
+```text
+http://<vps-ip>:1031
+```
+
+Domain mode adds Caddy in front of FilaMama. Caddy automatically obtains HTTPS certificates and reverse proxies to the private `filamama:1031` container. Before choosing this mode, point a DNS `A` record at the VPS IP and open ports `80` and `443`.
+
+Common VPS commands:
+
+```bash
+cd /opt/filamama
+sudo docker compose ps          # Status
+sudo docker compose logs -f     # Logs
+sudo docker compose pull        # Update image
+sudo docker compose up -d       # Apply update/restart
+```
 
 See [INSTALLATION.md](INSTALLATION.md) for update, logs, Caddy, and uninstall commands.
 
