@@ -1,9 +1,15 @@
+# syntax=docker/dockerfile:1
+
 # Stage 1: Build frontend
 FROM node:20-slim AS frontend-build
 
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+RUN --mount=type=secret,id=github_token,required=true \
+    token="$(cat /run/secrets/github_token)" \
+    && printf "@flatstoneworks:registry=https://npm.pkg.github.com\n//npm.pkg.github.com/:_authToken=%s\n" "$token" > .npmrc \
+    && npm ci \
+    && rm -f .npmrc
 COPY frontend/ ./
 RUN npm run build
 
