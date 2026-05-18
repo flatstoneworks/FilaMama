@@ -8,6 +8,8 @@ services:
       - filamama-data:/data
     environment:
       - FILAMAMA_ROOT_PATH=/browse
+      - FILAMAMA_DATA_DIR=/data
+      - FILAMAMA_ALLOW_INSECURE=true
     restart: unless-stopped
 
 volumes:

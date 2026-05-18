@@ -22,6 +22,8 @@
     <dict>
         <key>PATH</key>
         <string>__INSTALL_DIR__/backend/venv/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>FILAMAMA_CONFIG</key>
+        <string>__CONFIG_FILE__</string>
         <key>FILAMAMA_ROOT_PATH</key>
         <string>__ROOT_PATH__</string>
         <key>FILAMAMA_PORT</key>

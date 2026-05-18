@@ -1,0 +1,20 @@
+# Production no-domain example.
+# The VPS installer writes a tailored copy of this shape to /opt/filamama.
+
+services:
+  filamama:
+    image: ghcr.io/flatstoneworks/filamama:latest
+    restart: unless-stopped
+    ports:
+      - "${FILAMAMA_PORT:-1031}:1031"
+    volumes:
+      - "${FILAMAMA_BROWSE_PATH:-/srv/filamama/files}:/browse"
+      - filamama-data:/data
+    environment:
+      FILAMAMA_ROOT_PATH: /browse
+      FILAMAMA_DATA_DIR: /data
+      FILAMAMA_AUTH_USER: ${FILAMAMA_AUTH_USER:?set FILAMAMA_AUTH_USER}
+      FILAMAMA_AUTH_PASSWORD: ${FILAMAMA_AUTH_PASSWORD:?set FILAMAMA_AUTH_PASSWORD}
+
+volumes:
+  filamama-data:

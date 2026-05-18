@@ -1,0 +1,38 @@
+# Production domain example with Caddy automatic HTTPS.
+# Create Caddyfile next to this compose file:
+#   example.com {
+#       reverse_proxy filamama:1031
+#   }
+
+services:
+  filamama:
+    image: ghcr.io/flatstoneworks/filamama:latest
+    restart: unless-stopped
+    expose:
+      - "1031"
+    volumes:
+      - "${FILAMAMA_BROWSE_PATH:-/srv/filamama/files}:/browse"
+      - filamama-data:/data
+    environment:
+      FILAMAMA_ROOT_PATH: /browse
+      FILAMAMA_DATA_DIR: /data
+      FILAMAMA_AUTH_USER: ${FILAMAMA_AUTH_USER:?set FILAMAMA_AUTH_USER}
+      FILAMAMA_AUTH_PASSWORD: ${FILAMAMA_AUTH_PASSWORD:?set FILAMAMA_AUTH_PASSWORD}
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - filamama
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  filamama-data:
+  caddy-data:
+  caddy-config:

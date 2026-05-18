@@ -28,7 +28,23 @@ For detailed file maps, API endpoints, and configuration reference, see [REFEREN
 
 ## Quick Start
 
-### Option 1: Docker (easiest)
+### Recommended Production: VPS Install
+
+Run this on a Linux VPS:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/flatstoneworks/FilaMama/main/install-vps.sh | bash
+```
+
+The installer creates `/opt/filamama`, writes a Docker Compose stack using the prebuilt image `ghcr.io/flatstoneworks/filamama:latest`, requires Basic Auth, and starts FilaMama.
+
+For a domain install, point a DNS `A` record at the VPS IP before running the installer and make sure ports `80` and `443` are open. The installer adds Caddy, which automatically obtains HTTPS certificates and reverse proxies traffic to FilaMama.
+
+Without a domain, the installer exposes FilaMama directly on the port you choose, defaulting to `1031`.
+
+See [INSTALLATION.md](INSTALLATION.md) for update, logs, Caddy, and uninstall commands.
+
+### Local Docker
 
 ```bash
 git clone https://github.com/flatstoneworks/FilaMama.git
@@ -44,7 +60,9 @@ To browse a different directory:
 BROWSE_PATH=/path/to/files docker compose up
 ```
 
-### Option 2: Install Script (Linux & macOS)
+The local Compose file builds from source and explicitly enables insecure mode for local-only testing. Public installs should use the VPS installer or set `FILAMAMA_AUTH_USER` and `FILAMAMA_AUTH_PASSWORD`.
+
+### Advanced Native Install (Linux & macOS)
 
 ```bash
 git clone https://github.com/flatstoneworks/FilaMama.git
@@ -61,7 +79,7 @@ The script installs system dependencies, creates a Python venv, builds the front
 ./install-filamama.sh --uninstall  # Remove service
 ```
 
-### Option 3: Development Mode
+### Development Mode
 
 ```bash
 ./start.sh
@@ -71,7 +89,9 @@ Starts backend (port 8011) and frontend dev server (port 8010) with hot reloadin
 
 ## Configuration
 
-Edit `backend/config.yaml`:
+For VPS installs, edit `/opt/filamama/.env` and restart with `cd /opt/filamama && docker compose up -d`.
+
+For native installs, edit `/etc/filamama/config.yaml`:
 
 ```yaml
 server:
@@ -100,7 +120,7 @@ upload:
   max_size_mb: 10240
 ```
 
-All config values can be overridden via environment variables (`FILAMAMA_ROOT_PATH`, `FILAMAMA_PORT`, etc.). See [REFERENCE.md](REFERENCE.md) for the full list.
+All config values can be overridden via environment variables (`FILAMAMA_ROOT_PATH`, `FILAMAMA_PORT`, `FILAMAMA_AUTH_USER`, etc.). See [REFERENCE.md](REFERENCE.md) for the full list.
 
 ## Keyboard Shortcuts
 

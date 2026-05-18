@@ -203,6 +203,9 @@ upload:
 | `FILAMAMA_MAX_UPLOAD_MB` | Max upload size in MB |
 | `FILAMAMA_CORS_ORIGINS` | Comma-separated CORS origins |
 | `FILAMAMA_FRONTEND_DIST` | Frontend dist directory path |
+| `FILAMAMA_AUTH_USER` | Basic Auth username |
+| `FILAMAMA_AUTH_PASSWORD` | Basic Auth password |
+| `FILAMAMA_ALLOW_INSECURE` | Allow network-exposed startup without auth; local development only |
 
 ## Keyboard Shortcuts
 
@@ -244,14 +247,22 @@ upload:
 
 ## Deployment Options
 
-### Docker
+### VPS Docker
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/flatstoneworks/FilaMama/main/install-vps.sh | bash
+```
+
+Uses `ghcr.io/flatstoneworks/filamama:latest`, writes `/opt/filamama/docker-compose.yml`, and requires Basic Auth.
+
+### Local Docker
 
 ```bash
 docker compose up                              # Browse ~/
 BROWSE_PATH=/path/to/files docker compose up   # Browse custom path
 ```
 
-Multi-stage build: `node:20-slim` (frontend build) → `python:3.12-slim` (runtime). Config: `config.docker.yaml`.
+The local Compose file builds from source and enables insecure mode for local-only testing. Multi-stage build: `node:20-slim` (frontend build) → `python:3.12-slim` (runtime). Config: `config.docker.yaml`.
 
 ### Install Script
 

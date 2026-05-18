@@ -23,6 +23,7 @@ TEMPLATES_DIR="$PROJECT_DIR/templates"
 FILAMAMA_PORT="${FILAMAMA_PORT:-1031}"
 FILAMAMA_ROOT_PATH="${FILAMAMA_ROOT_PATH:-$HOME}"
 FILAMAMA_MAX_UPLOAD_MB="${FILAMAMA_MAX_UPLOAD_MB:-10240}"
+FILAMAMA_CONFIG="${FILAMAMA_CONFIG:-/etc/filamama/config.yaml}"
 SKIP_SERVICE=false
 SKIP_WIZARD=false
 
@@ -261,12 +262,23 @@ config_wizard() {
 generate_config() {
     info "Generating config.yaml..."
 
+    local config_tmp
+    local config_dir
+    config_tmp=$(mktemp)
+    config_dir=$(dirname "$FILAMAMA_CONFIG")
+
     sed -e "s|__PORT__|$FILAMAMA_PORT|g" \
         -e "s|__ROOT_PATH__|$FILAMAMA_ROOT_PATH|g" \
         -e "s|__MAX_UPLOAD_MB__|$FILAMAMA_MAX_UPLOAD_MB|g" \
-        "$TEMPLATES_DIR/config.yaml.template" > "$PROJECT_DIR/backend/config.yaml"
+        -e "s|__CONFIG_FILE__|$FILAMAMA_CONFIG|g" \
+        -e "s|__MOUNTS__|[]|g" \
+        "$TEMPLATES_DIR/config.yaml.template" > "$config_tmp"
 
-    success "Config written to backend/config.yaml"
+    sudo mkdir -p "$config_dir"
+    sudo install -m 0644 "$config_tmp" "$FILAMAMA_CONFIG"
+    rm -f "$config_tmp"
+
+    success "Config written to $FILAMAMA_CONFIG"
 }
 
 # ─── Service setup ─────────────────────────────────────────────────────
@@ -329,6 +341,7 @@ setup_systemd_service() {
     sed -e "s|__USER__|$user|g" \
         -e "s|__GROUP__|$group|g" \
         -e "s|__INSTALL_DIR__|$PROJECT_DIR|g" \
+        -e "s|__CONFIG_FILE__|$FILAMAMA_CONFIG|g" \
         -e "s|__ROOT_PATH__|$FILAMAMA_ROOT_PATH|g" \
         -e "s|__PORT__|$FILAMAMA_PORT|g" \
         -e "s|__MAX_UPLOAD_MB__|$FILAMAMA_MAX_UPLOAD_MB|g" \
@@ -360,6 +373,7 @@ setup_launchd_service() {
     mkdir -p "$plist_dir"
 
     sed -e "s|__INSTALL_DIR__|$PROJECT_DIR|g" \
+        -e "s|__CONFIG_FILE__|$FILAMAMA_CONFIG|g" \
         -e "s|__ROOT_PATH__|$FILAMAMA_ROOT_PATH|g" \
         -e "s|__PORT__|$FILAMAMA_PORT|g" \
         -e "s|__MAX_UPLOAD_MB__|$FILAMAMA_MAX_UPLOAD_MB|g" \
@@ -570,13 +584,13 @@ cmd_status() {
         else
             echo -e "  Service: ${RED}stopped${NC}"
         fi
-        echo "  Config:  $PROJECT_DIR/backend/config.yaml"
+        echo "  Config:  $FILAMAMA_CONFIG"
 
         # Show config values if file exists
-        if [ -f "$PROJECT_DIR/backend/config.yaml" ]; then
+        if [ -f "$FILAMAMA_CONFIG" ]; then
             local port root_path
-            port=$(grep -m1 'port:' "$PROJECT_DIR/backend/config.yaml" | awk '{print $2}')
-            root_path=$(grep 'root_path:' "$PROJECT_DIR/backend/config.yaml" | awk '{print $2}' | tr -d '"')
+            port=$(grep -m1 'port:' "$FILAMAMA_CONFIG" | awk '{print $2}')
+            root_path=$(grep 'root_path:' "$FILAMAMA_CONFIG" | awk '{print $2}' | tr -d '"')
             echo "  Port:    $port"
             echo "  Root:    $root_path"
         fi
@@ -611,6 +625,7 @@ usage() {
     echo "  --help         Show this help"
     echo ""
     echo "Environment variables:"
+    echo "  FILAMAMA_CONFIG         Config file path"
     echo "  FILAMAMA_PORT           Port number"
     echo "  FILAMAMA_ROOT_PATH      Root browse directory"
     echo "  FILAMAMA_MAX_UPLOAD_MB  Max upload size in MB"
