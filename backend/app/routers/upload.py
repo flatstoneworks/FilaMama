@@ -15,6 +15,10 @@ from ..utils.paths import generate_unique_path
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 
+# Per-request limits to bound disk/inode/directory-depth abuse.
+MAX_UPLOAD_FILES = 1000
+MAX_UPLOAD_PATH_DEPTH = 50
+
 fs_service: FilesystemService = None
 agent_service: AgentService = None
 max_upload_bytes: int = 0
@@ -51,6 +55,9 @@ def _safe_relative_upload_path(relative_path: str) -> Path:
     if candidate.is_absolute() or not parts or any(part == ".." for part in parts):
         raise HTTPException(status_code=400, detail=f"Invalid relative path: {relative_path}")
 
+    if len(parts) > MAX_UPLOAD_PATH_DEPTH:
+        raise HTTPException(status_code=400, detail=f"Relative path too deep: {relative_path}")
+
     if RESERVED_AGENT_DIR in parts:
         raise HTTPException(
             status_code=403,
@@ -86,6 +93,11 @@ async def upload_files(
 ):
     if fs_service is None:
         raise HTTPException(status_code=503, detail="Upload service not initialized")
+    if len(files) > MAX_UPLOAD_FILES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Too many files in one request (max {MAX_UPLOAD_FILES})",
+        )
     logger.debug("Upload: path=%s, relative_paths=%s, files=%s", path, relative_paths, [f.filename for f in files])
     target_dir = fs_service.get_absolute_path(path)
 

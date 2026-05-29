@@ -10,6 +10,34 @@ import io
 
 logger = logging.getLogger(__name__)
 
+# Cap decoded image size to defuse decompression bombs (a small file that decodes to
+# billions of pixels). Pillow raises DecompressionBombError above 2x this limit; the
+# thumbnail generators catch it and return None.
+Image.MAX_IMAGE_PIXELS = 40_000_000  # 40 MP
+
+# Per-entry cap when reading inside untrusted EPUB (zip) files — anti zip-bomb.
+MAX_EPUB_ENTRY_BYTES = 25 * 1024 * 1024  # 25 MB
+
+
+def _safe_xml_fromstring(data: bytes):
+    """Parse XML while rejecting DTDs/entity declarations (defuses billion-laughs).
+
+    A legitimate EPUB container.xml / OPF has no DOCTYPE or <!ENTITY>; such markup in
+    the prolog is the signature of an XML entity-expansion bomb, so we refuse it.
+    """
+    head = data[:8192].lower()
+    if b'<!doctype' in head or b'<!entity' in head:
+        raise ValueError("XML DTD/ENTITY rejected (possible XML bomb)")
+    return ET.fromstring(data)
+
+
+def _safe_epub_read(zf: zipfile.ZipFile, name: str) -> bytes:
+    """Read a zip entry, refusing entries whose declared size exceeds the cap."""
+    info = zf.getinfo(name)  # KeyError if absent (handled by callers)
+    if info.file_size > MAX_EPUB_ENTRY_BYTES:
+        raise ValueError(f"EPUB entry too large: {name} ({info.file_size} bytes)")
+    return zf.read(name)
+
 try:
     import cairosvg
     HAS_CAIROSVG = True
@@ -62,18 +90,20 @@ class ThumbnailService:
 
         suffix = file_path.suffix.lower()
 
+        # Image/SVG/GIF/EPUB decoding is CPU-bound and synchronous; run it in a worker
+        # thread so a single expensive (or malicious) file can't block the event loop.
         if suffix in ['.jpg', '.jpeg', '.jfif', '.png', '.webp', '.bmp', '.tiff', '.tif']:
-            thumb_bytes = await self._generate_image_thumbnail(file_path, target_size)
+            thumb_bytes = await asyncio.to_thread(self._generate_image_thumbnail, file_path, target_size)
         elif suffix in ['.heic', '.heif', '.avif'] and HAS_HEIF:
-            thumb_bytes = await self._generate_image_thumbnail(file_path, target_size)
+            thumb_bytes = await asyncio.to_thread(self._generate_image_thumbnail, file_path, target_size)
         elif suffix in ['.svg']:
-            thumb_bytes = await self._generate_svg_thumbnail(file_path, target_size)
+            thumb_bytes = await asyncio.to_thread(self._generate_svg_thumbnail, file_path, target_size)
         elif suffix in ['.gif']:
-            thumb_bytes = await self._generate_gif_thumbnail(file_path, target_size)
+            thumb_bytes = await asyncio.to_thread(self._generate_gif_thumbnail, file_path, target_size)
         elif suffix in ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.flv', '.wmv', '.m4v']:
             thumb_bytes = await self._generate_video_thumbnail(file_path, target_size)
         elif suffix in ['.epub']:
-            thumb_bytes = await self._generate_epub_thumbnail(file_path, target_size)
+            thumb_bytes = await asyncio.to_thread(self._generate_epub_thumbnail, file_path, target_size)
         else:
             return None
 
@@ -114,7 +144,7 @@ class ThumbnailService:
             logger.info("Cache eviction: removed %d files, cache now %.1f MB",
                         evicted, total_size / (1024 * 1024))
 
-    async def _generate_image_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
+    def _generate_image_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
         try:
             with Image.open(file_path) as img:
                 if img.mode in ('RGBA', 'LA', 'P'):
@@ -134,7 +164,7 @@ class ThumbnailService:
             logger.warning("Error generating image thumbnail for %s: %s", file_path.name, e)
             return None
 
-    async def _generate_svg_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
+    def _generate_svg_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
         """Generate thumbnail for SVG files using cairosvg."""
         if not HAS_CAIROSVG:
             return None
@@ -164,7 +194,7 @@ class ThumbnailService:
             logger.warning("Error generating SVG thumbnail for %s: %s", file_path.name, e)
             return None
 
-    async def _generate_gif_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
+    def _generate_gif_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
         try:
             with Image.open(file_path) as img:
                 img.seek(0)
@@ -177,7 +207,7 @@ class ThumbnailService:
             logger.warning("Error generating GIF thumbnail for %s: %s", file_path.name, e)
             return None
 
-    async def _generate_epub_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
+    def _generate_epub_thumbnail(self, file_path: Path, target_size: int) -> Optional[bytes]:
         """Generate thumbnail for EPUB files by extracting the cover image."""
         try:
             with zipfile.ZipFile(file_path, 'r') as epub:
@@ -186,15 +216,15 @@ class ThumbnailService:
 
                 # Method 1: Look in META-INF/container.xml for the OPF file
                 try:
-                    container = epub.read('META-INF/container.xml')
-                    root = ET.fromstring(container)
+                    container = _safe_epub_read(epub, 'META-INF/container.xml')
+                    root = _safe_xml_fromstring(container)
                     ns = {'cont': 'urn:oasis:names:tc:opendocument:xmlns:container'}
                     rootfile = root.find('.//cont:rootfile', ns)
                     if rootfile is not None:
                         opf_path = rootfile.get('full-path', '')
                         opf_dir = '/'.join(opf_path.split('/')[:-1])
-                        opf_content = epub.read(opf_path)
-                        opf_root = ET.fromstring(opf_content)
+                        opf_content = _safe_epub_read(epub, opf_path)
+                        opf_root = _safe_xml_fromstring(opf_content)
 
                         # Find cover in metadata
                         ns_opf = {'opf': 'http://www.idpf.org/2007/opf', 'dc': 'http://purl.org/dc/elements/1.1/'}
@@ -237,7 +267,7 @@ class ThumbnailService:
                     # Normalize path
                     cover_path = cover_path.replace('//', '/').lstrip('/')
                     try:
-                        cover_data = epub.read(cover_path)
+                        cover_data = _safe_epub_read(epub, cover_path)
                         with Image.open(io.BytesIO(cover_data)) as img:
                             if img.mode in ('RGBA', 'LA', 'P'):
                                 background = Image.new('RGB', img.size, (255, 255, 255))

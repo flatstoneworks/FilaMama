@@ -150,21 +150,21 @@ class Actor(BaseModel):
 
 
 class ArtifactMetadataInput(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    source_type: Optional[str] = None
-    source_url: Optional[str] = None
-    provider: Optional[str] = None
-    model: Optional[str] = None
-    prompt_summary: Optional[str] = None
+    title: Optional[str] = Field(default=None, max_length=1000)
+    description: Optional[str] = Field(default=None, max_length=10_000)
+    source_type: Optional[str] = Field(default=None, max_length=200)
+    source_url: Optional[str] = Field(default=None, max_length=2000)
+    provider: Optional[str] = Field(default=None, max_length=200)
+    model: Optional[str] = Field(default=None, max_length=200)
+    prompt_summary: Optional[str] = Field(default=None, max_length=10_000)
     labels: List[str] = Field(default_factory=list, max_length=100)
-    task_id: Optional[str] = None
+    task_id: Optional[str] = Field(default=None, max_length=200)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class AgentTextArtifactRequest(BaseModel):
     path: str = Field(min_length=1)
-    content: str
+    content: str = Field(max_length=10_000_000)  # 10 MB cap
     metadata: ArtifactMetadataInput = Field(default_factory=ArtifactMetadataInput)
 
 
@@ -197,7 +197,7 @@ class TaskPatchRequest(BaseModel):
 
 class NoteCreateRequest(BaseModel):
     path: str = Field(min_length=1)
-    body: str = Field(min_length=1)
+    body: str = Field(min_length=1, max_length=100_000)
 
 
 class LeaseCreateRequest(BaseModel):

@@ -112,6 +112,17 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
             headers={"WWW-Authenticate": 'Basic realm="FilaMama"'},
         )
 
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Adds baseline security response headers to every response."""
+
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        return response
+
 # --- Service initialization ---
 
 fs_service = FilesystemService(
@@ -188,16 +199,30 @@ else:
         "http://localhost:5030",       # Dev fallback
     ]
 
+# A credentialed wildcard ("*" + allow_credentials) reflects ANY origin and lets any
+# website make authenticated cross-site requests. If origins are wildcarded, force
+# credentials off so the browser blocks credentialed cross-origin reads.
+cors_allow_credentials = "*" not in cors_origins
+if not cors_allow_credentials:
+    logger.warning(
+        "CORS origins include '*'; disabling allow_credentials to avoid a credentialed wildcard. "
+        "Set FILAMAMA_CORS_ORIGINS to an explicit allowlist to use credentials."
+    )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
-    allow_credentials=True,
+    allow_credentials=cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 if auth_user and auth_password:
     app.add_middleware(BasicAuthMiddleware, username=auth_user, password=auth_password)
+
+# Added last so it is the outermost middleware: security headers are applied to every
+# response, including 401s and CORS preflights.
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(files.router)
 app.include_router(upload.router)
