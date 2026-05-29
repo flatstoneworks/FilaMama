@@ -1,14 +1,21 @@
 services:
   filamama:
     build: .
+    # Published on localhost ONLY by default. To expose on the network you MUST set
+    # authentication (FILAMAMA_AUTH_USER / FILAMAMA_AUTH_PASSWORD) and front it with
+    # TLS (see docker-compose.caddy.yml), then change this to "1031:1031".
     ports:
-      - "1031:1031"
+      - "127.0.0.1:1031:1031"
     volumes:
-      - ${BROWSE_PATH:-~/}:/browse
+      # Set BROWSE_PATH explicitly to the directory you want to serve. It is deliberately
+      # NOT defaulted to your home directory (that would expose all of $HOME).
+      - ${BROWSE_PATH:?set BROWSE_PATH to the directory to browse}:/browse
       - filamama-data:/data
     environment:
       - FILAMAMA_ROOT_PATH=/browse
       - FILAMAMA_DATA_DIR=/data
+      # Tolerated ONLY because the port above is localhost-bound. Do NOT keep this when
+      # exposing on the network — set FILAMAMA_AUTH_USER / FILAMAMA_AUTH_PASSWORD instead.
       - FILAMAMA_ALLOW_INSECURE=true
     restart: unless-stopped
 

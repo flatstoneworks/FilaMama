@@ -13,8 +13,18 @@ Restart=always
 RestartSec=10
 
 # Security hardening
+# NOTE: ProtectHome is intentionally NOT set — root_path is under /home/flatstone, which
+# the service must read/write. ProtectSystem=full keeps /usr, /boot and /etc read-only.
 NoNewPrivileges=true
 PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
 
 [Install]
 WantedBy=multi-user.target
