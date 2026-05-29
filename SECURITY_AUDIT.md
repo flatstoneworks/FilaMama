@@ -1,6 +1,6 @@
 # FilaMama — Security Audit Report
 
-> **Status:** COMPLETE (ready for triage)
+> **Status:** COMPLETE — findings triaged; code fixes applied for 16/20 (see §5 Fix status)
 > **Auditor:** Claude — human-directed multi-agent audit (orchestrator + 48 sub-agents, adversarial verification)
 > **Date:** 2026-05-29
 > **Scope:** FilaMama file manager — FastAPI backend + React frontend + deployment artifacts.
@@ -272,3 +272,41 @@ only *external* entities are blocked) → confirms the EPUB DoS vector.
 5. **F5/F8/F9/F10** — offload all decode/parse to threads, set `MAX_IMAGE_PIXELS`, bound sizes, use `defusedxml`.
 6. **F7** — `symlinks=True` + bounds re-validation in copy/zip/search.
 7. Remaining lows (F11–F19) as hardening.
+
+---
+
+## 5. Fix status (applied on this branch)
+
+Code fixes were applied for the findings below and verified where possible (`backend/venv` is
+missing deps, so the full test suite could not run; F1/F7 were proven against the patched real code,
+F8's guard and the fixed ripgrep argv were proven by targeted tests; backend files pass `py_compile`).
+
+| ID | Status | What changed |
+|----|--------|--------------|
+| F1 | ✅ Fixed + verified | `content_search.py`: `cmd.extend(['-e', query, '--', str(search_path)])` — PoC no longer executes the injected `--pre`. |
+| F2 | ⚠️ Documented (no code) | Needs real actor authentication — architectural. No "security-theater" patch shipped. |
+| F3 | ✅ Fixed (deploy) | `Dockerfile`: non-root `USER`. `docker-compose.yml`: `127.0.0.1` bind, `BROWSE_PATH` now **required** (no silent `$HOME` mount). Dev `start.sh` exposure documented only. |
+| F4 | ✅ Fixed | `files.py preview_file`: active-content extensions served as `attachment` + `nosniff`; global security-headers middleware. |
+| F5 | ✅ Fixed | `thumbnails.py`: `Image.MAX_IMAGE_PIXELS=40MP`; image/SVG/GIF/EPUB decode moved to `asyncio.to_thread`. |
+| F6 | ⚠️ Subsumed by F2 | Exploitability is gated by the F2 approval bypass; no separate code change (avoids breaking the write_text feature). |
+| F7 | ✅ Fixed + verified | `filesystem.copy` `copytree(symlinks=True)` + `copy2(follow_symlinks=False)`; `download_zip` and python search-fallback skip out-of-bounds symlinks. |
+| F8 | ✅ Fixed + verified | `thumbnails.py`: reject `DOCTYPE`/`ENTITY` before XML parse; per-zip-entry size cap (25 MB). |
+| F9 | ✅ Fixed | `files.py /text`: `max_size` bounded `le=50MB`; read offloaded to a thread. |
+| F10 | ✅ Fixed | `files.py` audio metadata/cover/lyrics run via `asyncio.to_thread`. |
+| F11 | ✅ Fixed | systemd unit + template: `ProtectSystem=full`, kernel/namespace/SUID restrictions added. |
+| F12 | ⚠️ Documented (no code) | `/api/config` `root_path` is consumed by the frontend; gating it needs a product decision. |
+| F13 | ✅ Fixed | `main.py`: a `*` CORS origin now forces `allow_credentials=False` (+ warning). |
+| F14 | ✅ Fixed | `filesystem.py`: `_ensure_not_reserved` on `create_directory` / `rename` destinations. |
+| F15 | ⚠️ Documented (no code) | Trash manifest relocation under `.filamama` deferred (low; in-root only). |
+| F16 | ✅ Fixed | `upload.py`: max 1000 files/request, max path depth 50. |
+| F17 | ✅ Fixed | `schemas.py`: `max_length` on agent note/content/metadata fields. |
+| F18 | ✅ Fixed | launchd plist logs to the user-owned install dir, not world-readable `/tmp`. |
+| F19 | ✅ Fixed (path) | shared `encodePathForUrl` used in `FileContextMenu`. PDF.js CDN/SRI left as a documented follow-up. |
+| F20 | ✅ Fixed (headers) | `SecurityHeadersMiddleware` (nosniff / X-Frame-Options / Referrer-Policy). Global CSP deferred (SPA-compatibility risk). |
+
+**Not code-fixed (need a decision):** F2 (authentication model), F6 (rides on F2), F12 (config disclosure vs
+frontend dependency), F15 (trash manifest), plus partials: F3 dev launcher, F19 PDF.js self-hosting, F20 CSP.
+
+**Known duplication spotted:** `encodePathForUrl` is still defined locally in
+`useFileNavigation.ts`, `AgentInboxPage.tsx`, `PreviewPage.tsx` — they should be migrated to the new
+shared `@/lib/utils` export.
