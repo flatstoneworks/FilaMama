@@ -182,6 +182,16 @@ export function getFileName(path: string): string {
   return path.substring(lastSlash + 1)
 }
 
+/**
+ * Percent-encode each path segment for safe use in a /browse or /view URL while
+ * preserving the slash separators. Use this instead of interpolating a raw path.
+ * (Also defined locally in useFileNavigation/AgentInboxPage/PreviewPage — those
+ * copies should be migrated to this shared helper.)
+ */
+export function encodePathForUrl(path: string): string {
+  return path.split('/').map((segment) => encodeURIComponent(segment)).join('/')
+}
+
 export { isVideoFile, isImageFile, videoNeedsTranscoding, formatVideoTime } from '@flatstoneworks/media-components'
 
 export function formatUploadSpeed(bytesPerSecond: number): string {
