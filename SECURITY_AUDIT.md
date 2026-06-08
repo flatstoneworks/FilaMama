@@ -1,6 +1,6 @@
 # FilaMama — Security Audit Report
 
-> **Status:** COMPLETE — findings triaged; code fixes applied for 16/20 (see §5 Fix status)
+> **Status:** COMPLETE — findings triaged; code fixes applied for 17/20 incl. F2 (see §5 Fix status)
 > **Auditor:** Claude — human-directed multi-agent audit (orchestrator + 48 sub-agents, adversarial verification)
 > **Date:** 2026-05-29
 > **Scope:** FilaMama file manager — FastAPI backend + React frontend + deployment artifacts.
@@ -101,8 +101,15 @@ mutating file API (see finding). One verifier rated it High, another Low — fla
   this is Critical or just confirms "the API is fully trusted" depends on your deployment intent.
 - **Impact:** the documented human-approval control provides no security; full filesystem mutation
   within root for any API client.
-- **Fix:** authenticate actor identity (signed token / session), not headers; require real authz on
-  mutating endpoints; never derive a trust decision from a client-set header.
+- **Fix (applied):** actor *type* is now derived from a **server-side agent token**
+  (`FILAMAMA_AGENT_TOKEN`, comma-separated) presented via the `X-FilaMama-Agent-Token` header, not
+  from the (now-ignored) `X-FilaMama-Actor-Type` header — see `backend/app/utils/actor.py`. A holder
+  of a valid agent token is always typed `agent` and can never approve; a caller with no token is the
+  trusted human. With no token configured (single-user default) every caller is human. An
+  invalid token on an agent endpoint is rejected (401). Per product decision, agents are **not**
+  blocked from the direct mutating API (only impersonation is fixed). Verified across all branches.
+  _Behavior change:_ clients that self-labelled `X-FilaMama-Actor-Type: agent` without a token are now
+  recorded as `human` for attribution; configure a token to be typed `agent`.
 
 ### F3 — Insecure-by-default network exposure · 🟠 High
 - **Files:** [`docker-compose.yml:4-13`](docker-compose.yml:12), [`Dockerfile:18-55`](Dockerfile:55), [`start.sh:10,49`](start.sh:49), [`main.py:35,80,173-177`](backend/app/main.py:173), `config*.yaml` (`host: 0.0.0.0`)
@@ -284,11 +291,11 @@ F8's guard and the fixed ripgrep argv were proven by targeted tests; backend fil
 | ID | Status | What changed |
 |----|--------|--------------|
 | F1 | ✅ Fixed + verified | `content_search.py`: `cmd.extend(['-e', query, '--', str(search_path)])` — PoC no longer executes the injected `--pre`. |
-| F2 | ⚠️ Documented (no code) | Needs real actor authentication — architectural. No "security-theater" patch shipped. |
+| F2 | ✅ Fixed + verified | `utils/actor.py`: actor type derived from server-side `FILAMAMA_AGENT_TOKEN` (header `X-FilaMama-Agent-Token`), not the spoofable `X-FilaMama-Actor-Type`; agent router + audit helpers updated; approval gate now unspoofable. Agents still allowed direct mutation (per decision). |
 | F3 | ✅ Fixed (deploy) | `Dockerfile`: non-root `USER`. `docker-compose.yml`: `127.0.0.1` bind, `BROWSE_PATH` now **required** (no silent `$HOME` mount). Dev `start.sh` exposure documented only. |
 | F4 | ✅ Fixed | `files.py preview_file`: active-content extensions served as `attachment` + `nosniff`; global security-headers middleware. |
 | F5 | ✅ Fixed | `thumbnails.py`: `Image.MAX_IMAGE_PIXELS=40MP`; image/SVG/GIF/EPUB decode moved to `asyncio.to_thread`. |
-| F6 | ⚠️ Subsumed by F2 | Exploitability is gated by the F2 approval bypass; no separate code change (avoids breaking the write_text feature). |
+| F6 | ✅ Mitigated by F2 | The approval gate is now unspoofable, so an attacker can no longer self-approve a `write_text` proposal. An approved proposal can still overwrite existing files — intended `write_text` behavior, now gated by a real human. |
 | F7 | ✅ Fixed + verified | `filesystem.copy` `copytree(symlinks=True)` + `copy2(follow_symlinks=False)`; `download_zip` and python search-fallback skip out-of-bounds symlinks. |
 | F8 | ✅ Fixed + verified | `thumbnails.py`: reject `DOCTYPE`/`ENTITY` before XML parse; per-zip-entry size cap (25 MB). |
 | F9 | ✅ Fixed | `files.py /text`: `max_size` bounded `le=50MB`; read offloaded to a thread. |
@@ -304,8 +311,9 @@ F8's guard and the fixed ripgrep argv were proven by targeted tests; backend fil
 | F19 | ✅ Fixed (path) | shared `encodePathForUrl` used in `FileContextMenu`. PDF.js CDN/SRI left as a documented follow-up. |
 | F20 | ✅ Fixed (headers) | `SecurityHeadersMiddleware` (nosniff / X-Frame-Options / Referrer-Policy). Global CSP deferred (SPA-compatibility risk). |
 
-**Not code-fixed (need a decision):** F2 (authentication model), F6 (rides on F2), F12 (config disclosure vs
-frontend dependency), F15 (trash manifest), plus partials: F3 dev launcher, F19 PDF.js self-hosting, F20 CSP.
+**Not code-fixed (deferred / by decision):** F12 (config disclosure — `root_path` is consumed by the
+frontend), F15 (trash manifest relocation), plus partials: F3 dev `start.sh`, F19 PDF.js self-hosting,
+F20 global CSP. Agents are intentionally still allowed direct mutation (F2 product decision).
 
 **Known duplication spotted:** `encodePathForUrl` is still defined locally in
 `useFileNavigation.ts`, `AgentInboxPage.tsx`, `PreviewPage.tsx` — they should be migrated to the new
