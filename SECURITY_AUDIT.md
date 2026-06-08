@@ -101,15 +101,17 @@ mutating file API (see finding). One verifier rated it High, another Low — fla
   this is Critical or just confirms "the API is fully trusted" depends on your deployment intent.
 - **Impact:** the documented human-approval control provides no security; full filesystem mutation
   within root for any API client.
-- **Fix (applied):** actor *type* is now derived from a **server-side agent token**
-  (`FILAMAMA_AGENT_TOKEN`, comma-separated) presented via the `X-FilaMama-Agent-Token` header, not
-  from the (now-ignored) `X-FilaMama-Actor-Type` header — see `backend/app/utils/actor.py`. A holder
-  of a valid agent token is always typed `agent` and can never approve; a caller with no token is the
-  trusted human. With no token configured (single-user default) every caller is human. An
-  invalid token on an agent endpoint is rejected (401). Per product decision, agents are **not**
-  blocked from the direct mutating API (only impersonation is fixed). Verified across all branches.
-  _Behavior change:_ clients that self-labelled `X-FilaMama-Actor-Type: agent` without a token are now
-  recorded as `human` for attribution; configure a token to be typed `agent`.
+- **Fix (applied; hardened after PR review):** actor *type* is derived from **server-side tokens**,
+  never from a client header (`X-FilaMama-Actor-Type` is ignored). `FILAMAMA_AGENT_TOKEN` → `agent`,
+  `FILAMAMA_HUMAN_TOKEN` → `human` (headers `X-FilaMama-Agent-Token` / `X-FilaMama-Human-Token`; see
+  `backend/app/utils/actor.py`). **When any token is configured the boundary is active and a request
+  with no valid token is untrusted (cannot approve)** — omitting a token never confers human authority.
+  (An initial agent-token-only fix treated "no token" as trusted-human and was still bypassable by an
+  agent that simply omitted the header; this symmetric-token model closes that.) With no token configured
+  (single-user default) every caller is the trusted human. `_validate_approval_actor` requires the
+  authenticated human; agents/untrusted callers are rejected. Invalid tokens → 401. The UI attaches
+  `X-FilaMama-Human-Token` from `localStorage` so an operator can approve under token mode. Agents remain
+  allowed direct mutation (product decision). Verified across all branches.
 
 ### F3 — Insecure-by-default network exposure · 🟠 High
 - **Files:** [`docker-compose.yml:4-13`](docker-compose.yml:12), [`Dockerfile:18-55`](Dockerfile:55), [`start.sh:10,49`](start.sh:49), [`main.py:35,80,173-177`](backend/app/main.py:173), `config*.yaml` (`host: 0.0.0.0`)
@@ -291,13 +293,13 @@ F8's guard and the fixed ripgrep argv were proven by targeted tests; backend fil
 | ID | Status | What changed |
 |----|--------|--------------|
 | F1 | ✅ Fixed + verified | `content_search.py`: `cmd.extend(['-e', query, '--', str(search_path)])` — PoC no longer executes the injected `--pre`. |
-| F2 | ✅ Fixed + verified | `utils/actor.py`: actor type derived from server-side `FILAMAMA_AGENT_TOKEN` (header `X-FilaMama-Agent-Token`), not the spoofable `X-FilaMama-Actor-Type`; agent router + audit helpers updated; approval gate now unspoofable. Agents still allowed direct mutation (per decision). |
+| F2 | ✅ Fixed + verified (hardened post-review) | Symmetric server tokens (`FILAMAMA_AGENT_TOKEN`/`FILAMAMA_HUMAN_TOKEN`): actor type authoritative; **no valid token while the boundary is active = untrusted → cannot approve** (closes the omit-token bypass the reviewer found). UI sends the human token from `localStorage`. Agents still allowed direct mutation (per decision). |
 | F3 | ✅ Fixed (deploy) | `Dockerfile`: non-root `USER`. `docker-compose.yml`: `127.0.0.1` bind, `BROWSE_PATH` now **required** (no silent `$HOME` mount). Dev `start.sh` exposure documented only. |
 | F4 | ✅ Fixed | `files.py preview_file`: active-content extensions served as `attachment` + `nosniff`; global security-headers middleware. |
 | F5 | ✅ Fixed | `thumbnails.py`: `Image.MAX_IMAGE_PIXELS=40MP`; image/SVG/GIF/EPUB decode moved to `asyncio.to_thread`. |
 | F6 | ✅ Mitigated by F2 | The approval gate is now unspoofable, so an attacker can no longer self-approve a `write_text` proposal. An approved proposal can still overwrite existing files — intended `write_text` behavior, now gated by a real human. |
 | F7 | ✅ Fixed + verified | `filesystem.copy` `copytree(symlinks=True)` + `copy2(follow_symlinks=False)`; `download_zip` and python search-fallback skip out-of-bounds symlinks. |
-| F8 | ✅ Fixed + verified | `thumbnails.py`: reject `DOCTYPE`/`ENTITY` before XML parse; per-zip-entry size cap (25 MB). |
+| F8 | ✅ Fixed + verified (hardened post-review) | `thumbnails.py`: reject `DOCTYPE`/`ENTITY` scanning the **full** (size-capped) XML, not just the first 8 KB (whitespace-padding bypass the reviewer found) + 4 MB XML / 25 MB entry caps. |
 | F9 | ✅ Fixed | `files.py /text`: `max_size` bounded `le=50MB`; read offloaded to a thread. |
 | F10 | ✅ Fixed | `files.py` audio metadata/cover/lyrics run via `asyncio.to_thread`. |
 | F11 | ✅ Fixed | systemd unit + template: `ProtectSystem=full`, kernel/namespace/SUID restrictions added. |
@@ -306,7 +308,7 @@ F8's guard and the fixed ripgrep argv were proven by targeted tests; backend fil
 | F14 | ✅ Fixed | `filesystem.py`: `_ensure_not_reserved` on `create_directory` / `rename` destinations. |
 | F15 | ⚠️ Documented (no code) | Trash manifest relocation under `.filamama` deferred (low; in-root only). |
 | F16 | ✅ Fixed | `upload.py`: max 1000 files/request, max path depth 50. |
-| F17 | ✅ Fixed | `schemas.py`: `max_length` on agent note/content/metadata fields. |
+| F17 | ✅ Fixed (extended post-review) | `schemas.py`: `max_length` on note/content/task-description/proposal-summary/reject-reason + serialized-size caps on proposal `params` (1 MB) and artifact `metadata` (256 KB). |
 | F18 | ✅ Fixed | launchd plist logs to the user-owned install dir, not world-readable `/tmp`. |
 | F19 | ✅ Fixed (path) | shared `encodePathForUrl` used in `FileContextMenu`. PDF.js CDN/SRI left as a documented follow-up. |
 | F20 | ✅ Fixed (headers) | `SecurityHeadersMiddleware` (nosniff / X-Frame-Options / Referrer-Policy). Global CSP deferred (SPA-compatibility risk). |
