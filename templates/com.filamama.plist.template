@@ -38,10 +38,11 @@
     <key>KeepAlive</key>
     <true/>
 
+    <!-- Logs go to the user-owned install dir, not world-readable /tmp. -->
     <key>StandardOutPath</key>
-    <string>/tmp/filamama.out.log</string>
+    <string>__INSTALL_DIR__/filamama.out.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/tmp/filamama.err.log</string>
+    <string>__INSTALL_DIR__/filamama.err.log</string>
 </dict>
 </plist>

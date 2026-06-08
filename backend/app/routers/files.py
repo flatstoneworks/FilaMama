@@ -21,6 +21,7 @@ from ..services.audio import AudioMetadataService
 from ..services.content_search import ContentSearchService
 from ..services.transcoding import TranscodingService, BROWSER_VIDEO_CODECS, BROWSER_AUDIO_CODECS
 from ..services.agent import AgentService
+from ..utils.actor import build_actor
 from ..utils.error_handlers import handle_fs_errors
 
 router = APIRouter(prefix="/api/files", tags=["files"])
@@ -70,18 +71,12 @@ def init_services(
 
 
 def _actor_from_request(request: Request) -> Actor:
-    actor_type_value = request.headers.get("X-FilaMama-Actor-Type", "human")
-    try:
-        actor_type = ActorType(actor_type_value)
-    except ValueError:
-        actor_type = ActorType.HUMAN
-    return Actor(
-        id=request.headers.get("X-FilaMama-Actor-Id", "local-user"),
-        type=actor_type,
-        name=request.headers.get(
-            "X-FilaMama-Actor-Name",
-            "Local user" if actor_type == ActorType.HUMAN else "Agent",
-        ),
+    # Actor type is authoritative from the agent token, not a spoofable header.
+    return build_actor(
+        agent_token=request.headers.get("X-FilaMama-Agent-Token"),
+        human_token=request.headers.get("X-FilaMama-Human-Token"),
+        actor_id=request.headers.get("X-FilaMama-Actor-Id"),
+        actor_name=request.headers.get("X-FilaMama-Actor-Name"),
     )
 
 
@@ -288,6 +283,10 @@ async def download_zip(paths: List[str]):
                                     if file.startswith('.'):
                                         continue
                                     full_path = root / file
+                                    # Don't archive symlinks whose target escapes the
+                                    # root/mount bounds (out-of-root content exfiltration).
+                                    if full_path.is_symlink() and not _require_fs()._is_within_bounds(full_path.resolve()):
+                                        continue
                                     total_size += full_path.stat().st_size
                                     if total_size > MAX_ZIP_SIZE:
                                         raise HTTPException(status_code=413, detail="Zip would exceed 4GB size limit")
@@ -321,18 +320,38 @@ async def get_thumbnail(path: str, size: str = Query("thumb", pattern="^(thumb|l
     return StreamingResponse(io.BytesIO(thumb_bytes), media_type="image/jpeg")
 
 
+# Extensions a browser may execute as active content (script in HTML/SVG/XML). These are
+# served as downloads (never inline) to prevent stored XSS in the application origin.
+ACTIVE_CONTENT_EXTENSIONS = {
+    '.html', '.htm', '.xhtml', '.shtml', '.svg', '.svgz',
+    '.xml', '.xsl', '.xslt', '.mathml', '.mml',
+}
+
+
 @router.get("/preview")
 @handle_fs_errors
 async def preview_file(path: str):
     file_path = _require_fs().get_absolute_path(path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(file_path)
+    if file_path.is_dir():
+        raise HTTPException(status_code=400, detail="Cannot preview directory")
+    if file_path.suffix.lower() in ACTIVE_CONTENT_EXTENSIONS:
+        return FileResponse(
+            file_path,
+            filename=file_path.name,
+            content_disposition_type="attachment",
+            headers={"X-Content-Type-Options": "nosniff"},
+        )
+    return FileResponse(file_path, headers={"X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/text", response_model=TextFileContent)
 @handle_fs_errors
-async def get_text_content(path: str, max_size: int = Query(10 * 1024 * 1024)):
+async def get_text_content(
+    path: str,
+    max_size: int = Query(10 * 1024 * 1024, ge=1, le=50 * 1024 * 1024),
+):
     file_path = _require_fs().get_absolute_path(path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
@@ -342,7 +361,8 @@ async def get_text_content(path: str, max_size: int = Query(10 * 1024 * 1024)):
     if size > max_size:
         raise HTTPException(status_code=413, detail="File too large")
     try:
-        content = file_path.read_text(encoding='utf-8')
+        # Offload the blocking read so a large file can't stall the event loop.
+        content = await asyncio.to_thread(file_path.read_text, encoding='utf-8')
     except UnicodeDecodeError:
         raise HTTPException(status_code=400, detail="File is not valid UTF-8 text")
     return TextFileContent(content=content, size=size)
@@ -536,7 +556,7 @@ async def get_audio_metadata(path: str):
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
 
-    metadata = audio_service.get_metadata(file_path)
+    metadata = await asyncio.to_thread(audio_service.get_metadata, file_path)
     if metadata is None:
         raise HTTPException(status_code=400, detail="Could not extract audio metadata")
 
@@ -554,7 +574,7 @@ async def get_audio_cover(path: str):
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
 
-    cover = audio_service.get_cover_art(file_path)
+    cover = await asyncio.to_thread(audio_service.get_cover_art, file_path)
     if cover is None:
         raise HTTPException(status_code=404, detail="No cover art found")
 
@@ -573,7 +593,7 @@ async def get_audio_lyrics(path: str):
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
 
-    lyrics = audio_service.get_lyrics(file_path)
+    lyrics = await asyncio.to_thread(audio_service.get_lyrics, file_path)
     if lyrics is None:
         raise HTTPException(status_code=404, detail="No lyrics found")
 

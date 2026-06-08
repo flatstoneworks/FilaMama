@@ -17,8 +17,18 @@ Restart=always
 RestartSec=10
 
 # Security hardening
+# NOTE: ProtectHome is intentionally NOT set — __ROOT_PATH__ may live under the user's
+# home and must remain read/write. ProtectSystem=full keeps /usr, /boot and /etc read-only.
 NoNewPrivileges=true
 PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
 
 [Install]
 WantedBy=multi-user.target

@@ -741,10 +741,20 @@ async function createProposal(params: {
   )
 }
 
+// The proposal-approval gate is server-authenticated via a human token (backend
+// FILAMAMA_HUMAN_TOKEN). When the operator has stored one, attach it so the UI can
+// approve/reject under token-protected deployments. No token (single-user mode) → no
+// header → unchanged behavior.
+function humanAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('filamama_human_token')
+  return token ? { 'X-FilaMama-Human-Token': token } : {}
+}
+
 async function approveProposal(id: string): Promise<{ proposal: AgentProposal }> {
   return handleResponse(
     await fetch(`${API_BASE}/agent/proposals/${encodeURIComponent(id)}/approve`, {
       method: 'POST',
+      headers: { ...humanAuthHeaders() },
     })
   )
 }
@@ -753,7 +763,7 @@ async function rejectProposal(id: string, reason?: string): Promise<{ proposal: 
   return handleResponse(
     await fetch(`${API_BASE}/agent/proposals/${encodeURIComponent(id)}/reject`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...humanAuthHeaders() },
       body: JSON.stringify({ reason }),
     })
   )

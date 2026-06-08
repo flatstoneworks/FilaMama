@@ -10,10 +10,15 @@ logger = logging.getLogger(__name__)
 from ..services.filesystem import FilesystemService, RESERVED_AGENT_DIR
 from ..services.agent import AgentService
 from ..models.schemas import Actor, ActorType
+from ..utils.actor import build_actor
 from ..utils.error_handlers import handle_fs_errors
 from ..utils.paths import generate_unique_path
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
+
+# Per-request limits to bound disk/inode/directory-depth abuse.
+MAX_UPLOAD_FILES = 1000
+MAX_UPLOAD_PATH_DEPTH = 50
 
 fs_service: FilesystemService = None
 agent_service: AgentService = None
@@ -28,18 +33,12 @@ def init_services(filesystem: FilesystemService, max_size_mb: int = 10240, agent
 
 
 def _actor_from_request(request: Request) -> Actor:
-    actor_type_value = request.headers.get("X-FilaMama-Actor-Type", "human")
-    try:
-        actor_type = ActorType(actor_type_value)
-    except ValueError:
-        actor_type = ActorType.HUMAN
-    return Actor(
-        id=request.headers.get("X-FilaMama-Actor-Id", "local-user"),
-        type=actor_type,
-        name=request.headers.get(
-            "X-FilaMama-Actor-Name",
-            "Local user" if actor_type == ActorType.HUMAN else "Agent",
-        ),
+    # Actor type is authoritative from the agent token, not a spoofable header.
+    return build_actor(
+        agent_token=request.headers.get("X-FilaMama-Agent-Token"),
+        human_token=request.headers.get("X-FilaMama-Human-Token"),
+        actor_id=request.headers.get("X-FilaMama-Actor-Id"),
+        actor_name=request.headers.get("X-FilaMama-Actor-Name"),
     )
 
 
@@ -50,6 +49,9 @@ def _safe_relative_upload_path(relative_path: str) -> Path:
 
     if candidate.is_absolute() or not parts or any(part == ".." for part in parts):
         raise HTTPException(status_code=400, detail=f"Invalid relative path: {relative_path}")
+
+    if len(parts) > MAX_UPLOAD_PATH_DEPTH:
+        raise HTTPException(status_code=400, detail=f"Relative path too deep: {relative_path}")
 
     if RESERVED_AGENT_DIR in parts:
         raise HTTPException(
@@ -86,6 +88,11 @@ async def upload_files(
 ):
     if fs_service is None:
         raise HTTPException(status_code=503, detail="Upload service not initialized")
+    if len(files) > MAX_UPLOAD_FILES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Too many files in one request (max {MAX_UPLOAD_FILES})",
+        )
     logger.debug("Upload: path=%s, relative_paths=%s, files=%s", path, relative_paths, [f.filename for f in files])
     target_dir = fs_service.get_absolute_path(path)
 

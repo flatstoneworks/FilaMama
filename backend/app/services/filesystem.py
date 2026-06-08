@@ -243,6 +243,7 @@ class FilesystemService:
         new_dir = (parent_path / safe_name).resolve()
         if not self._is_within_bounds(new_dir):
             raise ValueError("Path traversal attempt detected")
+        self._ensure_not_reserved(new_dir)
         if new_dir.exists():
             raise FileExistsError(f"Directory already exists: {safe_name}")
         new_dir.mkdir(parents=True)
@@ -271,6 +272,7 @@ class FilesystemService:
         new_path = (file_path.parent / safe_name).resolve()
         if not self._is_within_bounds(new_path):
             raise ValueError("Path traversal attempt detected")
+        self._ensure_not_reserved(new_path)
         if new_path.exists():
             raise FileExistsError(f"File already exists: {safe_name}")
         file_path.rename(new_path)
@@ -295,9 +297,13 @@ class FilesystemService:
                 else:
                     dst_path = generate_unique_path(dst_path)
             if src_path.is_dir():
-                shutil.copytree(src_path, dst_path)
+                # symlinks=True recreates nested symlinks AS symlinks instead of
+                # dereferencing them. Otherwise an in-root symlink pointing outside
+                # root would have its target contents copied into root as real files
+                # (out-of-root data exfiltration, readable via /download).
+                shutil.copytree(src_path, dst_path, symlinks=True)
             else:
-                shutil.copy2(src_path, dst_path)
+                shutil.copy2(src_path, dst_path, follow_symlinks=False)
             return self._get_file_info(dst_path)
 
         return await asyncio.to_thread(_copy_sync)

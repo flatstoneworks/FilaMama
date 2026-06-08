@@ -111,7 +111,10 @@ class ContentSearchService:
         ]
         for glob in _RIPGREP_EXCLUDES:
             cmd.extend(['--glob', glob])
-        cmd.extend([query, str(search_path)])
+        # Pass the query as an explicit pattern (-e) and terminate option parsing (--)
+        # so a query beginning with '-' can never be interpreted as a ripgrep option
+        # (e.g. --pre=<cmd>, which would be arbitrary command execution).
+        cmd.extend(['-e', query, '--', str(search_path)])
 
         proc = await asyncio.create_subprocess_exec(
             *cmd,
@@ -254,6 +257,10 @@ class ContentSearchService:
             except PermissionError:
                 return
             for entry in entries:
+                # Never follow symlinks whose resolved target escapes the root/mount
+                # bounds — that would disclose out-of-root file contents.
+                if entry.is_symlink() and not self.fs._is_within_bounds(entry.resolve()):
+                    continue
                 if entry.is_dir():
                     if entry.name.startswith('.') or entry.name in EXCLUDED_DIRS:
                         continue

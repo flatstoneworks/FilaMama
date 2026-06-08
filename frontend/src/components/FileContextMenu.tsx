@@ -2,7 +2,7 @@ import { ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/com
 import { isPreviewable } from './FileIcon'
 import { Copy, Scissors, Trash2, Pencil, Eye, Download, FolderOpen, Star, StarOff, ArchiveRestore, ExternalLink } from 'lucide-react'
 import type { FileInfo } from '@/api/client'
-import { getSelectedOrSingle } from '@/lib/utils'
+import { getSelectedOrSingle, encodePathForUrl } from '@/lib/utils'
 
 interface FileContextMenuProps {
   file: FileInfo
@@ -80,7 +80,7 @@ export function FileContextMenu({
             <FolderOpen className="mr-2 h-4 w-4" />
             Open
           </ContextMenuItem>
-          <ContextMenuItem onClick={() => window.open(`/browse${file.path}`, '_blank')}>
+          <ContextMenuItem onClick={() => window.open(`/browse${encodePathForUrl(file.path)}`, '_blank')}>
             <ExternalLink className="mr-2 h-4 w-4" />
             Open in New Tab
           </ContextMenuItem>

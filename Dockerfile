@@ -44,6 +44,12 @@ COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 # Create data directory for thumbnails and transcoding cache
 RUN mkdir -p /data/thumbnails /data/transcoded
 
+# Run as a non-root user (defense-in-depth: limits the blast radius of any RCE).
+# NOTE: a bind-mounted /browse must be readable/writable by uid 10001 on the host.
+RUN useradd --system --uid 10001 --create-home filamama \
+    && chown -R filamama:filamama /app /data
+USER filamama
+
 # Environment defaults for Docker
 ENV FILAMAMA_CONFIG=/app/config.yaml
 ENV FILAMAMA_ROOT_PATH=/browse
