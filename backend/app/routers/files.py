@@ -21,6 +21,7 @@ from ..services.audio import AudioMetadataService
 from ..services.content_search import ContentSearchService
 from ..services.transcoding import TranscodingService, BROWSER_VIDEO_CODECS, BROWSER_AUDIO_CODECS
 from ..services.agent import AgentService
+from ..utils.actor import build_actor
 from ..utils.error_handlers import handle_fs_errors
 
 router = APIRouter(prefix="/api/files", tags=["files"])
@@ -70,18 +71,11 @@ def init_services(
 
 
 def _actor_from_request(request: Request) -> Actor:
-    actor_type_value = request.headers.get("X-FilaMama-Actor-Type", "human")
-    try:
-        actor_type = ActorType(actor_type_value)
-    except ValueError:
-        actor_type = ActorType.HUMAN
-    return Actor(
-        id=request.headers.get("X-FilaMama-Actor-Id", "local-user"),
-        type=actor_type,
-        name=request.headers.get(
-            "X-FilaMama-Actor-Name",
-            "Local user" if actor_type == ActorType.HUMAN else "Agent",
-        ),
+    # Actor type is authoritative from the agent token, not a spoofable header.
+    return build_actor(
+        agent_token=request.headers.get("X-FilaMama-Agent-Token"),
+        actor_id=request.headers.get("X-FilaMama-Actor-Id"),
+        actor_name=request.headers.get("X-FilaMama-Actor-Name"),
     )
 
 
