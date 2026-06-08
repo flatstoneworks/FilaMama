@@ -15,26 +15,29 @@ logger = logging.getLogger(__name__)
 # thumbnail generators catch it and return None.
 Image.MAX_IMAGE_PIXELS = 40_000_000  # 40 MP
 
-# Per-entry cap when reading inside untrusted EPUB (zip) files — anti zip-bomb.
-MAX_EPUB_ENTRY_BYTES = 25 * 1024 * 1024  # 25 MB
+# Per-entry caps when reading inside untrusted EPUB (zip) files — anti zip-bomb.
+MAX_EPUB_ENTRY_BYTES = 25 * 1024 * 1024  # 25 MB (cover images)
+MAX_EPUB_XML_BYTES = 4 * 1024 * 1024     # 4 MB (container.xml / OPF are tiny in practice)
 
 
 def _safe_xml_fromstring(data: bytes):
     """Parse XML while rejecting DTDs/entity declarations (defuses billion-laughs).
 
-    A legitimate EPUB container.xml / OPF has no DOCTYPE or <!ENTITY>; such markup in
-    the prolog is the signature of an XML entity-expansion bomb, so we refuse it.
+    A legitimate EPUB container.xml / OPF has no DOCTYPE or <!ENTITY>. We scan the ENTIRE
+    (size-capped) document, not a prefix — XML allows arbitrary whitespace before the
+    DOCTYPE, so scanning only the first N bytes is bypassable by padding. DTD keywords are
+    case-sensitive (uppercase) in XML, but we lowercase defensively.
     """
-    head = data[:8192].lower()
-    if b'<!doctype' in head or b'<!entity' in head:
+    lowered = data.lower()
+    if b'<!doctype' in lowered or b'<!entity' in lowered:
         raise ValueError("XML DTD/ENTITY rejected (possible XML bomb)")
     return ET.fromstring(data)
 
 
-def _safe_epub_read(zf: zipfile.ZipFile, name: str) -> bytes:
-    """Read a zip entry, refusing entries whose declared size exceeds the cap."""
+def _safe_epub_read(zf: zipfile.ZipFile, name: str, max_bytes: int = MAX_EPUB_ENTRY_BYTES) -> bytes:
+    """Read a zip entry, refusing entries whose declared size exceeds ``max_bytes``."""
     info = zf.getinfo(name)  # KeyError if absent (handled by callers)
-    if info.file_size > MAX_EPUB_ENTRY_BYTES:
+    if info.file_size > max_bytes:
         raise ValueError(f"EPUB entry too large: {name} ({info.file_size} bytes)")
     return zf.read(name)
 
@@ -216,14 +219,14 @@ class ThumbnailService:
 
                 # Method 1: Look in META-INF/container.xml for the OPF file
                 try:
-                    container = _safe_epub_read(epub, 'META-INF/container.xml')
+                    container = _safe_epub_read(epub, 'META-INF/container.xml', max_bytes=MAX_EPUB_XML_BYTES)
                     root = _safe_xml_fromstring(container)
                     ns = {'cont': 'urn:oasis:names:tc:opendocument:xmlns:container'}
                     rootfile = root.find('.//cont:rootfile', ns)
                     if rootfile is not None:
                         opf_path = rootfile.get('full-path', '')
                         opf_dir = '/'.join(opf_path.split('/')[:-1])
-                        opf_content = _safe_epub_read(epub, opf_path)
+                        opf_content = _safe_epub_read(epub, opf_path, max_bytes=MAX_EPUB_XML_BYTES)
                         opf_root = _safe_xml_fromstring(opf_content)
 
                         # Find cover in metadata

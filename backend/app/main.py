@@ -19,7 +19,7 @@ from .services.content_search import ContentSearchService
 from .services.transcoding import TranscodingService
 from .services.trash import TrashService
 from .services.agent import AgentService
-from .utils.actor import agent_tokens_configured
+from .utils.actor import tokens_configured
 
 import logging
 import os
@@ -158,9 +158,9 @@ async def lifespan(app: FastAPI):
     logger.info("Root path: %s", config['root_path'])
     logger.info("Server: http://%s:%s", config['server']['host'], config['server']['port'])
     logger.info(
-        "Agent-token auth: %s",
-        "enabled" if agent_tokens_configured()
-        else "disabled (no FILAMAMA_AGENT_TOKEN; all callers treated as the trusted human)",
+        "Actor-token auth: %s",
+        "enabled (agent/human boundary active)" if tokens_configured()
+        else "disabled (no FILAMAMA_AGENT_TOKEN/FILAMAMA_HUMAN_TOKEN; all callers treated as the trusted human)",
     )
     files.init_services(
         fs_service, thumb_service, audio_service, transcode_service, content_search_service, agent_service

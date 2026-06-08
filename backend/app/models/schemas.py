@@ -1,7 +1,19 @@
-from pydantic import BaseModel, Field
+import json
+
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Any
 from enum import Enum
 from datetime import datetime
+
+# Caps for free-form JSON blobs that get persisted (SQLite) — bound disk/DB growth.
+MAX_JSON_PARAMS_BYTES = 1 * 1024 * 1024   # 1 MB (proposal params may carry write_text content)
+MAX_JSON_METADATA_BYTES = 256 * 1024      # 256 KB (artifact metadata)
+
+
+def _ensure_json_size(value: dict, limit: int) -> dict:
+    if value and len(json.dumps(value, default=str).encode("utf-8")) > limit:
+        raise ValueError(f"JSON payload exceeds {limit} bytes")
+    return value
 
 
 class FileType(str, Enum):
@@ -161,6 +173,11 @@ class ArtifactMetadataInput(BaseModel):
     task_id: Optional[str] = Field(default=None, max_length=200)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("metadata")
+    @classmethod
+    def _bound_metadata(cls, v: dict) -> dict:
+        return _ensure_json_size(v, MAX_JSON_METADATA_BYTES)
+
 
 class AgentTextArtifactRequest(BaseModel):
     path: str = Field(min_length=1)
@@ -184,13 +201,13 @@ class TaskStatus(str, Enum):
 class TaskCreateRequest(BaseModel):
     path: str = Field(min_length=1)
     title: str = Field(min_length=1, max_length=500)
-    description: Optional[str] = None
+    description: Optional[str] = Field(default=None, max_length=10_000)
     status: TaskStatus = TaskStatus.OPEN
 
 
 class TaskPatchRequest(BaseModel):
     title: Optional[str] = Field(default=None, min_length=1, max_length=500)
-    description: Optional[str] = None
+    description: Optional[str] = Field(default=None, max_length=10_000)
     status: Optional[TaskStatus] = None
     path: Optional[str] = None
 
@@ -219,8 +236,13 @@ class ProposalCreateRequest(BaseModel):
     operation: ProposalOperation
     paths: List[str] = Field(min_length=1, max_length=1000)
     params: dict[str, Any] = Field(default_factory=dict)
-    summary: Optional[str] = None
+    summary: Optional[str] = Field(default=None, max_length=2000)
+
+    @field_validator("params")
+    @classmethod
+    def _bound_params(cls, v: dict) -> dict:
+        return _ensure_json_size(v, MAX_JSON_PARAMS_BYTES)
 
 
 class ProposalRejectRequest(BaseModel):
-    reason: Optional[str] = None
+    reason: Optional[str] = Field(default=None, max_length=2000)

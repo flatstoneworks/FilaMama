@@ -74,6 +74,7 @@ def _actor_from_request(request: Request) -> Actor:
     # Actor type is authoritative from the agent token, not a spoofable header.
     return build_actor(
         agent_token=request.headers.get("X-FilaMama-Agent-Token"),
+        human_token=request.headers.get("X-FilaMama-Human-Token"),
         actor_id=request.headers.get("X-FilaMama-Actor-Id"),
         actor_name=request.headers.get("X-FilaMama-Actor-Name"),
     )

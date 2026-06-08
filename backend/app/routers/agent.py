@@ -20,7 +20,7 @@ from ..models.schemas import (
     TaskPatchRequest,
 )
 from ..services.agent import AgentService
-from ..utils.actor import build_actor, is_valid_agent_token
+from ..utils.actor import build_actor, is_valid_agent_token, is_valid_human_token
 from ..utils.error_handlers import handle_fs_errors
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
@@ -44,15 +44,19 @@ def _require_agent() -> AgentService:
 def get_actor(
     x_filamama_actor_id: Optional[str] = Header(default=None),
     x_filamama_agent_token: Optional[str] = Header(default=None),
+    x_filamama_human_token: Optional[str] = Header(default=None),
     x_filamama_actor_name: Optional[str] = Header(default=None),
 ) -> Actor:
-    # The actor TYPE is derived from a server-side agent token, never from a client header
-    # (a spoofable type would defeat the human-only proposal-approval gate). A presented
-    # but invalid token is rejected rather than silently downgraded to "human".
+    # The actor TYPE is derived from server-side tokens, never from a client header — a
+    # spoofable type (or the mere absence of a token) would defeat the human-only approval
+    # gate. Presented-but-invalid tokens are rejected rather than silently downgraded.
     if x_filamama_agent_token and not is_valid_agent_token(x_filamama_agent_token):
         raise HTTPException(status_code=401, detail="Invalid agent token")
+    if x_filamama_human_token and not is_valid_human_token(x_filamama_human_token):
+        raise HTTPException(status_code=401, detail="Invalid human token")
     return build_actor(
         agent_token=x_filamama_agent_token,
+        human_token=x_filamama_human_token,
         actor_id=x_filamama_actor_id,
         actor_name=x_filamama_actor_name,
     )
@@ -123,13 +127,14 @@ async def upload_artifact(
     metadata_json: Optional[str] = Form(None),
     x_filamama_actor_id: Optional[str] = Header(default=None),
     x_filamama_agent_token: Optional[str] = Header(default=None),
+    x_filamama_human_token: Optional[str] = Header(default=None),
     x_filamama_actor_name: Optional[str] = Header(default=None),
 ):
     metadata = _metadata_from_form(
         title, description, source_type, source_url, provider, model,
         prompt_summary, labels_json, task_id, metadata_json,
     )
-    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_actor_name)
+    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_human_token, x_filamama_actor_name)
     svc = _require_agent()
 
     temp_path = None
@@ -160,9 +165,10 @@ async def create_text_artifact(
     request: AgentTextArtifactRequest,
     x_filamama_actor_id: Optional[str] = Header(default=None),
     x_filamama_agent_token: Optional[str] = Header(default=None),
+    x_filamama_human_token: Optional[str] = Header(default=None),
     x_filamama_actor_name: Optional[str] = Header(default=None),
 ):
-    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_actor_name)
+    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_human_token, x_filamama_actor_name)
     artifact = await _require_agent().create_text_artifact(
         request.path, request.content, request.metadata, actor
     )
@@ -175,9 +181,10 @@ async def create_folder(
     request: AgentFolderRequest,
     x_filamama_actor_id: Optional[str] = Header(default=None),
     x_filamama_agent_token: Optional[str] = Header(default=None),
+    x_filamama_human_token: Optional[str] = Header(default=None),
     x_filamama_actor_name: Optional[str] = Header(default=None),
 ):
-    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_actor_name)
+    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_human_token, x_filamama_actor_name)
     artifact = await _require_agent().create_folder(request.path, request.metadata, actor)
     return {"artifact": artifact}
 
@@ -195,9 +202,10 @@ async def update_artifact(
     metadata: ArtifactMetadataInput,
     x_filamama_actor_id: Optional[str] = Header(default=None),
     x_filamama_agent_token: Optional[str] = Header(default=None),
+    x_filamama_human_token: Optional[str] = Header(default=None),
     x_filamama_actor_name: Optional[str] = Header(default=None),
 ):
-    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_actor_name)
+    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_human_token, x_filamama_actor_name)
     return {"artifact": await _require_agent().update_artifact(path, metadata, actor)}
 
 
@@ -232,9 +240,10 @@ async def create_task(
     request: TaskCreateRequest,
     x_filamama_actor_id: Optional[str] = Header(default=None),
     x_filamama_agent_token: Optional[str] = Header(default=None),
+    x_filamama_human_token: Optional[str] = Header(default=None),
     x_filamama_actor_name: Optional[str] = Header(default=None),
 ):
-    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_actor_name)
+    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_human_token, x_filamama_actor_name)
     task = await _require_agent().create_task(
         request.path, request.title, request.description, request.status.value, actor
     )
@@ -248,9 +257,10 @@ async def update_task(
     request: TaskPatchRequest,
     x_filamama_actor_id: Optional[str] = Header(default=None),
     x_filamama_agent_token: Optional[str] = Header(default=None),
+    x_filamama_human_token: Optional[str] = Header(default=None),
     x_filamama_actor_name: Optional[str] = Header(default=None),
 ):
-    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_actor_name)
+    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_human_token, x_filamama_actor_name)
     task = await _require_agent().update_task(
         task_id, request.model_dump(exclude_unset=True), actor
     )
@@ -269,9 +279,10 @@ async def create_note(
     request: NoteCreateRequest,
     x_filamama_actor_id: Optional[str] = Header(default=None),
     x_filamama_agent_token: Optional[str] = Header(default=None),
+    x_filamama_human_token: Optional[str] = Header(default=None),
     x_filamama_actor_name: Optional[str] = Header(default=None),
 ):
-    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_actor_name)
+    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_human_token, x_filamama_actor_name)
     return {"note": await _require_agent().create_note(request.path, request.body, actor)}
 
 
@@ -281,9 +292,10 @@ async def delete_note(
     note_id: str,
     x_filamama_actor_id: Optional[str] = Header(default=None),
     x_filamama_agent_token: Optional[str] = Header(default=None),
+    x_filamama_human_token: Optional[str] = Header(default=None),
     x_filamama_actor_name: Optional[str] = Header(default=None),
 ):
-    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_actor_name)
+    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_human_token, x_filamama_actor_name)
     return {"note": await _require_agent().delete_note(note_id, actor)}
 
 
@@ -299,9 +311,10 @@ async def create_lease(
     request: LeaseCreateRequest,
     x_filamama_actor_id: Optional[str] = Header(default=None),
     x_filamama_agent_token: Optional[str] = Header(default=None),
+    x_filamama_human_token: Optional[str] = Header(default=None),
     x_filamama_actor_name: Optional[str] = Header(default=None),
 ):
-    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_actor_name)
+    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_human_token, x_filamama_actor_name)
     return {"lease": await _require_agent().create_lease(request.path, request.purpose, request.expires_at, actor)}
 
 
@@ -311,9 +324,10 @@ async def delete_lease(
     lease_id: str,
     x_filamama_actor_id: Optional[str] = Header(default=None),
     x_filamama_agent_token: Optional[str] = Header(default=None),
+    x_filamama_human_token: Optional[str] = Header(default=None),
     x_filamama_actor_name: Optional[str] = Header(default=None),
 ):
-    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_actor_name)
+    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_human_token, x_filamama_actor_name)
     return {"lease": await _require_agent().delete_lease(lease_id, actor)}
 
 
@@ -329,9 +343,10 @@ async def create_proposal(
     request: ProposalCreateRequest,
     x_filamama_actor_id: Optional[str] = Header(default=None),
     x_filamama_agent_token: Optional[str] = Header(default=None),
+    x_filamama_human_token: Optional[str] = Header(default=None),
     x_filamama_actor_name: Optional[str] = Header(default=None),
 ):
-    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_actor_name)
+    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_human_token, x_filamama_actor_name)
     proposal = await _require_agent().create_proposal(
         request.operation.value, request.paths, request.params, request.summary, actor
     )
@@ -344,9 +359,10 @@ async def approve_proposal(
     proposal_id: str,
     x_filamama_actor_id: Optional[str] = Header(default=None),
     x_filamama_agent_token: Optional[str] = Header(default=None),
+    x_filamama_human_token: Optional[str] = Header(default=None),
     x_filamama_actor_name: Optional[str] = Header(default=None),
 ):
-    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_actor_name)
+    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_human_token, x_filamama_actor_name)
     return {"proposal": await _require_agent().approve_proposal(proposal_id, actor)}
 
 
@@ -357,7 +373,8 @@ async def reject_proposal(
     request: ProposalRejectRequest,
     x_filamama_actor_id: Optional[str] = Header(default=None),
     x_filamama_agent_token: Optional[str] = Header(default=None),
+    x_filamama_human_token: Optional[str] = Header(default=None),
     x_filamama_actor_name: Optional[str] = Header(default=None),
 ):
-    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_actor_name)
+    actor = get_actor(x_filamama_actor_id, x_filamama_agent_token, x_filamama_human_token, x_filamama_actor_name)
     return {"proposal": await _require_agent().reject_proposal(proposal_id, request.reason, actor)}
